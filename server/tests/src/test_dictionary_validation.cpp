@@ -10,6 +10,8 @@ TEST_CASE(DictionaryFullPinyinValidationRejectsAbbreviatedSyllables)
 
     REQUIRE(SettingsDictionary::Validation::NormalizeFullPinyin("nihao", segments, normalized));
     REQUIRE_EQ(normalized, std::string("ni'hao"));
+    REQUIRE(SettingsDictionary::Validation::NormalizeFullPinyin("ni hao", segments, normalized));
+    REQUIRE_EQ(normalized, std::string("ni'hao"));
     REQUIRE(SettingsDictionary::Validation::NormalizeFullPinyin("xi'an", segments, normalized));
     REQUIRE_EQ(normalized, std::string("xi'an"));
     REQUIRE(!SettingsDictionary::Validation::NormalizeFullPinyin("nh", segments, normalized));
@@ -41,7 +43,54 @@ TEST_CASE(CodedDictionaryImportRequiresTabsAndPreservesSpacesInWords)
     REQUIRE_EQ(weight, 123);
 
     REQUIRE(!SettingsDictionary::Validation::ParseCodedImportLine("普通词 putongci 10", word, code, weight, message));
-    REQUIRE(!SettingsDictionary::Validation::ParseCodedImportLine("普通词\tputongci", word, code, weight, message));
     REQUIRE(!SettingsDictionary::Validation::ParseCodedImportLine("普通词\tputongci\t10\textra", word, code, weight,
                                                                   message));
+}
+
+TEST_CASE(CodedDictionaryImportAcceptsOptionalWeightAndRimeUserdb)
+{
+    std::string word;
+    std::string code;
+    std::string message;
+    int weight = -1;
+
+    REQUIRE(SettingsDictionary::Validation::ParseCodedImportLine("普通词\tputongci", word, code, weight, message));
+    REQUIRE_EQ(word, std::string("普通词"));
+    REQUIRE_EQ(code, std::string("putongci"));
+    REQUIRE_EQ(weight, SettingsDictionary::Validation::kDefaultCodedImportWeight);
+
+    REQUIRE(SettingsDictionary::Validation::ParseCodedImportLine("你好\tni hao\tc=3 d=0.12 t=12345", word, code, weight,
+                                                                 message));
+    REQUIRE_EQ(word, std::string("你好"));
+    REQUIRE_EQ(code, std::string("ni hao"));
+    REQUIRE_EQ(weight, SettingsDictionary::Validation::kDefaultCodedImportWeight);
+
+    REQUIRE(SettingsDictionary::Validation::ParseCodedImportLine("西安\txi an\tc=1", word, code, weight, message));
+    REQUIRE_EQ(word, std::string("西安"));
+    REQUIRE_EQ(code, std::string("xi an"));
+    REQUIRE_EQ(weight, SettingsDictionary::Validation::kDefaultCodedImportWeight);
+
+    REQUIRE(!SettingsDictionary::Validation::ParseCodedImportLine("普通词\tputongci\tabc", word, code, weight, message));
+}
+
+TEST_CASE(ImportLineSkipWalksYamlFrontMatterAndComments)
+{
+    bool in_yaml_header = false;
+    REQUIRE(SettingsDictionary::Validation::ShouldSkipImportLine("", in_yaml_header));
+    REQUIRE(!in_yaml_header);
+    REQUIRE(SettingsDictionary::Validation::ShouldSkipImportLine("   ", in_yaml_header));
+    REQUIRE(SettingsDictionary::Validation::ShouldSkipImportLine("# Rime user dictionary", in_yaml_header));
+    REQUIRE(SettingsDictionary::Validation::ShouldSkipImportLine("#@/db_name\tluna_pinyin", in_yaml_header));
+    REQUIRE(!SettingsDictionary::Validation::ShouldSkipImportLine("你好\tni hao\t1", in_yaml_header));
+
+    REQUIRE(SettingsDictionary::Validation::ShouldSkipImportLine("---", in_yaml_header));
+    REQUIRE(in_yaml_header);
+    REQUIRE(SettingsDictionary::Validation::ShouldSkipImportLine("name: luna_pinyin", in_yaml_header));
+    REQUIRE(SettingsDictionary::Validation::ShouldSkipImportLine("sort: by_weight", in_yaml_header));
+    REQUIRE(SettingsDictionary::Validation::ShouldSkipImportLine("  ---", in_yaml_header));
+    REQUIRE(in_yaml_header);
+    REQUIRE(SettingsDictionary::Validation::ShouldSkipImportLine("...", in_yaml_header));
+    REQUIRE(!in_yaml_header);
+    REQUIRE(!SettingsDictionary::Validation::ShouldSkipImportLine("你好\tni hao", in_yaml_header));
+    REQUIRE(SettingsDictionary::Validation::ShouldSkipImportLine("  # comment after body", in_yaml_header));
 }
