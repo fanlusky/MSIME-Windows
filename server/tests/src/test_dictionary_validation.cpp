@@ -70,7 +70,8 @@ TEST_CASE(CodedDictionaryImportAcceptsOptionalWeightAndRimeUserdb)
     REQUIRE_EQ(code, std::string("xi an"));
     REQUIRE_EQ(weight, SettingsDictionary::Validation::kDefaultCodedImportWeight);
 
-    REQUIRE(!SettingsDictionary::Validation::ParseCodedImportLine("普通词\tputongci\tabc", word, code, weight, message));
+    REQUIRE(
+        !SettingsDictionary::Validation::ParseCodedImportLine("普通词\tputongci\tabc", word, code, weight, message));
 }
 
 TEST_CASE(ImportLineSkipWalksYamlFrontMatterAndComments)
