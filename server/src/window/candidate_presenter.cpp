@@ -303,10 +303,16 @@ void CandidatePresenter::ApplySkin()
         return;
     }
     const std::string skinId = GetConfiguredCandidateSkin();
+    // Resolve the effective light/dark mode before the cache check: with
+    // theme_cand = "follow" the raw setting is unchanged when theme_mode or
+    // the Windows theme flips, but the resolved colors are what we render
+    // with, so the resolved mode must participate in the fingerprint.
+    const bool candLight = ResolveConfiguredTheme(GetConfiguredThemeCand()) == "light";
     std::ostringstream fingerprint;
-    fingerprint << skinId << '|' << GetConfiguredThemeCand() << '|' << GetConfiguredCandidateFont() << '|'
-                << GetConfiguredCandidateFontSize() << '|' << GetConfiguredCandidateWindowPreeditFontSize() << '|'
-                << GetConfiguredCandidateWindowLayout() << '|' << GetConfiguredCandidateTextColor();
+    fingerprint << skinId << '|' << GetConfiguredThemeCand() << '|' << (candLight ? 'L' : 'D') << '|'
+                << GetConfiguredCandidateFont() << '|' << GetConfiguredCandidateFontSize() << '|'
+                << GetConfiguredCandidateWindowPreeditFontSize() << '|' << GetConfiguredCandidateWindowLayout() << '|'
+                << GetConfiguredCandidateTextColor();
     fingerprint << '|' << GetConfiguredCandidateEnglishFont();
     for (const auto &font : GetConfiguredCandidateFallbackFonts())
         fingerprint << '|' << font.size() << ':' << font;
@@ -316,8 +322,6 @@ void CandidatePresenter::ApplySkin()
         return;
     }
     lastSkinFingerprint_ = skinKey;
-
-    const bool candLight = ResolveConfiguredTheme(GetConfiguredThemeCand()) == "light";
     CandSkinTokens tokens;
     if (candLight)
     {
