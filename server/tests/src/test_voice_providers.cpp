@@ -1,4 +1,6 @@
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include "voice-input/voice_providers.h"
 #include "tests/includes/test_framework.h"
 

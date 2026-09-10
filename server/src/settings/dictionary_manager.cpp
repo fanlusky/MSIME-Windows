@@ -59,8 +59,8 @@ void NotifyImeServerClearDictCache()
 {
     if (const HWND hwnd = FindWindowW(L"metasequoiaime_windows", L"metaseuqoiaimecandwnd"))
         PostMessageW(hwnd, WM_CLS_DICT_CACHE, 0, 0);
-    else if (const HWND hwnd = FindWindowW(L"metasequoiaime_windows", nullptr))
-        PostMessageW(hwnd, WM_CLS_DICT_CACHE, 0, 0);
+    else if (const HWND anyClassHwnd = FindWindowW(L"metasequoiaime_windows", nullptr))
+        PostMessageW(anyClassHwnd, WM_CLS_DICT_CACHE, 0, 0);
 }
 
 std::filesystem::path SettingsExecutableDirectory()

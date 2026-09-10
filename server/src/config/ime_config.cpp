@@ -947,8 +947,9 @@ bool LoadImeConfig()
             tbl["input"]["smart_punctuation_repeat_to_chinese"].value_or(true);
         g_paired_punctuation_enabled = tbl["input"]["paired_punctuation"].value_or(true);
         {
-            const std::string lock = tbl["input"]["punctuation_lock"].value_or(std::string("follow"));
-            g_punctuation_lock = lock == "chinese" || lock == "english" ? lock : "follow";
+            const std::string punctuation_lock = tbl["input"]["punctuation_lock"].value_or(std::string("follow"));
+            g_punctuation_lock =
+                punctuation_lock == "chinese" || punctuation_lock == "english" ? punctuation_lock : "follow";
         }
         {
             // Prefer explicit bool keys; fall back to legacy switch_language array.

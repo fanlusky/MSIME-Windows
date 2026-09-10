@@ -1,4 +1,6 @@
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include "cloud/translation_gloss.h"
 #include "tests/includes/test_framework.h"
 #include "voice-input/voice_providers.h"

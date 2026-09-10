@@ -45,8 +45,12 @@
 
 // WebView diagnostics were useful while fixing the rendering issues, but they
 // overwhelm the input-latency trace. Keep these call sites compiled out.
+// The disabled macro still has to *mention* its arguments, otherwise every HRESULT and parameter
+// that exists only to be logged looks unreferenced (C4189/C4100). sizeof keeps them in an
+// unevaluated context, so nothing is computed and no side effect runs — only the name is used.
+template <typename... Args> int DiscardDiagLogArgs(const Args &...);
 #undef DIAG_LOGF
-#define DIAG_LOGF(...) ((void)0)
+#define DIAG_LOGF(...) ((void)sizeof(DiscardDiagLogArgs(__VA_ARGS__)))
 #define CAND_WEBVIEW_TRACE_LOGF(...)                                                                                   \
     do                                                                                                                 \
     {                                                                                                                  \
@@ -425,9 +429,10 @@ HWND smallWindowTopmostTimerHost = nullptr;
 // reordering the steps cannot silently leave the gate open or strand a timer.
 UINT smallWindowTopmostStepsPending = 0;
 
-void WebviewDebugLog(const std::wstring &message)
+// Retained as a no-op sink so the call sites stay in place; the parameter is named only in the
+// comment because nothing consumes it while webview logging is compiled out.
+void WebviewDebugLog(const std::wstring & /*message*/)
 {
-    (void)0;
 }
 
 void ScheduleSmallWindowWebviewRetry(DWORD delay_ms);
@@ -475,7 +480,9 @@ void ScheduleSmallWindowRetryWithBackoff()
     ScheduleSmallWindowWebviewRetry(delay_ms);
 }
 
-void OnSmallWindowWebviewInitFailed(HRESULT hr)
+// The HRESULT is part of the callback contract but the retry path is the same for every failure
+// code, so it is only reported by the caller's own logging.
+void OnSmallWindowWebviewInitFailed(HRESULT /*hr*/)
 {
     smallWindowInitState = SmallWindowInitState::Failed;
     smallWindowWebviewEnvironment.Reset();
@@ -714,9 +721,9 @@ void ResetSmallWindowTopmostGate()
     (void)0;
 }
 
-void LogSmallWindowReadyGateUnlocked(const wchar_t *context)
+// Same as WebviewDebugLog: a no-op sink kept for its call sites while the gate logging is off.
+void LogSmallWindowReadyGateUnlocked(const wchar_t * /*context*/)
 {
-    (void)0;
 }
 
 void PinHostTopmost(HWND hwnd)
@@ -909,15 +916,14 @@ void TryApplyPendingLazyTopmost(const wchar_t *reason)
     ApplySmallWindowTopmostStep(SmallWindowTopmostStep::TrayMenu);
 }
 
-void NotifySmallWindowNavigationReady(bool &readyFlag, const wchar_t *which)
+// `which` names the window for diagnostics only; the gate logic is identical for every caller.
+void NotifySmallWindowNavigationReady(bool &readyFlag, const wchar_t * /*which*/)
 {
     if (readyFlag)
     {
-        (void)0;
         return;
     }
     readyFlag = true;
-    (void)0;
     LogSmallWindowReadyGateUnlocked(L"after-nav-ready");
     TryApplyPendingLazyTopmost(L"pending-after-nav-ready");
     MaybeFlushPendingTrayMenuShow();
@@ -1329,8 +1335,7 @@ void UpdateSmallWindowWebviewVisibility(HWND hwnd, bool visible)
 
     if (controller)
     {
-        const HRESULT hr = controller->put_IsVisible(visible ? TRUE : FALSE);
-        (void)0;
+        controller->put_IsVisible(visible ? TRUE : FALSE);
     }
     else
     {
@@ -2788,15 +2793,15 @@ HRESULT OnControllerCreatedCandWnd(     //
         );
 
         // Assets mapping
-        const HRESULT mappingHr = webview3CandWnd->SetVirtualHostNameToFolderMapping( //
-            L"candwnd",                                                               //
-            assetPath.c_str(),                                                        //
-            COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_DENY_CORS                          //
-        );                                                                            //
-        const std::wstring skinsPath = fmt::format(                                   //
-            L"{}\\{}\\skins",                                                         //
-            CommonUtils::get_local_appdata_path_w(),                                  //
-            GlobalIme::AppName                                                        //
+        webview3CandWnd->SetVirtualHostNameToFolderMapping(  //
+            L"candwnd",                                      //
+            assetPath.c_str(),                               //
+            COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_DENY_CORS //
+        );                                                   //
+        const std::wstring skinsPath = fmt::format(          //
+            L"{}\\{}\\skins",                                //
+            CommonUtils::get_local_appdata_path_w(),         //
+            GlobalIme::AppName                               //
         );
         const HRESULT skinsMappingHr = webview3CandWnd->SetVirtualHostNameToFolderMapping(
             L"candidate-skins", skinsPath.c_str(), COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
@@ -2814,8 +2819,6 @@ HRESULT OnControllerCreatedCandWnd(     //
     // Adjust to window size — keep the same DIP-based measure reserve used by
     // FineTune so the first layout is not constrained by a narrow HWND.
     PrepareCandidateWebViewBoundsForMeasure(hwnd);
-    const HRESULT boundsHr = S_OK;
-    (void)0;
 
     // Navigate to HTML
     if (HTMLStringCandWnd.empty())
@@ -2840,7 +2843,7 @@ HRESULT OnControllerCreatedCandWnd(     //
 
     webviewCandWnd->add_WebMessageReceived(
         Microsoft::WRL::Callback<ICoreWebView2WebMessageReceivedEventHandler>(
-            [hwnd](ICoreWebView2 *sender, ICoreWebView2WebMessageReceivedEventArgs *args) -> HRESULT {
+            [hwnd](ICoreWebView2 * /*sender*/, ICoreWebView2WebMessageReceivedEventArgs *args) -> HRESULT {
                 wil::unique_cotaskmem_string message;
                 HRESULT hr = args->TryGetWebMessageAsString(&message);
 
@@ -3024,11 +3027,9 @@ HRESULT OnControllerCreatedCandWnd(     //
                             }
                         }
                     }
-                    catch (const std::exception &e)
+                    catch (const std::exception &)
                     {
-#ifdef FANY_DEBUG
-                        (void)0;
-#endif
+                        // A malformed message from the page must not tear down the host.
                         return S_OK;
                     }
                 }
@@ -3274,7 +3275,7 @@ HRESULT OnControllerCreatedMenuWnd(     //
 
     webviewMenuWnd->add_WebMessageReceived(
         Microsoft::WRL::Callback<ICoreWebView2WebMessageReceivedEventHandler>(
-            [hwnd](ICoreWebView2 *sender, ICoreWebView2WebMessageReceivedEventArgs *args) -> HRESULT {
+            [hwnd](ICoreWebView2 * /*sender*/, ICoreWebView2WebMessageReceivedEventArgs *args) -> HRESULT {
                 wil::unique_cotaskmem_string message;
                 HRESULT hr = args->TryGetWebMessageAsString(&message);
 
@@ -3541,7 +3542,7 @@ HRESULT OnControllerCreatedSettingsWnd(            //
     EventRegistrationToken navCompletedToken;
     webviewSettingsWnd->add_NavigationCompleted(
         Microsoft::WRL::Callback<ICoreWebView2NavigationCompletedEventHandler>( //
-            [hwnd](ICoreWebView2 *sender, ICoreWebView2NavigationCompletedEventArgs *args) -> HRESULT {
+            [hwnd](ICoreWebView2 * /*sender*/, ICoreWebView2NavigationCompletedEventArgs *args) -> HRESULT {
                 BOOL success;
                 args->get_IsSuccess(&success);
                 if (success)
@@ -3564,7 +3565,7 @@ HRESULT OnControllerCreatedSettingsWnd(            //
     /* 处理 js 发过来的消息 */
     webviewSettingsWnd->add_WebMessageReceived(
         Microsoft::WRL::Callback<ICoreWebView2WebMessageReceivedEventHandler>(
-            [hwnd](ICoreWebView2 *sender, ICoreWebView2WebMessageReceivedEventArgs *args) -> HRESULT {
+            [hwnd](ICoreWebView2 * /*sender*/, ICoreWebView2WebMessageReceivedEventArgs *args) -> HRESULT {
                 wil::unique_cotaskmem_string message;
                 HRESULT hr = args->TryGetWebMessageAsString(&message);
                 if (SUCCEEDED(hr) && message.get())
@@ -4782,7 +4783,7 @@ HRESULT OnControllerCreatedFtbWnd(      //
     /* 处理 js 发过来的消息 */
     webviewFtbWnd->add_WebMessageReceived(
         Microsoft::WRL::Callback<ICoreWebView2WebMessageReceivedEventHandler>(
-            [hwnd](ICoreWebView2 *sender, ICoreWebView2WebMessageReceivedEventArgs *args) -> HRESULT {
+            [hwnd](ICoreWebView2 * /*sender*/, ICoreWebView2WebMessageReceivedEventArgs *args) -> HRESULT {
                 wil::unique_cotaskmem_string message;
                 HRESULT hr = args->TryGetWebMessageAsString(&message);
                 if (SUCCEEDED(hr) && message.get())

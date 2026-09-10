@@ -80,7 +80,8 @@ const char *SchemeTypeToString(SchemeType scheme_type)
 
 } // namespace
 
-int CALLBACK WinMain(_In_ HINSTANCE hInstance, _In_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow)
+int CALLBACK WinMain(_In_ HINSTANCE hInstance, _In_ HINSTANCE /*hPrevInstance*/, _In_ LPSTR lpCmdLine,
+                     _In_ int /*nCmdShow*/)
 {
     const bool pipe_probe = IsPipeProbe(lpCmdLine);
     CommonUtils::SingleInstanceGuard single_instance(L"Local\\MetasequoiaImeServer_SingleInstance");

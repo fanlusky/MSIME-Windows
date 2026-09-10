@@ -340,12 +340,14 @@ void ResetCandidatePlacementMemory()
     g_max_vertical_container_height_dip = ::DEFAULT_WINDOW_HEIGHT_DIP;
 }
 
+// hwnd and height are part of the call contract but this placement only clamps the anchor point
+// against the monitor rect, which needs the width alone.
 int AdjustWndPosition( //
-    HWND hwnd,         //
+    HWND /*hwnd*/,     //
     int crateX,        //
     int crateY,        //
     int width,         //
-    int height,        //
+    int /*height*/,    //
     int properPos[2]   //
 )
 {

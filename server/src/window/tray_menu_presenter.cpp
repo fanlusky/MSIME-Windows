@@ -286,19 +286,17 @@ void TrayMenuPresenter::PlaceAndShow(float widthDip, float heightDip)
     const int heightPx = (std::max)(1, static_cast<int>(std::ceil(heightDip * scale)));
     const int iconWidth = static_cast<int>((right - left) * scale);
     const int iconMiddleX = left + iconWidth / 2;
+    // Only the left inset feeds the horizontal centring below; menuY is derived from the bottom pad.
     float cardLeftDip = kShadowPadLeft;
-    float cardTopDip = kShadowPadTop;
     if (impl_->card)
     {
         const msimeui::RectF card = impl_->card->GetBounds();
         if (card.width > 1.0f)
         {
             cardLeftDip = card.x;
-            cardTopDip = card.y;
         }
     }
     const int cardLeftPx = static_cast<int>(std::lround(cardLeftDip * scale));
-    const int cardTopPx = static_cast<int>(std::lround(cardTopDip * scale));
     const int cardWidthPx = widthPx - cardLeftPx - static_cast<int>(std::lround(kShadowPadRight * scale));
     int menuX = iconMiddleX - cardWidthPx / 2 - cardLeftPx;
     int menuY = top - (heightPx - static_cast<int>(std::lround(kShadowPadBottom * scale)));

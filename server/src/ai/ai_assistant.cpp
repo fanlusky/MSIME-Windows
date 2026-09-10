@@ -118,9 +118,8 @@ std::string Fetch(const AiAssistant::Request &request, uint64_t generation)
         (void)0;
         return candidate;
     }
-    catch (const std::exception &error)
+    catch (const std::exception &)
     {
-        (void)0;
         return {};
     }
 }

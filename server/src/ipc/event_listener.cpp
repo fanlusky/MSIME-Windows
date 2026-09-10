@@ -61,9 +61,13 @@
 #include "voice-input/voice_input_service.h"
 #include <cwchar>
 
-#define FANY_IPC_LOG_RAW(message) ((void)0)
-#define FANY_IPC_LOGW(message) ((void)0)
-#define FANY_IPC_LOGF(...) ((void)0)
+// IPC logging is compiled out. The macros still have to *mention* their arguments, otherwise every
+// parameter of the log helpers below is unreferenced (C4100). sizeof keeps the arguments in an
+// unevaluated context, so nothing is computed and no side effect runs — only the name is used.
+template <typename... Args> int FanyIpcDiscardLogArgs(const Args &...);
+#define FANY_IPC_LOG_RAW(message) ((void)sizeof(FanyIpcDiscardLogArgs(message)))
+#define FANY_IPC_LOGW(message) ((void)sizeof(FanyIpcDiscardLogArgs(message)))
+#define FANY_IPC_LOGF(...) ((void)sizeof(FanyIpcDiscardLogArgs(__VA_ARGS__)))
 
 namespace
 {
