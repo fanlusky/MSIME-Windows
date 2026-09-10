@@ -146,6 +146,17 @@ struct CandSkinTokens
     float borderWidth = 1.5f;
     float containerPad = 5.0f;
     bool showSelectedBar = true;
+    // Row corner radius, selected-row text colors and context-menu palette.
+    // Defaults are fluent dark; the fluent light branch and per-skin branches
+    // override. rowTextSelected/rowLabelSelected alpha 0 keeps the normal
+    // colors (bar-style selection, like the fluent CSS).
+    float itemRadius = 4.0f;
+    D2D1_COLOR_F rowTextSelected = D2D1::ColorF(0, 0.0f);
+    D2D1_COLOR_F rowLabelSelected = D2D1::ColorF(0, 0.0f);
+    D2D1_COLOR_F menuFill = D2D1::ColorF(0x2D2D2D);
+    D2D1_COLOR_F menuBorder = ParseCssColor("#9b9b9b2e", D2D1::ColorF(0x3A3A3A, 0.18f));
+    D2D1_COLOR_F menuText = D2D1::ColorF(0xE9E8E8);
+    D2D1_COLOR_F menuHover = ColorFromRgb(0x414141);
 };
 
 void ApplyPackageColors(const CandidateSkinCatalog::CandidateColors &colors, CandSkinTokens &tokens)
@@ -331,46 +342,125 @@ void CandidatePresenter::ApplySkin()
         tokens.number = D2D1::ColorF(26.0f / 255.0f, 26.0f / 255.0f, 26.0f / 255.0f, 0.55f);
         tokens.selected = ColorFromRgb(0xE8E8E8);
         tokens.hover = ColorFromRgb(0xECECEC);
+        tokens.menuFill = ColorFromRgb(0xFFFFFF);
+        tokens.menuBorder = D2D1::ColorF(0, 0.12f);
+        tokens.menuText = ColorFromRgb(0x1A1A1A);
+        tokens.menuHover = ColorFromRgb(0xECECEC);
     }
+    // Built-in skin palettes mirror ui-html/webview2/candwnd/skins/<skin>/;
+    // the WebView2 CSS is the reference for both the light and dark values.
     if (skinId == "wechat")
     {
-        tokens.surface = candLight ? ColorFromRgb(0xF7F7F7) : ColorFromRgb(0x151515);
-        tokens.border = ColorFromRgb(0x292929);
         tokens.borderWidth = 1.0f;
         tokens.radius = 5.0f;
+        tokens.containerPad = 2.0f;
         tokens.accent = ColorFromRgb(0x07C160);
         tokens.selected = ColorFromRgb(0x07C160);
-        tokens.hover = D2D1::ColorF(7.0f / 255.0f, 193.0f / 255.0f, 96.0f / 255.0f, 0.32f);
         tokens.showSelectedBar = false;
-        tokens.text = ColorFromRgb(0xB7B7B7);
-        tokens.number = ColorFromRgb(0x858585);
+        tokens.rowTextSelected = ColorFromRgb(0xFFFFFF);
+        tokens.rowLabelSelected = ColorFromRgb(0xFFFFFF);
+        if (candLight)
+        {
+            tokens.surface = ColorFromRgb(0xF7F7F7);
+            tokens.border = ColorFromRgb(0xDEDEDE);
+            tokens.hover = D2D1::ColorF(7.0f / 255.0f, 193.0f / 255.0f, 96.0f / 255.0f, 0.14f);
+            tokens.text = ColorFromRgb(0x333333);
+            tokens.number = ColorFromRgb(0x757575);
+            tokens.menuFill = ColorFromRgb(0xFFFFFF);
+            tokens.menuBorder = ColorFromRgb(0xD9D9D9);
+            tokens.menuText = ColorFromRgb(0x333333);
+            tokens.menuHover = ColorFromRgb(0xEEEEEE);
+        }
+        else
+        {
+            tokens.surface = ColorFromRgb(0x151515);
+            tokens.border = ColorFromRgb(0x292929);
+            tokens.hover = D2D1::ColorF(7.0f / 255.0f, 193.0f / 255.0f, 96.0f / 255.0f, 0.32f);
+            tokens.text = ColorFromRgb(0xB7B7B7);
+            tokens.number = ColorFromRgb(0x858585);
+            tokens.menuFill = ColorFromRgb(0x1F1F1F);
+            tokens.menuBorder = ColorFromRgb(0x343434);
+            tokens.menuText = ColorFromRgb(0xD0D0D0);
+            tokens.menuHover = ColorFromRgb(0x2A2A2A);
+        }
     }
     else if (skinId == "willow_green")
     {
-        tokens.surface = ColorFromRgb(0x2D2F2E);
         tokens.borderWidth = 0.0f;
         tokens.radius = 9.0f;
         tokens.containerPad = 0.0f;
-        tokens.accent = ColorFromRgb(0x65C98D);
-        tokens.selected = ColorFromRgb(0x65C98D);
-        tokens.hover = D2D1::ColorF(101.0f / 255.0f, 201.0f / 255.0f, 141.0f / 255.0f, 0.22f);
-        tokens.text = ColorFromRgb(0xD8DBD8);
-        tokens.number = ColorFromRgb(0xA6ABA7);
+        // CSS 把行圆角设为 0、靠容器 clip-path 裁出窗口圆角，但 D2D 端 Card
+        // 不裁剪子控件，行圆角 0 会让绿色选中块盖掉窗口圆角。有意偏离 CSS：
+        // 沿用对齐前的 4px 行圆角（视觉上等效圆角窗口，用户拍板的选择）。
+        tokens.itemRadius = 4.0f;
         tokens.showSelectedBar = false;
+        tokens.rowTextSelected = ColorFromRgb(0xFFFFFF);
+        tokens.rowLabelSelected = ColorFromRgb(0xFFFFFF);
+        if (candLight)
+        {
+            tokens.surface = ColorFromRgb(0xF4F5F3);
+            tokens.accent = ColorFromRgb(0x58B980);
+            tokens.selected = ColorFromRgb(0x58B980);
+            tokens.hover = D2D1::ColorF(88.0f / 255.0f, 185.0f / 255.0f, 128.0f / 255.0f, 0.16f);
+            tokens.text = ColorFromRgb(0x343936);
+            tokens.number = ColorFromRgb(0x686F6A);
+            tokens.menuFill = ColorFromRgb(0xFBFCFA);
+            tokens.menuBorder = ColorFromRgb(0xD8DED9);
+            tokens.menuText = ColorFromRgb(0x343936);
+            tokens.menuHover = ColorFromRgb(0xE9EEEA);
+        }
+        else
+        {
+            tokens.surface = ColorFromRgb(0x2D2F2E);
+            tokens.accent = ColorFromRgb(0x65C98D);
+            tokens.selected = ColorFromRgb(0x65C98D);
+            tokens.hover = D2D1::ColorF(101.0f / 255.0f, 201.0f / 255.0f, 141.0f / 255.0f, 0.22f);
+            tokens.text = ColorFromRgb(0xD8DBD8);
+            tokens.number = ColorFromRgb(0xA6ABA7);
+            tokens.menuFill = ColorFromRgb(0x343635);
+            tokens.menuBorder = ColorFromRgb(0x454845);
+            tokens.menuText = ColorFromRgb(0xE0E2DF);
+            tokens.menuHover = ColorFromRgb(0x414441);
+        }
     }
     else if (skinId == "graphite")
     {
-        tokens.surface = ColorFromRgb(0x1C1F23);
-        tokens.border = ColorFromRgb(0x30353B);
         tokens.borderWidth = 1.0f;
         tokens.radius = 3.0f;
         tokens.containerPad = 5.0f;
-        tokens.accent = ColorFromRgb(0x8993A0);
+        tokens.itemRadius = 2.0f;
         tokens.selected = D2D1::ColorF(0, 0.0f);
-        tokens.hover = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.055f);
-        tokens.text = ColorFromRgb(0xAEB6C2);
-        tokens.number = ColorFromRgb(0x707987);
         tokens.showSelectedBar = false;
+        if (candLight)
+        {
+            tokens.surface = ColorFromRgb(0xFBFBFC);
+            tokens.border = ColorFromRgb(0xE2E5E9);
+            tokens.accent = ColorFromRgb(0x5F6B7A);
+            tokens.hover = D2D1::ColorF(31.0f / 255.0f, 41.0f / 255.0f, 55.0f / 255.0f, 0.055f);
+            tokens.text = ColorFromRgb(0x586476);
+            tokens.number = ColorFromRgb(0x8993A1);
+            tokens.rowTextSelected = ColorFromRgb(0x111827);
+            tokens.rowLabelSelected = ColorFromRgb(0x111827);
+            tokens.menuFill = ColorFromRgb(0xFFFFFF);
+            tokens.menuBorder = ColorFromRgb(0xDFE3E8);
+            tokens.menuText = ColorFromRgb(0x374151);
+            tokens.menuHover = ColorFromRgb(0xF1F3F5);
+        }
+        else
+        {
+            tokens.surface = ColorFromRgb(0x1C1F23);
+            tokens.border = ColorFromRgb(0x30353B);
+            tokens.accent = ColorFromRgb(0x8993A0);
+            tokens.hover = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.055f);
+            tokens.text = ColorFromRgb(0xAEB6C2);
+            tokens.number = ColorFromRgb(0x707987);
+            tokens.rowTextSelected = ColorFromRgb(0xF1F3F5);
+            tokens.rowLabelSelected = ColorFromRgb(0xF1F3F5);
+            tokens.menuFill = ColorFromRgb(0x23272C);
+            tokens.menuBorder = ColorFromRgb(0x3A4047);
+            tokens.menuText = ColorFromRgb(0xC7CDD5);
+            tokens.menuHover = ColorFromRgb(0x30353B);
+        }
     }
 
     const std::wstring skinsRoot = AssetRoot() + L"\\skins";
@@ -410,7 +500,6 @@ void CandidatePresenter::ApplySkin()
     appearance.fontSize = fontSize;
     appearance.labelFontSize = fontSize * 0.8f;
     appearance.annotationFontSize = fontSize;
-    appearance.cornerRadius = 4.0f;
     appearance.contentPadLeft = 0.0f;
     appearance.contentPadRight = 0.0f;
     appearance.textPadLeft = 5.0f;
@@ -419,16 +508,19 @@ void CandidatePresenter::ApplySkin()
     appearance.selectedBarHeight = fontSize * 0.85f;
     appearance.showSelectedBar = tokens.showSelectedBar;
     appearance.selectedBarColor = tokens.accent;
+    appearance.cornerRadius = tokens.itemRadius;
     appearance.textColor = theme.textPrimary;
     appearance.labelColor = tokens.number;
     appearance.annotationColor = theme.textPrimary;
     appearance.rowFillSelected = tokens.selected;
     appearance.rowFillHover = tokens.hover;
     appearance.rowFillPressed = tokens.selected;
-    impl_->menuFill = candLight ? ColorFromRgb(0xFFFFFF) : ColorFromRgb(0x2D2D2D);
-    impl_->menuBorder = tokens.border;
-    impl_->menuText = theme.textPrimary;
-    impl_->menuHover = tokens.hover;
+    appearance.rowTextSelected = tokens.rowTextSelected;
+    appearance.rowLabelSelected = tokens.rowLabelSelected;
+    impl_->menuFill = tokens.menuFill;
+    impl_->menuBorder = tokens.menuBorder;
+    impl_->menuText = tokens.menuText;
+    impl_->menuHover = tokens.menuHover;
     impl_->list->SetAppearance(appearance);
     impl_->list->SetOrientation(GetConfiguredCandidateWindowLayout() == "horizontal"
                                     ? msimeui::CandidateList::Orientation::Horizontal
