@@ -5,7 +5,6 @@
 #include "GetTextExtentEditSession.h"
 #include <debugapi.h>
 #include <fmt/xchar.h>
-#include "../Utils/PerfTimer.h"
 
 POINT GetPhysicalTextAnchor(_In_ ITfContextView *pContextView, _In_ const RECT &textExtent)
 {
@@ -101,16 +100,12 @@ STDAPI_(ULONG) CTfTextLayoutSink::Release()
 STDAPI CTfTextLayoutSink::OnLayoutChange(_In_ ITfContext *pContext, TfLayoutCode lcode,
                                          _In_ ITfContextView *pContextView)
 {
-    PerfTimer timer;
-    const bool isDocumentContext = (pContext == _pContextDocument);
-
     // we're interested in only document context.
     if (pContext != _pContextDocument)
     {
         return S_OK;
     }
 
-    double requestEditSessionElapsedMs = 0;
     switch (lcode)
     {
     case TF_LC_CREATE: {
@@ -122,9 +117,7 @@ STDAPI CTfTextLayoutSink::OnLayoutChange(_In_ ITfContext *pContext, TfLayoutCode
         if (nullptr != (pEditSession))
         {
             HRESULT hr = S_OK;
-            PerfTimer requestTimer;
             pContext->RequestEditSession(_pTextService->_GetClientId(), pEditSession, TF_ES_SYNC | TF_ES_READ, &hr);
-            requestEditSessionElapsedMs = requestTimer.ElapsedMs();
             pEditSession->Release();
         }
     }
@@ -140,7 +133,6 @@ STDAPI CTfTextLayoutSink::OnLayoutChange(_In_ ITfContext *pContext, TfLayoutCode
 HRESULT CTfTextLayoutSink::_StartLayout(_In_ ITfContext *pContextDocument, TfEditCookie ec,
                                         _In_ ITfRange *pRangeComposition)
 {
-    PerfTimer timer;
     _pContextDocument = pContextDocument;
     _pContextDocument->AddRef();
 
@@ -155,10 +147,6 @@ HRESULT CTfTextLayoutSink::_StartLayout(_In_ ITfContext *pContextDocument, TfEdi
 
 VOID CTfTextLayoutSink::_EndLayout()
 {
-    PerfTimer timer;
-    const bool hadRangeComposition = (_pRangeComposition != nullptr);
-    const bool hadContextDocument = (_pContextDocument != nullptr);
-    HRESULT unadviseHr = S_OK;
     _hasValidAnchor = false;
 
     if (_pRangeComposition)
@@ -169,7 +157,7 @@ VOID CTfTextLayoutSink::_EndLayout()
 
     if (_pContextDocument)
     {
-        unadviseHr = _UnadviseTextLayoutSink();
+        _UnadviseTextLayoutSink();
         _pContextDocument->Release();
         _pContextDocument = nullptr;
     }
@@ -177,7 +165,6 @@ VOID CTfTextLayoutSink::_EndLayout()
 
 HRESULT CTfTextLayoutSink::_AdviseTextLayoutSink()
 {
-    PerfTimer timer;
     HRESULT hr = S_OK;
     ITfSource *pSource = nullptr;
 
@@ -201,7 +188,6 @@ HRESULT CTfTextLayoutSink::_AdviseTextLayoutSink()
 
 HRESULT CTfTextLayoutSink::_UnadviseTextLayoutSink()
 {
-    PerfTimer timer;
     HRESULT hr = S_OK;
     ITfSource *pSource = nullptr;
 
@@ -241,7 +227,6 @@ HRESULT CTfTextLayoutSink::_UnadviseTextLayoutSink()
  */
 HRESULT CTfTextLayoutSink::_GetTextExt(_Out_ RECT *lpRect, _Out_ POINT *lpAnchor)
 {
-    PerfTimer timer;
     HRESULT hr = S_OK;
     BOOL isClipped = TRUE;
     ITfContextView *pContextView = nullptr;

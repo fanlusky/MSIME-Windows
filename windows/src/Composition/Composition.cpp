@@ -8,7 +8,6 @@
 #include <string>
 #include "FanyDefines.h"
 #include "Ipc.h"
-#include "../Utils/PerfTimer.h"
 
 namespace
 {
@@ -395,7 +394,6 @@ std::wstring CMetasequoiaIME::_ResolveSmartPunctuation(WCHAR wch, WCHAR precedin
 
 STDAPI CMetasequoiaIME::OnCompositionTerminated(TfEditCookie ecWrite, _In_ ITfComposition *pComposition)
 {
-    PerfTimer timer;
     if (pComposition == nullptr || !_IsCompositionCurrent(pComposition))
     {
         DebugTsfIssue47(L"host-terminated-stale-composition", FANY_IME_NO_REQUEST_ID, 0, L'\0', 0, 0, -1,
@@ -504,28 +502,21 @@ HRESULT CMetasequoiaIME::_AddComposingAndChar(TfEditCookie ec, _In_ ITfContext *
 
     if (_pComposition != nullptr)
     {
-        PerfTimer fastUpdateTimer;
         ITfRange *pRangeComposition = nullptr;
         hr = _pComposition->GetRange(&pRangeComposition);
         if (SUCCEEDED(hr) && pRangeComposition != nullptr)
         {
-            PerfTimer setTextTimer;
             hr = SafeRangeSetText(pRangeComposition, ec, 0, pstrAddString->Get(), (LONG)pstrAddString->GetLength());
-            double setTextElapsedMs = setTextTimer.ElapsedMs();
             if (SUCCEEDED(hr))
             {
-                PerfTimer displayAttrTimer;
                 _SetCompositionDisplayAttributesForRange(ec, pContext, pRangeComposition, _gaDisplayAttributeInput);
-                double displayAttrElapsedMs = displayAttrTimer.ElapsedMs();
 
-                PerfTimer selectionTimer;
                 TF_SELECTION sel;
                 pRangeComposition->Collapse(ec, TF_ANCHOR_END);
                 sel.range = pRangeComposition;
                 sel.style.ase = TF_AE_NONE;
                 sel.style.fInterimChar = FALSE;
                 pContext->SetSelection(ec, 1, &sel);
-                double selectionElapsedMs = selectionTimer.ElapsedMs();
 
                 pRangeComposition->Release();
                 return hr;
@@ -584,13 +575,10 @@ HRESULT CMetasequoiaIME::_AddCharAndFinalize(TfEditCookie ec, _In_ ITfContext *p
                                              _In_ CStringRange *pstrAddString)
 {
     HRESULT hr = E_FAIL;
-    PerfTimer timer;
 
     if (_pComposition != nullptr)
     {
-        PerfTimer directSetTimer;
         hr = _SetCompositionTextAndSelection(ec, pContext, pstrAddString);
-        double directSetElapsedMs = directSetTimer.ElapsedMs();
         if (SUCCEEDED(hr))
         {
             return hr;
@@ -605,18 +593,13 @@ HRESULT CMetasequoiaIME::_AddCharAndFinalize(TfEditCookie ec, _In_ ITfContext *p
 
     // We use SetText here instead of InsertTextAtSelection because we've already started a composition
     // We don't want to the app to adjust the insertion point inside our composition
-    PerfTimer setTextTimer;
     hr = SafeRangeSetText(tfSelection.range, ec, 0, pstrAddString->Get(), (LONG)pstrAddString->GetLength());
-    double setTextElapsedMs = setTextTimer.ElapsedMs();
-    double setSelectionElapsedMs = 0;
     if (hr == S_OK)
     {
         // Update the selection, we'll make it an insertion point just past
         // the inserted text.
         tfSelection.range->Collapse(ec, TF_ANCHOR_END);
-        PerfTimer setSelectionTimer;
         pContext->SetSelection(ec, 1, &tfSelection);
-        setSelectionElapsedMs = setSelectionTimer.ElapsedMs();
     }
 
     tfSelection.range->Release();
@@ -627,25 +610,19 @@ HRESULT CMetasequoiaIME::_AddCharAndFinalize(TfEditCookie ec, _In_ ITfContext *p
 HRESULT CMetasequoiaIME::_InsertTextToComposition(TfEditCookie ec, _In_ ITfContext *pContext,
                                                   _In_ CStringRange *pstrAddString)
 {
-    PerfTimer timer;
     if (_pComposition == nullptr)
     {
         return E_FAIL;
     }
 
     ITfRange *pRangeComposition = nullptr;
-    PerfTimer getRangeTimer;
     HRESULT hr = _pComposition->GetRange(&pRangeComposition);
-    double getRangeElapsedMs = getRangeTimer.ElapsedMs();
     if (FAILED(hr) || pRangeComposition == nullptr)
     {
         return FAILED(hr) ? hr : E_FAIL;
     }
 
-    PerfTimer setTextTimer;
     hr = SafeRangeSetText(pRangeComposition, ec, 0, pstrAddString->Get(), (LONG)pstrAddString->GetLength());
-    double setTextElapsedMs = setTextTimer.ElapsedMs();
-    double setSelectionElapsedMs = 0;
     if (SUCCEEDED(hr))
     {
         TF_SELECTION tfSelection;
@@ -653,9 +630,7 @@ HRESULT CMetasequoiaIME::_InsertTextToComposition(TfEditCookie ec, _In_ ITfConte
         tfSelection.range = pRangeComposition;
         tfSelection.style.ase = TF_AE_NONE;
         tfSelection.style.fInterimChar = FALSE;
-        PerfTimer setSelectionTimer;
         pContext->SetSelection(ec, 1, &tfSelection);
-        setSelectionElapsedMs = setSelectionTimer.ElapsedMs();
     }
 
     pRangeComposition->Release();
@@ -671,25 +646,19 @@ HRESULT CMetasequoiaIME::_InsertTextToComposition(TfEditCookie ec, _In_ ITfConte
 HRESULT CMetasequoiaIME::_SetCompositionTextAndSelection(TfEditCookie ec, _In_ ITfContext *pContext,
                                                          _In_ CStringRange *pstrAddString)
 {
-    PerfTimer timer;
     if (_pComposition == nullptr)
     {
         return E_FAIL;
     }
 
     ITfRange *pRangeComposition = nullptr;
-    PerfTimer getRangeTimer;
     HRESULT hr = _pComposition->GetRange(&pRangeComposition);
-    double getRangeElapsedMs = getRangeTimer.ElapsedMs();
     if (FAILED(hr) || pRangeComposition == nullptr)
     {
         return FAILED(hr) ? hr : E_FAIL;
     }
 
-    PerfTimer setTextTimer;
     hr = SafeRangeSetText(pRangeComposition, ec, 0, pstrAddString->Get(), (LONG)pstrAddString->GetLength());
-    double setTextElapsedMs = setTextTimer.ElapsedMs();
-    double setSelectionElapsedMs = 0;
     if (SUCCEEDED(hr))
     {
         TF_SELECTION tfSelection;
@@ -697,9 +666,7 @@ HRESULT CMetasequoiaIME::_SetCompositionTextAndSelection(TfEditCookie ec, _In_ I
         tfSelection.range = pRangeComposition;
         tfSelection.style.ase = TF_AE_NONE;
         tfSelection.style.fInterimChar = FALSE;
-        PerfTimer setSelectionTimer;
         pContext->SetSelection(ec, 1, &tfSelection);
-        setSelectionElapsedMs = setSelectionTimer.ElapsedMs();
     }
 
     pRangeComposition->Release();

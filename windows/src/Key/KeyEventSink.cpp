@@ -1906,8 +1906,8 @@ void CMetasequoiaIME::_DrainOneDeferredKeyDown()
         default:
             break;
         }
-        _InvokeKeyHandler(key.context, key.wParam, key.translatedWch, static_cast<DWORD>(key.lParam), offlineState,
-                          FANY_IME_NO_REQUEST_ID, {}, 0, 0, 0, replayToken);
+        _InvokeKeyHandler(key.context, static_cast<UINT>(key.wParam), key.translatedWch, static_cast<DWORD>(key.lParam),
+                          offlineState, FANY_IME_NO_REQUEST_ID, {}, 0, 0, 0, replayToken);
         return;
     }
 

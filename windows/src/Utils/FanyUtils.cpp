@@ -59,11 +59,24 @@ std::filesystem::path SharedConfigPath()
     // Build a wide path and open it as such. A narrow std::string path would be opened through the
     // ANSI code page, which cannot round-trip a non-ASCII (e.g. Chinese) user profile path on a
     // non-UTF-8 system, so the TSF would read the wrong file or fail to find the config.
-    const wchar_t *localAppDataPath = _wgetenv(L"LOCALAPPDATA");
-    if (!localAppDataPath)
+    // GetEnvironmentVariableW rather than _wgetenv: the CRT variant is deprecated (C4996) because
+    // it hands out a pointer into a buffer another thread can invalidate, and this DLL runs inside
+    // arbitrary hosts.
+    std::wstring localAppDataPath(MAX_PATH, L'\0');
+    DWORD length =
+        GetEnvironmentVariableW(L"LOCALAPPDATA", localAppDataPath.data(), static_cast<DWORD>(localAppDataPath.size()));
+    if (length > localAppDataPath.size())
+    {
+        // The variable is longer than MAX_PATH; length is now the required size including the NUL.
+        localAppDataPath.resize(length);
+        length = GetEnvironmentVariableW(L"LOCALAPPDATA", localAppDataPath.data(),
+                                         static_cast<DWORD>(localAppDataPath.size()));
+    }
+    if (length == 0 || length > localAppDataPath.size())
     {
         return {};
     }
+    localAppDataPath.resize(length);
     return std::filesystem::path(localAppDataPath) / L"metasequoiaime" / L"config.toml";
 }
 } // namespace
