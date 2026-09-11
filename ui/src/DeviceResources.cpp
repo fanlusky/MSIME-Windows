@@ -24,12 +24,42 @@ bool DeviceResources::IsSameColor(const D2D1_COLOR_F &lhs, const D2D1_COLOR_F &r
 
 FLOAT DeviceResources::DpiForHwnd() const
 {
+    // The override wins over the system window DPI: window sizing and
+    // rendering must share one scale even when GetDpiForWindow disagrees
+    // with the content's real scale (RDP client-scaling sync).
+    if (dpiOverride_ > 0.0f)
+    {
+        return dpiOverride_;
+    }
     if (!hwnd_)
     {
         return 96.0f;
     }
     const UINT dpi = GetDpiForWindow(hwnd_);
     return dpi > 0 ? static_cast<FLOAT>(dpi) : 96.0f;
+}
+
+void DeviceResources::SetDpiOverride(FLOAT dpi)
+{
+    const FLOAT normalized = dpi > 0.0f ? dpi : 0.0f;
+    if (normalized == dpiOverride_)
+    {
+        return;
+    }
+    dpiOverride_ = normalized;
+    // EnsureForComposition early-returns when the existing swap chain already
+    // covers the requested size, so a live target would keep the stale DPI.
+    // Push the new DPI into live targets right away; freshly created targets
+    // read it through DpiForHwnd() instead.
+    const FLOAT effective = DpiForHwnd();
+    if (hwndRenderTarget_)
+    {
+        hwndRenderTarget_->SetDpi(effective, effective);
+    }
+    if (deviceContext_)
+    {
+        deviceContext_->SetDpi(effective, effective);
+    }
 }
 
 bool DeviceResources::EnsureFactories()
