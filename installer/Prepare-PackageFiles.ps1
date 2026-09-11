@@ -221,7 +221,9 @@ $updatedIss = [regex]::Replace(
     '(?m)^#define\s+MyAppVersion\s+"[^"]+"\s*$',
     "#define MyAppVersion   `"$TargetVersion`""
 )
-$updatedIss = $updatedIss.TrimEnd("`r", "`n") + "`r`n"
+# .gitattributes pins this repo to eol=lf; emit LF so packaging does not leave the file as a
+# CRLF-only diff that git flags as modified while `git diff` shows no textual change.
+$updatedIss = $updatedIss.TrimEnd("`r", "`n") + "`n"
 Set-Content -LiteralPath $targetIss -Value $updatedIss -Encoding utf8NoBOM -NoNewline
 
 # 设置页是已构建的静态资源，同步其“当前版本”展示。
