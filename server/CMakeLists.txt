@@ -26,7 +26,42 @@ include(CTest)
 
 # The shared engine and the third-party sources are submodules of the monorepo, not of this
 # component, so they sit one level up in vendor/ next to server/, ui/ and windows/.
-set(MSIME_VENDOR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../vendor")
+cmake_path(SET MSIME_VENDOR_DIR NORMALIZE "${CMAKE_CURRENT_SOURCE_DIR}/../vendor")
+
+# vendor/ holds upstream repositories that are submodules here. Their warnings cannot be fixed from
+# this repository, and at /W4 they outnumber this repository's own roughly ten to one, which is how
+# a real warning goes unnoticed. Drop the level on their targets instead.
+#
+# Deliberately not a directory-wide add_compile_options: that would also reach the first-party
+# targets defined further down. This walks the targets the vendor add_subdirectory() calls created --
+# and their nested directories, since opencc and the engine both add their own -- and sets the option
+# per target, so /W4 below is untouched. Called after the add_subdirectory() calls because
+# BUILDSYSTEM_TARGETS is only populated once a directory has been processed.
+function(msime_silence_vendor_warnings dir)
+    if(NOT MSVC)
+        return()
+    endif()
+    get_property(vendor_targets DIRECTORY "${dir}" PROPERTY BUILDSYSTEM_TARGETS)
+    foreach(vendor_target IN LISTS vendor_targets)
+        get_target_property(vendor_target_type ${vendor_target} TYPE)
+        if(NOT vendor_target_type STREQUAL "INTERFACE_LIBRARY"
+           AND NOT vendor_target_type STREQUAL "UTILITY")
+            target_compile_options(${vendor_target} PRIVATE /W0)
+        endif()
+    endforeach()
+    get_property(vendor_subdirs DIRECTORY "${dir}" PROPERTY SUBDIRECTORIES)
+    foreach(vendor_subdir IN LISTS vendor_subdirs)
+        msime_silence_vendor_warnings("${vendor_subdir}")
+    endforeach()
+endfunction()
+
+# The same warnings also reach this repository's own targets through vendor *headers*, where /W0 on
+# the vendor target cannot help: the header is compiled as part of our translation unit. Pull those
+# includes in as system headers and tell MSVC not to warn about them, which leaves /W4 fully in force
+# for everything we actually wrote.
+if(MSVC)
+    add_compile_options(/external:W0)
+endif()
 
 # Boost
 # An explicit -DBoost_ROOT wins, then BOOST_ROOT from the environment, and only then the scoop
@@ -67,12 +102,14 @@ set(_metasequoia_saved_build_testing "${BUILD_TESTING}")
 set(BUILD_TESTING OFF)
 set(METASEQUOIA_IME_BUILD_VOICE ON CACHE BOOL "" FORCE)
 set(MSIME_VOICE_CAPTURE ON CACHE BOOL "" FORCE)
-add_subdirectory("${MSIME_VENDOR_DIR}/MetasequoiaImeEngine" "${CMAKE_BINARY_DIR}/MetasequoiaImeEngine" EXCLUDE_FROM_ALL)
+add_subdirectory("${MSIME_VENDOR_DIR}/MetasequoiaImeEngine" "${CMAKE_BINARY_DIR}/MetasequoiaImeEngine" EXCLUDE_FROM_ALL SYSTEM)
+msime_silence_vendor_warnings("${MSIME_VENDOR_DIR}/MetasequoiaImeEngine")
 set(BUILD_TESTING "${_metasequoia_saved_build_testing}")
 unset(_metasequoia_saved_build_testing)
 
 # Build the OpenCC submodule as a static dependency of the server.
-add_subdirectory("${MSIME_VENDOR_DIR}/opencc" "${CMAKE_BINARY_DIR}/opencc" EXCLUDE_FROM_ALL)
+add_subdirectory("${MSIME_VENDOR_DIR}/opencc" "${CMAKE_BINARY_DIR}/opencc" EXCLUDE_FROM_ALL SYSTEM)
+msime_silence_vendor_warnings("${MSIME_VENDOR_DIR}/opencc")
 
 # OpenCC's Windows dictionary helper copies the library into the tools output
 # directory before MSBuild has necessarily created that directory.
@@ -87,7 +124,8 @@ set(_cpp_pinyin_saved_shared_libs "${BUILD_SHARED_LIBS}")
 set(BUILD_SHARED_LIBS OFF)
 set(CPP_PINYIN_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(CPP_PINYIN_INSTALL OFF CACHE BOOL "" FORCE)
-add_subdirectory("${MSIME_VENDOR_DIR}/cpp-pinyin" "${CMAKE_BINARY_DIR}/cpp-pinyin" EXCLUDE_FROM_ALL)
+add_subdirectory("${MSIME_VENDOR_DIR}/cpp-pinyin" "${CMAKE_BINARY_DIR}/cpp-pinyin" EXCLUDE_FROM_ALL SYSTEM)
+msime_silence_vendor_warnings("${MSIME_VENDOR_DIR}/cpp-pinyin")
 set(BUILD_SHARED_LIBS "${_cpp_pinyin_saved_shared_libs}")
 unset(_cpp_pinyin_saved_shared_libs)
 
@@ -116,8 +154,8 @@ add_compile_options(/Zc:__cplusplus /FS /utf-8)
 
 include_directories("./")
 include_directories("./src/")
-include_directories("${MSIME_VENDOR_DIR}")
-include_directories("${MSIME_VENDOR_DIR}/MetasequoiaImeEngine/utfcpp/source/")
+include_directories(SYSTEM "${MSIME_VENDOR_DIR}")
+include_directories(SYSTEM "${MSIME_VENDOR_DIR}/MetasequoiaImeEngine/utfcpp/source/")
 
 set(MY_EXECUTABLE_NAME "MetasequoiaImeServer")
 set(WATCHDOG_EXECUTABLE_NAME "MetasequoiaImeWatchdog")
