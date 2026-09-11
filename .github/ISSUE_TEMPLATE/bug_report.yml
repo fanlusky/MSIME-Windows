@@ -20,8 +20,9 @@ body:
       multiple: true
       options:
         - 候选窗 / Candidate window
+        - 悬浮工具栏 / Floating toolbar
         - 词典 / Dictionary and Lexicon
-        - 辅助码 / Help Code
+        - 辅助码 / Auxiliary code
         - 设置 / Settings
         - 安装器 / Installer
         - 引擎服务 / Engine

@@ -214,6 +214,12 @@ export function setupInput(): void {
   setupToggleButton('smartPunctuationToggleBtn', (active) => {
     updateConfig('input.smart_punctuation', active);
   });
+  setupToggleButton('autocorrectTranspositionToggleBtn', (active) => {
+    updateConfig('quanpin.autocorrect_transposition', active);
+  });
+  setupToggleButton('autocorrectNeighborToggleBtn', (active) => {
+    updateConfig('quanpin.autocorrect_neighbor', active);
+  });
   setupToggleButton('smartPunctuationRepeatToChineseToggleBtn', (active) => {
     updateConfig('input.smart_punctuation_repeat_to_chinese', active);
   });

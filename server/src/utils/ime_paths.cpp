@@ -98,11 +98,18 @@ bool DirectoryIsWritable(const std::wstring &path)
     return true;
 }
 
-void EnsureMediumIntegrityWritableDirectory(const std::wstring &path)
+void ClearReadOnlyAttribute(const std::wstring &path)
 {
-    std::error_code ec;
-    std::filesystem::create_directories(path, ec);
+    const DWORD attributes = GetFileAttributesW(path.c_str());
+    if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_READONLY) == 0)
+    {
+        return;
+    }
+    SetFileAttributesW(path.c_str(), attributes & ~FILE_ATTRIBUTE_READONLY);
+}
 
+void ApplyUsersModifyAndMediumIntegrity(const std::wstring &path)
+{
     PSID users_sid = nullptr;
     if (ConvertStringSidToSidW(L"S-1-5-32-545", &users_sid))
     {
@@ -147,6 +154,24 @@ void EnsureMediumIntegrityWritableDirectory(const std::wstring &path)
     }
     LocalFree(medium_sid);
 }
+
+void EnsureMediumIntegrityWritableDirectory(const std::wstring &path)
+{
+    std::error_code ec;
+    std::filesystem::create_directories(path, ec);
+    ClearReadOnlyAttribute(path);
+    ApplyUsersModifyAndMediumIntegrity(path);
+}
+
+void EnsureMediumIntegrityWritableExistingPath(const std::wstring &path)
+{
+    if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES)
+    {
+        return;
+    }
+    ClearReadOnlyAttribute(path);
+    ApplyUsersModifyAndMediumIntegrity(path);
+}
 } // namespace
 
 namespace CommonUtils
@@ -170,6 +195,22 @@ std::wstring get_local_appdata_path_w()
 std::wstring get_ime_data_path_w()
 {
     return get_local_appdata_path_w() + L"\\" + kAppName;
+}
+
+void ensure_ime_data_writable()
+{
+    const std::wstring dir = get_ime_data_path_w();
+    if (!IsUsableAbsolutePath(dir))
+    {
+        return;
+    }
+    EnsureMediumIntegrityWritableDirectory(dir);
+    static const wchar_t *const kFiles[] = {L"config.toml", L"config.base.toml", L"config.default.toml",
+                                            L"config.toml.tmp"};
+    for (const wchar_t *name : kFiles)
+    {
+        EnsureMediumIntegrityWritableExistingPath((std::filesystem::path(dir) / name).wstring());
+    }
 }
 
 std::wstring get_webview2_user_data_path(const std::wstring &folder_name)

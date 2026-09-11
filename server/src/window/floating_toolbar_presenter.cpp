@@ -567,6 +567,11 @@ void FloatingToolbarPresenter::ApplyTheme()
         impl_->hover = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.10f);
         impl_->divider = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.15f);
     }
+    ApplyAppearance();
+}
+
+void FloatingToolbarPresenter::ApplyAppearance()
+{
     RebuildScene();
     RelayoutHost();
 }
@@ -649,8 +654,7 @@ void FloatingToolbarPresenter::SyncUi(int cnEn, int doubleSingleByte, int punctu
     {
         return;
     }
-    RebuildScene();
-    RelayoutHost();
+    ApplyAppearance();
 }
 
 void FloatingToolbarPresenter::Present()

@@ -5,6 +5,7 @@ tsf_dll/
 app_data/
 MetasequoiaIME.ico
 /THIRD_PARTY_NOTICES.txt
+/LICENSE.txt
 
 # Local test certificates (generated on each machine)
 *.cer

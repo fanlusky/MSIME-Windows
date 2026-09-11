@@ -1,4 +1,5 @@
 #include "tests/includes/test_framework.h"
+#include "tests/includes/test_utf8_path.h"
 #include "MetasequoiaImeEngine/common/helpcode_utils.h"
 #include "MetasequoiaImeEngine/quanpin/autocorrect_table.h"
 #include "MetasequoiaImeEngine/quanpin/quanpin_dictionary.h"
@@ -25,7 +26,7 @@ std::filesystem::path CreatePinyinCacheDatabase()
     const auto path = std::filesystem::temp_directory_path() / "msime-pinyin-cache-refresh-test.db";
     std::filesystem::remove(path);
     sqlite3 *db = nullptr;
-    if (sqlite3_open(path.string().c_str(), &db) != SQLITE_OK)
+    if (sqlite3_open(test::Utf8(path).c_str(), &db) != SQLITE_OK)
     {
         throw std::runtime_error("Failed to create temporary pinyin database.");
     }
@@ -209,7 +210,7 @@ TEST_CASE(QuanpinDictionaryKeepsBestAlternativeSegmentationNearTheFront)
 {
     const auto db_path = CreatePinyinCacheDatabase();
     {
-        QuanpinDictionary dictionary(db_path.string());
+        QuanpinDictionary dictionary(test::Utf8(db_path));
         const auto candidates = dictionary.query("xian", "xian");
         const auto alternative = std::find_if(candidates.begin(), candidates.end(), [](const WordItem &item) {
             return item.word == "__alternative_xi_an__";
@@ -224,7 +225,7 @@ TEST_CASE(QuanpinDictionaryTriesFourSyllablesButBoundsFiveSyllableAmbiguity)
 {
     const auto db_path = CreatePinyinCacheDatabase();
     {
-        QuanpinDictionary dictionary(db_path.string());
+        QuanpinDictionary dictionary(test::Utf8(db_path));
 
         const auto three_syllable_candidates = dictionary.query("xianxianxian", "xian'xian'xian");
         REQUIRE(std::any_of(three_syllable_candidates.begin(), three_syllable_candidates.end(),
@@ -245,12 +246,12 @@ TEST_CASE(QuanpinCandidateCacheDetectsExternalDictionaryWrites)
 {
     const auto db_path = CreatePinyinCacheDatabase();
     {
-        QuanpinDictionary dictionary(db_path.string());
+        QuanpinDictionary dictionary(test::Utf8(db_path));
         const auto before = dictionary.query("aoshike", "ao'shi'ke");
         REQUIRE(std::none_of(before.begin(), before.end(), [](const WordItem &item) { return item.word == "澳鳾科"; }));
 
         sqlite3 *writer = nullptr;
-        REQUIRE_EQ(sqlite3_open(db_path.string().c_str(), &writer), SQLITE_OK);
+        REQUIRE_EQ(sqlite3_open(test::Utf8(db_path).c_str(), &writer), SQLITE_OK);
         REQUIRE_EQ(sqlite3_exec(writer, "INSERT INTO tbl_3_a VALUES('ao''shi''ke','ask','澳鳾科',1)", nullptr, nullptr,
                                 nullptr),
                    SQLITE_OK);
@@ -519,61 +520,113 @@ TEST_CASE(QuanpinAutocorrectTableHasNoCollisionsWithLegalPinyin)
 {
     const auto &legal = quanpin::intact_pinyin_set();
     std::unordered_set<std::string> wrong_keys;
-    for (const auto &entry : quanpin::autocorrect::kEntries)
-    {
-        const std::string wrong(entry.wrong);
-        REQUIRE(!wrong.empty());
-        REQUIRE(!legal.count(wrong));             // a key must never shadow a legal syllable
-        REQUIRE(legal.count(entry.correct));      // the correction must be a legal syllable
-        REQUIRE(wrong_keys.insert(wrong).second); // keys must be unique
-    }
+    // 两张表的数组长度不同，初始化列表推导不出共同的指针类型（VS2022 严格报错）；
+    // 用边界对遍历代替指针到数组的推导。
+    const auto require_valid_entries = [&](const quanpin::autocorrect::Entry *entries, std::size_t count) {
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            const std::string wrong(entries[i].wrong);
+            REQUIRE(!wrong.empty());
+            // 2-letter strings belong to the jianpin space: a correction key there
+            // would shadow abbreviations such as wj -> 文件.
+            REQUIRE(wrong.size() >= 3);
+            REQUIRE(!legal.count(wrong));             // a key must never shadow a legal syllable
+            REQUIRE(legal.count(entries[i].correct)); // the correction must be a legal syllable
+            REQUIRE(wrong_keys.insert(wrong).second); // keys must be unique across both tables
+        }
+    };
+    require_valid_entries(quanpin::autocorrect::kTranspositionEntries, quanpin::autocorrect::kTranspositionCount);
+    require_valid_entries(quanpin::autocorrect::kNeighborEntries, quanpin::autocorrect::kNeighborCount);
     REQUIRE(wrong_keys.size() > 1000);
+}
+
+TEST_CASE(QuanpinAutocorrectCutGatesEachTypeIndependently)
+{
+    const unsigned none = 0;
+    const unsigned transposition_only = quanpin::kAutocorrectTransposition;
+    const unsigned neighbor_only = quanpin::kAutocorrectNeighbor;
+    const unsigned both = transposition_only | neighbor_only;
+
+    // "sahng" is a transposition fix; only that bit may correct it.
+    REQUIRE(quanpin::autocorrect_cut("sahng", none).empty());
+    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("sahng", transposition_only)), std::string("shang"));
+    REQUIRE(quanpin::autocorrect_cut("sahng", neighbor_only).empty());
+    // "shabg" is a neighbor fix; only that bit may correct it.
+    REQUIRE(quanpin::autocorrect_cut("shabg", none).empty());
+    REQUIRE(quanpin::autocorrect_cut("shabg", transposition_only).empty());
+    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("shabg", neighbor_only)), std::string("shang"));
+    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("shabg", both)), std::string("shang"));
+}
+
+TEST_CASE(QuanpinJianpinShapeGuardBlocksCorrection)
+{
+    // One or more legal syllables plus at most one trailing letter is jianpin
+    // intent (zheg = zhe + g), never a typo the tables may rewrite.
+    REQUIRE(quanpin::looks_like_syllable_with_jianpin_tail("zheg"));
+    REQUIRE(quanpin::looks_like_syllable_with_jianpin_tail("keneng"));
+    REQUIRE(quanpin::looks_like_syllable_with_jianpin_tail("shang"));
+    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("sahng"));
+    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("shabg"));
+    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("xi'an"));
+    // All-consonant strings stay correctable: the engine has no multi-letter
+    // jianpin, so correction is the only useful reading of e.g. bqng -> bang.
+    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("bqng"));
+    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("wj"));
 }
 
 TEST_CASE(QuanpinAutocorrectCutSingleSyllableTranspositions)
 {
-    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("sahng")), std::string("shang"));
-    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("hsang")), std::string("shang"));
-    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("shagn")), std::string("shang"));
+    const unsigned both = quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor;
+    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("sahng", both)), std::string("shang"));
+    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("hsang", both)), std::string("shang"));
+    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("shagn", both)), std::string("shang"));
 }
 
 TEST_CASE(QuanpinAutocorrectCutNeighborKeySubstitutions)
 {
-    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("shabg")), std::string("shang")); // n -> b
-    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("sgang")), std::string("shang")); // h -> g
+    const unsigned both = quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor;
+    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("shabg", both)), std::string("shang")); // n -> b
+    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("sgang", both)), std::string("shang")); // h -> g
 }
 
 TEST_CASE(QuanpinAutocorrectCutMixedMultisyllableInput)
 {
-    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("sahngzhi")), std::string("shang'zhi"));
-    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("sahngzhk")), std::string("shang'zhi")); // i -> k
+    const unsigned both = quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor;
+    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("sahngzhi", both)), std::string("shang'zhi"));
+    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("sahngzhk", both)), std::string("shang'zhi")); // i -> k
 }
 
 TEST_CASE(QuanpinAutocorrectCutPrefersFewestCorrections)
 {
+    const unsigned both = quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor;
     // sahnguai has two plausible readings; the one with fewer corrected edges
     // (shan + guai, one mistake) wins over shang + hai (two mistakes).
-    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("sahnguai")), std::string("shan'guai"));
+    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("sahnguai", both)), std::string("shan'guai"));
 }
 
 TEST_CASE(QuanpinAutocorrectCutRejectsInputsOutOfScope)
 {
+    const unsigned both = quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor;
+    // The mask short-circuits before any table lookup.
+    REQUIRE(quanpin::autocorrect_cut("shang", 0u).empty());
     // Legal input: the caller must only invoke autocorrect when the correction
     // cut already failed, so a fully legal spelling yields no correction.
-    REQUIRE(quanpin::autocorrect_cut("shang").empty());
-    REQUIRE(quanpin::autocorrect_cut("keneng").empty());
+    REQUIRE(quanpin::autocorrect_cut("shang", both).empty());
+    REQUIRE(quanpin::autocorrect_cut("keneng", both).empty());
     // Manual delimiter: user-intended boundary, never rewritten.
-    REQUIRE(quanpin::autocorrect_cut("xi'an").empty());
+    REQUIRE(quanpin::autocorrect_cut("xi'an", both).empty());
     // No correction path: unresolvable garbage.
-    REQUIRE(quanpin::autocorrect_cut("xxxxx").empty());
-    REQUIRE(quanpin::autocorrect_cut("qzzvv").empty());
+    REQUIRE(quanpin::autocorrect_cut("xxxxx", both).empty());
+    REQUIRE(quanpin::autocorrect_cut("qzzvv", both).empty());
     // Beyond the per-input correction edge budget.
-    REQUIRE(quanpin::autocorrect_cut("sahngsahngsahngsahng").empty());
+    REQUIRE(quanpin::autocorrect_cut("sahngsahngsahngsahng", both).empty());
 }
 
 TEST_CASE(QuanpinAutocorrectCutRespectsEdgeBudget)
 {
-    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("sahngsahngsahng")), std::string("shang'shang'shang"));
+    const unsigned both = quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor;
+    REQUIRE_EQ(quanpin::join_segments(quanpin::autocorrect_cut("sahngsahngsahng", both)),
+               std::string("shang'shang'shang"));
 }
 
 namespace
@@ -583,7 +636,7 @@ std::filesystem::path CreateAutocorrectDatabase()
     const auto path = std::filesystem::temp_directory_path() / "msime-quanpin-autocorrect-test.db";
     std::filesystem::remove(path);
     sqlite3 *db = nullptr;
-    if (sqlite3_open(path.string().c_str(), &db) != SQLITE_OK)
+    if (sqlite3_open(test::Utf8(path).c_str(), &db) != SQLITE_OK)
     {
         throw std::runtime_error("Failed to create temporary autocorrect database.");
     }
@@ -607,9 +660,10 @@ std::filesystem::path CreateAutocorrectDatabase()
 TEST_CASE(QuanpinDictionaryAutocorrectPutsCorrectedCandidateFirst)
 {
     const auto db_path = CreateAutocorrectDatabase();
-    QuanpinDictionary dictionary(db_path.string());
+    QuanpinDictionary dictionary(test::Utf8(db_path));
+    const unsigned both = quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor;
 
-    const auto candidates = dictionary.query("sahng", "sa'h'n'g", true);
+    const auto candidates = dictionary.query("sahng", "sa'h'n'g", both);
     REQUIRE(!candidates.empty());
     // The corrected candidate leads, and its pinyin is the corrected key so
     // that selection/weight updates land on the right dictionary entry.
@@ -625,9 +679,9 @@ TEST_CASE(QuanpinDictionaryAutocorrectPutsCorrectedCandidateFirst)
 TEST_CASE(QuanpinDictionaryAutocorrectNeighborKeySubstitution)
 {
     const auto db_path = CreateAutocorrectDatabase();
-    QuanpinDictionary dictionary(db_path.string());
+    QuanpinDictionary dictionary(test::Utf8(db_path));
 
-    const auto candidates = dictionary.query("shabg", "sha'b'g", true);
+    const auto candidates = dictionary.query("shabg", "sha'b'g", quanpin::kAutocorrectNeighbor);
     REQUIRE(!candidates.empty());
     REQUIRE_EQ(candidates.front().word, std::string("上"));
 }
@@ -635,9 +689,10 @@ TEST_CASE(QuanpinDictionaryAutocorrectNeighborKeySubstitution)
 TEST_CASE(QuanpinDictionaryAutocorrectMultisyllableInput)
 {
     const auto db_path = CreateAutocorrectDatabase();
-    QuanpinDictionary dictionary(db_path.string());
+    QuanpinDictionary dictionary(test::Utf8(db_path));
 
-    const auto candidates = dictionary.query("sahngzhi", "sa'h'n'g'zhi", true);
+    const auto candidates = dictionary.query("sahngzhi", "sa'h'n'g'zhi",
+                                             quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor);
     REQUIRE(!candidates.empty());
     REQUIRE_EQ(candidates.front().word, std::string("上至"));
 }
@@ -645,9 +700,9 @@ TEST_CASE(QuanpinDictionaryAutocorrectMultisyllableInput)
 TEST_CASE(QuanpinDictionaryAutocorrectDisabledKeepsLegacyBehavior)
 {
     const auto db_path = CreateAutocorrectDatabase();
-    QuanpinDictionary dictionary(db_path.string());
+    QuanpinDictionary dictionary(test::Utf8(db_path));
 
-    const auto candidates = dictionary.query("sahng", "sa'h'n'g", false);
+    const auto candidates = dictionary.query("sahng", "sa'h'n'g", 0u);
     REQUIRE(!candidates.empty());
     REQUIRE(std::none_of(candidates.begin(), candidates.end(), [](const WordItem &item) { return item.word == "上"; }));
     REQUIRE(std::any_of(candidates.begin(), candidates.end(),
@@ -657,18 +712,19 @@ TEST_CASE(QuanpinDictionaryAutocorrectDisabledKeepsLegacyBehavior)
 TEST_CASE(QuanpinDictionaryAutocorrectLeavesLegalInputsUntouched)
 {
     const auto db_path = CreateAutocorrectDatabase();
-    QuanpinDictionary dictionary(db_path.string());
+    QuanpinDictionary dictionary(test::Utf8(db_path));
+    const unsigned both = quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor;
 
     // Corrected results live in their own cache slot; a plain spelling never
     // sees the fallback tail produced for the corrected spelling.
-    (void)dictionary.query("sahng", "sa'h'n'g", true);
-    const auto plain = dictionary.query("shang", "shang", true);
+    (void)dictionary.query("sahng", "sa'h'n'g", both);
+    const auto plain = dictionary.query("shang", "shang", both);
     REQUIRE(!plain.empty());
     REQUIRE_EQ(plain.front().word, std::string("上"));
     REQUIRE(std::none_of(plain.begin(), plain.end(), [](const WordItem &item) { return item.word == "撒谎那个"; }));
 
-    const auto manual = dictionary.query("xi'an", "xi'an", true);
-    const auto manual_off = dictionary.query("xi'an", "xi'an", false);
+    const auto manual = dictionary.query("xi'an", "xi'an", both);
+    const auto manual_off = dictionary.query("xi'an", "xi'an", 0u);
     REQUIRE_EQ(manual.size(), manual_off.size());
 }
 

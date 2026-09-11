@@ -19,6 +19,56 @@ const windowState = {
 };
 
 let onWindowStateChanged: ((isMaximized: boolean) => void) | null = null;
+let maximizeButtonRectFrame = 0;
+
+function getActiveMaxButton(): HTMLElement | null {
+  const restoreBtn = document.getElementById('btn-restore');
+  const maximizeBtn = document.getElementById('btn-maximize');
+  if (windowState.isMaximized && restoreBtn instanceof HTMLElement) {
+    return restoreBtn;
+  }
+  if (maximizeBtn instanceof HTMLElement) {
+    return maximizeBtn;
+  }
+  return null;
+}
+
+function postMaximizeButtonRect(): void {
+  if (!window.chrome?.webview || titlebarDragState.isDraggingFromTitlebar || maximizeButtonRectFrame) {
+    return;
+  }
+  maximizeButtonRectFrame = window.requestAnimationFrame(() => {
+    maximizeButtonRectFrame = 0;
+    if (titlebarDragState.isDraggingFromTitlebar) {
+      return;
+    }
+    const activeBtn = getActiveMaxButton();
+    if (!activeBtn) {
+      return;
+    }
+    const rect = activeBtn.getBoundingClientRect();
+    window.chrome.webview.postMessage(
+      serializeHostMessage({
+        type: 'maximizeButtonRect',
+        data: {
+          x: rect.left,
+          y: rect.top,
+          width: rect.width,
+          height: rect.height,
+          dpr: window.devicePixelRatio || 1
+        }
+      })
+    );
+  });
+}
+
+function endTitlebarDrag(): void {
+  if (!titlebarDragState.isDraggingFromTitlebar) {
+    return;
+  }
+  titlebarDragState.isDraggingFromTitlebar = false;
+  postMaximizeButtonRect();
+}
 
 function applyMaximizeRestoreState(): void {
   const maximizeBtn = document.getElementById('btn-maximize');
@@ -86,41 +136,6 @@ function setupTitlebarButtons(): void {
     } else {
       console.warn('[windowControl] webview2 not available:', value);
     }
-  };
-
-  const getActiveMaxButton = (): HTMLElement | null => {
-    if (windowState.isMaximized && restoreBtn instanceof HTMLElement) {
-      return restoreBtn;
-    }
-    if (maximizeBtn instanceof HTMLElement) {
-      return maximizeBtn;
-    }
-    return null;
-  };
-
-  const postMaximizeButtonRect = () => {
-    if (!window.chrome?.webview) {
-      return;
-    }
-
-    const activeBtn = getActiveMaxButton();
-    if (!activeBtn) {
-      return;
-    }
-
-    const rect = activeBtn.getBoundingClientRect();
-    window.chrome.webview.postMessage(
-      serializeHostMessage({
-        type: 'maximizeButtonRect',
-        data: {
-          x: rect.left,
-          y: rect.top,
-          width: rect.width,
-          height: rect.height,
-          dpr: window.devicePixelRatio || 1
-        }
-      })
-    );
   };
 
   const restoreWindowControlsHoverState = () => {
@@ -306,11 +321,7 @@ function setupTitlebarDrag(): void {
     titlebarDragState.suspendCursorSyncUntilMouseMove = true;
 
     if (window.chrome?.webview) {
-      window.chrome.webview.postMessage(
-        serializeHostMessage({
-          type: 'dragStart'
-        })
-      );
+      window.chrome.webview.postMessage(serializeHostMessage({ type: 'dragStart' }));
     }
   });
 
@@ -457,7 +468,7 @@ function setupResizeHitTest(): void {
     lastPointer = { clientX: e.clientX, clientY: e.clientY };
 
     if (titlebarDragState.isDraggingFromTitlebar) {
-      titlebarDragState.isDraggingFromTitlebar = false;
+      endTitlebarDrag();
       clearResizeCursorState();
       return;
     }
@@ -476,6 +487,7 @@ function setupResizeHitTest(): void {
   });
 
   window.addEventListener('blur', () => {
+    endTitlebarDrag();
     setResizeUiBlocked(false);
     setCursor('');
   });

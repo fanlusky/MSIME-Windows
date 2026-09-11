@@ -16,3 +16,4 @@ log.txt
 # this repository, and both the release workflow and a local release rehearsal drop it beside the
 # components under this name.
 /MetasequoiaImeDict/
+__pycache__/

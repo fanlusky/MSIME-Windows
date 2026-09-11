@@ -1,5 +1,69 @@
 # Changelog
 
+## [0.6.7](https://github.com/metasequoiaime/MSIME-Windows/compare/v0.6.6...v0.6.7) (2026-09-08)
+
+
+### Bug Fixes
+
+* **ci:** stop the self-hosted jobs racing on the global git config ([f7cd4e6](https://github.com/metasequoiaime/MSIME-Windows/commit/f7cd4e6174893f05c7733cb1abf31bdee7a36a89))
+* **ci:** stop the self-hosted jobs racing on the global git config ([d7e7b3f](https://github.com/metasequoiaime/MSIME-Windows/commit/d7e7b3f0d961372fa25d76523d743bfc9262c1fb))
+
+## [0.6.6](https://github.com/metasequoiaime/MSIME-Windows/compare/v0.6.5...v0.6.6) (2026-09-08)
+
+
+### Bug Fixes
+
+* **ci:** unblock packaging on the self-hosted runners ([7e9f0cd](https://github.com/metasequoiaime/MSIME-Windows/commit/7e9f0cd8927edece437f26408c62ae4eb5be2e44))
+* **ci:** unblock packaging on the self-hosted runners ([2868936](https://github.com/metasequoiaime/MSIME-Windows/commit/28689361add8f510d1f2103cafe74957e88fc02e))
+
+## [0.6.5](https://github.com/metasequoiaime/MSIME-Windows/compare/v0.6.4...v0.6.5) (2026-09-08)
+
+
+### Bug Fixes
+
+* **ci:** stop the pipe probe from handshaking with a leftover Server ([1c4643b](https://github.com/metasequoiaime/MSIME-Windows/commit/1c4643b0e4c16204421306d6e44e46f37f76fadc))
+* **ci:** stop the pipe probe from handshaking with a leftover Server ([f91dae7](https://github.com/metasequoiaime/MSIME-Windows/commit/f91dae76449ab7c75f265a9a2e8c36944a13d21d))
+
+## [0.6.4](https://github.com/metasequoiaime/MSIME-Windows/compare/v0.6.3...v0.6.4) (2026-09-08)
+
+
+### Bug Fixes
+
+* **server:** only grace-delay a candidate hide the worker delivered late ([bb53763](https://github.com/metasequoiaime/MSIME-Windows/commit/bb53763e663629ecb94211e6a2b2e369a5ebeea3))
+* **server:** stop candidate strobing when the worker queue backs up ([cc81f79](https://github.com/metasequoiaime/MSIME-Windows/commit/cc81f794bb8566d06411c18fb8d3a212a4d46d97))
+* stop candidate-window flicker and dropped commits when the machine is loaded ([a763580](https://github.com/metasequoiaime/MSIME-Windows/commit/a763580a0ce1bb106aa1808588d67006761114fb))
+* **tsf:** stop the candidate window flickering when the host lags ([58fa715](https://github.com/metasequoiaime/MSIME-Windows/commit/58fa71592122087d3b590efa32f51ccb30e58657))
+
+
+### Performance Improvements
+
+* **deps:** pick up the cached user-dictionary journal connection ([0bf0928](https://github.com/metasequoiaime/MSIME-Windows/commit/0bf0928fef636586c40aefbb4e08b374717620dd))
+* **server:** time each segment of the per-keystroke candidate build ([0e003fa](https://github.com/metasequoiaime/MSIME-Windows/commit/0e003fa0957e793b9d71e59a025a61cd4d245093))
+
+## [0.6.3](https://github.com/metasequoiaime/MSIME-Windows/compare/v0.6.2...v0.6.3) (2026-09-08)
+
+
+### Bug Fixes
+
+* **config:** handle non-ASCII (e.g. Chinese) user profile paths ([0ef8b70](https://github.com/metasequoiaime/MSIME-Windows/commit/0ef8b70e9b0d69fe649ac348500216f54171f1c5))
+* **config:** handle non-ASCII (e.g. Chinese) user profile paths ([de4d3ac](https://github.com/metasequoiaime/MSIME-Windows/commit/de4d3acf453d2efe0ad1463ed1744c475e6180a9))
+* **emoji-panel:** use Chinese nav titles to match the tab labels ([4b3da57](https://github.com/metasequoiaime/MSIME-Windows/commit/4b3da57134625d3c472d597cb903e373a6dc4d65))
+* **release:** use beta tags for automatic builds ([#252](https://github.com/metasequoiaime/MSIME-Windows/issues/252)) ([2fb4560](https://github.com/metasequoiaime/MSIME-Windows/commit/2fb4560d994043219f4702dbcacce1d34be87020))
+* **scripts:** keep automatic releases as prereleases ([560b730](https://github.com/metasequoiaime/MSIME-Windows/commit/560b730ea1e1d27e7e767df5ccae515e9e4fa86d))
+* **scripts:** keep automatic releases as prereleases ([b777008](https://github.com/metasequoiaime/MSIME-Windows/commit/b777008abb15773ae4dc7ab27cdc0e90c4432e30))
+* **server:** fall back to text when the icon font lacks the glyph ([880c04f](https://github.com/metasequoiaime/MSIME-Windows/commit/880c04f6bbda0d03c0c37652c18b8ceefb757297))
+* **server:** fall back to text when the icon font lacks the glyph ([4355546](https://github.com/metasequoiaime/MSIME-Windows/commit/43555460dbb8289e3ec05236d0cb4dafcd79da39))
+* **ui:** make the icon font resolver recover from DirectWrite failures ([43576b7](https://github.com/metasequoiaime/MSIME-Windows/commit/43576b75cac8d9b645a6f8cee252896a7063704c))
+
+## [0.6.2](https://github.com/metasequoiaime/MSIME-Windows/compare/v0.6.1...v0.6.2) (2026-09-07)
+
+
+### Bug Fixes
+
+* **ci:** align release matrix with selected vcpkg ([#244](https://github.com/metasequoiaime/MSIME-Windows/issues/244)) ([fbd6b39](https://github.com/metasequoiaime/MSIME-Windows/commit/fbd6b390f111e2ad390be494d3cca901b1b0c7e4))
+* **ci:** guard the release vcpkg selection ([#247](https://github.com/metasequoiaime/MSIME-Windows/issues/247)) ([d1ac527](https://github.com/metasequoiaime/MSIME-Windows/commit/d1ac5273e46ab9c2623d64b1ca2aff0551d7758b))
+* **installer:** test server before embedding uiAccess manifest ([#243](https://github.com/metasequoiaime/MSIME-Windows/issues/243)) ([f62e8e5](https://github.com/metasequoiaime/MSIME-Windows/commit/f62e8e5fc8c7e724e1fbbe95d33b76070c1a25f1))
+
 ## [0.6.1](https://github.com/metasequoiaime/MSIME-Windows/compare/v0.6.0...v0.6.1) (2026-09-07)
 
 

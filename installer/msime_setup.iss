@@ -69,7 +69,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "{commonpf32}\metasequoiaime\{code:GetVersionDir}"
 Name: "{commonpf64}\metasequoiaime\{code:GetVersionDir}"
 Name: "{commonpf64}\metasequoiaime\server"
-Name: "{localappdata}\metasequoiaime"
+Name: "{localappdata}\metasequoiaime"; Permissions: users-modify
 ; WebView2 子进程是中完整性，写不进内置 Administrator 的高完整性 LocalAppData。
 Name: "{commonappdata}\metasequoiaime"
 Name: "{commonappdata}\metasequoiaime\webview2"; Permissions: users-modify
@@ -356,6 +356,36 @@ begin
   );
 end;
 
+procedure EnsureImeUserDataDir;
+var
+  AppDataPath: String;
+  ResultCode: Integer;
+begin
+  // Elevated setup writes {localappdata} as high integrity. Medium-IL Server
+  // and Settings cannot replace those files. Users who never rewrote config.toml
+  // at the real path (the non-ASCII path bug) keep that leftover and cannot save.
+  // Note: brace comments do not nest in Inno Setup, so a constant like the one
+  // above would close a { } comment early -- keep these as line comments.
+  AppDataPath := ExpandConstant('{localappdata}\metasequoiaime');
+  ForceDirectories(AppDataPath);
+  Exec(
+    ExpandConstant('{sys}\icacls.exe'),
+    '"' + AppDataPath + '" /grant *S-1-5-32-545:(OI)(CI)M /T /C /Q',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
+  );
+  Exec(
+    ExpandConstant('{sys}\icacls.exe'),
+    '"' + AppDataPath + '" /setintegritylevel (OI)(CI)M /T /C /Q',
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
+  );
+end;
+
 procedure EnsureSharedWebView2DataDir;
 var
   RootPath: String;
@@ -617,6 +647,7 @@ begin
     ApplyNetworkChoiceToUserConfig;
 #endif
     CreateWatchdogLogonTask;
+    EnsureImeUserDataDir;
     EnsureSharedWebView2DataDir;
     { Keep the old autostart intact until its scheduled-task replacement has
       been created successfully, then remove the Explorer-delayed Run entry. }

@@ -1921,6 +1921,16 @@ void TextBlock::InvalidateTextLayoutCache()
     cachedLayoutWidth_ = -1.0f;
 }
 
+void TextBlock::SetFallbackFontFamilies(std::vector<std::wstring> families)
+{
+    if (hasCustomFontFallback_ && fallbackFontFamilies_ == families)
+        return;
+    hasCustomFontFallback_ = true;
+    fallbackFontFamilies_ = std::move(families);
+    InvalidateTextLayoutCache();
+    InvalidateMeasure();
+}
+
 void TextBlock::SetTextLayoutPadding(Thickness padding)
 {
     textLayoutPadding_ = padding;
@@ -1998,7 +2008,10 @@ SizeF TextBlock::Measure(const SizeF &availableSize)
 
         format->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
         format->SetTextAlignment(textAlignment_);
-        ApplyUiFontFallback(dwriteFactory, format.Get());
+        if (hasCustomFontFallback_)
+            ApplyFontFallback(dwriteFactory, format.Get(), fallbackFontFamilies_);
+        else
+            ApplyUiFontFallback(dwriteFactory, format.Get());
 
         const UINT32 caretPos = static_cast<UINT32>((std::min)(caretIndex_, text_.size()));
         const bool insertSlot = showCaret_ && caretPos < text_.size();

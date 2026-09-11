@@ -3,9 +3,6 @@
 
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://msime-contracts; style-src 'unsafe-inline'; img-src data: https://appassets https://candidate-skins; font-src data: https://appassets https://candidate-skins">
-  <script src="https://msime-contracts/schema.js"></script>
-  <script src="https://msime-contracts/runtime.js"></script>
-  <script>const serializeHostMessage = message => MsimeProtocol.serializeClientMessage(message, "candidate");</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>(IME)horizontalCandidateWindow</title>
@@ -16,6 +13,9 @@
     .cand-content { min-width: 0; }
     .cand-translation { display: block; font-size: 0.78em; line-height: 1.25; opacity: 0.62; }
   </style>
+  <script src="https://msime-contracts/schema.js"></script>
+  <script src="https://msime-contracts/runtime.js"></script>
+  <script>const serializeHostMessage = message => MsimeProtocol.serializeClientMessage(message, "candidate");</script>
   <script>
     let lastPointerScreenPosition = null;
     let pointerProbeCount = 0;

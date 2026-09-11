@@ -33,6 +33,7 @@ CTfTextLayoutSink::CTfTextLayoutSink(_In_ CMetasequoiaIME *pTextService)
     _tfEditCookie = TF_INVALID_EDIT_COOKIE;
 
     _dwCookieTextLayoutSink = TF_INVALID_COOKIE;
+    _hasValidAnchor = false;
 
     _refCount = 1;
 
@@ -147,6 +148,7 @@ HRESULT CTfTextLayoutSink::_StartLayout(_In_ ITfContext *pContextDocument, TfEdi
     _pRangeComposition->AddRef();
 
     _tfEditCookie = ec;
+    _hasValidAnchor = false;
     HRESULT hr = _AdviseTextLayoutSink();
     return hr;
 }
@@ -157,6 +159,7 @@ VOID CTfTextLayoutSink::_EndLayout()
     const bool hadRangeComposition = (_pRangeComposition != nullptr);
     const bool hadContextDocument = (_pContextDocument != nullptr);
     HRESULT unadviseHr = S_OK;
+    _hasValidAnchor = false;
 
     if (_pRangeComposition)
     {
@@ -249,7 +252,29 @@ HRESULT CTfTextLayoutSink::_GetTextExt(_Out_ RECT *lpRect, _Out_ POINT *lpAnchor
         return hr;
     }
 
-    if (FAILED(hr = pContextView->GetTextExt(_tfEditCookie, _pRangeComposition, lpRect, &isClipped)))
+    hr = pContextView->GetTextExt(_tfEditCookie, _pRangeComposition, lpRect, &isClipped);
+
+    // TS_E_NOLAYOUT means "the host has not laid this range out yet, ask again",
+    // not "the caret is gone". Chromium-based hosts (Electron apps, browsers)
+    // answer it routinely while their renderer is behind, and far more often
+    // while the machine is busy. Adopting the off-screen sentinel here parks the
+    // candidate window at INVALID_Y for one frame and the next measurement pulls
+    // it back — that is the flicker seen under load. Report the failure so the
+    // caller keeps the anchor it already has; TF_LC_CHANGE delivers the real
+    // position as soon as layout completes. Only do this once this layout
+    // session has produced a good anchor, so composition start still falls back
+    // to the sentinel rather than reusing a stale one from another document.
+    if (hr == TS_E_NOLAYOUT && _hasValidAnchor)
+    {
+        pContextView->Release();
+        if (Global::TsfDiagnosticLogEnabled.load(std::memory_order_relaxed))
+        {
+            QueueTsfDiagnosticLog(L"[candidate-layout] kept last anchor across transient TS_E_NOLAYOUT");
+        }
+        return hr;
+    }
+
+    if (FAILED(hr))
     {
         // Set default value to make sure the window is hidden by moving it out of the screen
         lpRect->left = 0;
@@ -267,6 +292,7 @@ HRESULT CTfTextLayoutSink::_GetTextExt(_Out_ RECT *lpRect, _Out_ POINT *lpAnchor
     else
     {
         *lpAnchor = GetPhysicalTextAnchor(pContextView, *lpRect);
+        _hasValidAnchor = true;
     }
     pContextView->Release();
 

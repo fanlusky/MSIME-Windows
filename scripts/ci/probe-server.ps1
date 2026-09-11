@@ -25,8 +25,17 @@ foreach ($architecture in @('Win32', 'x64')) {
 }
 # CI owns the process lifetime. The existing marker prevents the watchdog from
 # restarting it after the probe; no DLL is registered and no IME is installed.
+# On a persistent self-hosted runner a Server left behind by an earlier job wins
+# the single-instance mutex, the one started here returns 0 immediately, and the
+# probe silently handshakes with the older build instead. Clear the field first.
+Get-Process -Name 'MetasequoiaImeServer', 'MetasequoiaImeWatchdog' -ErrorAction SilentlyContinue |
+    Stop-Process -Force
 $process = Start-Process -FilePath $binary -ArgumentList '--watchdog-managed --pipe-probe' `
     -WorkingDirectory (Split-Path $binary) -PassThru
+Start-Sleep -Milliseconds 200
+if ($process.HasExited) {
+    throw "Server exited immediately with code $($process.ExitCode); another instance holds the single-instance mutex"
+}
 try {
     foreach ($probe in $probes) {
         & $probe

@@ -10,9 +10,15 @@ project(${PROJECT_NAME} VERSION 1.0)
 
 # Release binaries need usable symbols for crash diagnosis. Keep the PDB beside each executable so
 # the release job can validate and publish it without changing the binary's install layout.
+#
+# The debug info is embedded in each object (/Z7) rather than written to a compile-time PDB (/Zi).
+# The two produce the same final .pdb once the linker's /DEBUG runs over them, but sccache -- the CI
+# compiler cache -- can only cache an MSVC compile whose debug info lives in the object. With /Zi it
+# treats every translation unit as uncacheable and the cache sits at a 0% hit rate. /Z7 keeps the
+# beside-the-executable PDB the release job expects while letting that cache actually work.
 if(MSVC)
-    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "ProgramDatabase")
-    add_compile_options("$<$<CONFIG:Release>:/Zi>")
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "Embedded")
+    add_compile_options("$<$<CONFIG:Release>:/Z7>")
     add_link_options("$<$<CONFIG:Release>:/DEBUG>")
 endif()
 

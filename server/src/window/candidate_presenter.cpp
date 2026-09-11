@@ -186,7 +186,7 @@ void ApplyPackageColors(const CandidateSkinCatalog::CandidateColors &colors, Can
 
 std::wstring AssetRoot()
 {
-    return string_to_wstring(CommonUtils::get_local_appdata_path()) + L"\\" + GlobalIme::AppName;
+    return CommonUtils::get_ime_data_path_w();
 }
 
 constexpr float kShadowPadLeft = 32.0f;
@@ -307,6 +307,9 @@ void CandidatePresenter::ApplySkin()
     fingerprint << skinId << '|' << GetConfiguredThemeCand() << '|' << GetConfiguredCandidateFont() << '|'
                 << GetConfiguredCandidateFontSize() << '|' << GetConfiguredCandidateWindowPreeditFontSize() << '|'
                 << GetConfiguredCandidateWindowLayout() << '|' << GetConfiguredCandidateTextColor();
+    fingerprint << '|' << GetConfiguredCandidateEnglishFont();
+    for (const auto &font : GetConfiguredCandidateFallbackFonts())
+        fingerprint << '|' << font.size() << ':' << font;
     const std::string skinKey = fingerprint.str();
     if (skinKey == lastSkinFingerprint_ && impl_->card)
     {
@@ -395,6 +398,9 @@ void CandidatePresenter::ApplySkin()
     const float fontSize = static_cast<float>((std::max)(12, GetConfiguredCandidateFontSize()));
     const float preeditSize = static_cast<float>((std::max)(12, GetConfiguredCandidateWindowPreeditFontSize()));
     msimeui::CandidateList::Appearance appearance;
+    appearance.fontFamily = string_to_wstring(ResolveSystemFontFamilyForCss(GetConfiguredCandidateEnglishFont()));
+    for (const auto &font : GetConfiguredCandidateFallbackFontFamilies())
+        appearance.fallbackFontFamilies.push_back(string_to_wstring(font));
     appearance.itemHeight = fontSize * 1.35f + 2.0f;
     appearance.itemGap = 2.0f;
     appearance.fontSize = fontSize;
@@ -423,7 +429,8 @@ void CandidatePresenter::ApplySkin()
     impl_->list->SetOrientation(GetConfiguredCandidateWindowLayout() == "horizontal"
                                     ? msimeui::CandidateList::Orientation::Horizontal
                                     : msimeui::CandidateList::Orientation::Vertical);
-    impl_->preedit->SetFontFamily(theme.textInputFontFamily);
+    impl_->preedit->SetFontFamily(appearance.fontFamily);
+    impl_->preedit->SetFallbackFontFamilies(appearance.fallbackFontFamilies);
     impl_->preedit->SetFontSize(preeditSize);
     impl_->preedit->SetColor(theme.textPrimary);
     impl_->preedit->SetCaretColor(tokens.accent);
@@ -821,6 +828,19 @@ void CandidatePresenter::ShowFromGlobalState(POINT caret)
 {
     if (!bound_ || !hwnd_ || !impl_ || !impl_->root)
     {
+        return;
+    }
+    // A composition can start before the host reports a usable text extent
+    // (first focus, or resuming after a long idle). The caret then arrives as
+    // (0, INVALID_Y), which placement would clamp into the monitor's work area.
+    // Hide even an already-visible host until a real anchor arrives. Preserve
+    // the show request so MoveCandidate / the settle timer can place it later.
+    if (caret.y == Global::INVALID_Y)
+    {
+        CloseContextMenu(false);
+        SetCandidateHostCloaked(true);
+        ::is_global_wnd_cand_shown = true;
+        CAND_DIAG_LOGF(L"candidate-d2d show deferred: no usable caret anchor ({},{})", caret.x, caret.y);
         return;
     }
     CloseContextMenu(false);

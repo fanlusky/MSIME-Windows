@@ -522,6 +522,8 @@ class CandidateList : public Visual
 
     struct Appearance
     {
+        std::wstring fontFamily;
+        std::vector<std::wstring> fallbackFontFamilies;
         float itemHeight = 28.0f;
         float itemGap = 2.0f;
         float fontSize = 16.0f;

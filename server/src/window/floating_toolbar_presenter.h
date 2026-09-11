@@ -12,6 +12,7 @@ class FloatingToolbarPresenter
     bool IsBound() const;
     void Present();
     void ApplyTheme();
+    void ApplyAppearance();
     void RelayoutHost(FLOAT scaleOverride = 0.0f);
     void SyncUi(int cnEn, int doubleSingleByte, int punctuation, int englishInputMode, int capsLock,
                 int japaneseInputMode);

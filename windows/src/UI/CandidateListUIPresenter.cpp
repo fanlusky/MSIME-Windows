@@ -1128,17 +1128,23 @@ VOID CCandidateListUIPresenter::_LayoutDestroyNotification()
         return;
     }
 
-    // Telegram transiently destroys and recreates its TSF context view while
-    // the same composition is still active. Treating that as candidate-session
-    // teardown sends HideCandidate between ordinary keystrokes, so Server clears
-    // the live composition and the HWND visibly disappears/reappears. Keep the
-    // sink/session alive; real commit, cancel, focus loss, and presenter cleanup
-    // still terminate it through the normal composition paths.
-    if (_wcsicmp(Global::current_process_name.c_str(), L"Telegram.exe") == 0)
+    // Some hosts transiently destroy and recreate their TSF context view while
+    // the same composition is still active — Telegram always did, and every
+    // Chromium-based host (Electron apps such as VS Code / Cursor, browsers)
+    // does it too once the machine is busy enough for the renderer to fall
+    // behind. Treating that as candidate-session teardown sends HideCandidate
+    // between ordinary keystrokes, so Server clears the live composition and the
+    // HWND visibly disappears/reappears, and the pending candidate can no longer
+    // be committed. A live composition is the reliable signal that this is not a
+    // real teardown, so gate on that instead of on a process-name allowlist:
+    // real commit, cancel, focus loss, and presenter cleanup all end the
+    // composition first and still terminate the session through those paths.
+    if (_pTextService != nullptr && _pTextService->_IsComposing())
     {
         if (Global::TsfDiagnosticLogEnabled.load(std::memory_order_relaxed))
         {
-            QueueTsfDiagnosticLog(L"[candidate-layout] ignored transient TF_LC_DESTROY process=Telegram.exe");
+            QueueTsfDiagnosticLog(L"[candidate-layout] ignored transient TF_LC_DESTROY while composing process=" +
+                                  Global::current_process_name);
         }
         return;
     }

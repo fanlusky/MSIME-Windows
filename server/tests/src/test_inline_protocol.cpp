@@ -28,6 +28,14 @@ TEST_CASE(protocol_inline_keeps_fallback_if_assets_are_missing)
     REQUIRE_EQ(html, L"<body>legacy toolbar</body>");
 }
 
+TEST_CASE(protocol_inline_replaces_scripts_after_markup)
+{
+    std::wstring html = L"<head></head><body>toolbar</body>" + imports;
+    REQUIRE(InlineWebViewProtocolScripts(html, L"const schema = {};", L"const runtime = schema;"));
+    REQUIRE(html.find(L"src=") == std::wstring::npos);
+    REQUIRE(html.find(L"<body>toolbar</body>") < html.find(L"const schema"));
+}
+
 TEST_CASE(protocol_inline_escapes_embedded_html_end_tags)
 {
     std::wstring html = imports;

@@ -14,13 +14,6 @@ using namespace std;
 
 namespace FanyUtils
 {
-std::string GetIMEDataDirPath()
-{
-    const char *localAppDataPath = std::getenv("LOCALAPPDATA");
-    std::string IMEDataPath = std::string(localAppDataPath) + "\\" + wstring_to_string(std::wstring(IME_NAME));
-    return IMEDataPath;
-}
-
 namespace
 {
 std::string TrimAscii(const std::string &value)

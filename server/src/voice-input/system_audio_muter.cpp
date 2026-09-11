@@ -31,7 +31,7 @@ bool g_com_owned = false;
 
 std::wstring StateFilePath()
 {
-    return string_to_wstring(CommonUtils::get_ime_data_path()) + L"\\voice_system_audio_mute_state.txt";
+    return CommonUtils::get_ime_data_path_w() + L"\\voice_system_audio_mute_state.txt";
 }
 
 void PersistStateLocked()

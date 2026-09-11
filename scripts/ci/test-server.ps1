@@ -13,7 +13,9 @@ if (-not (Test-Path -LiteralPath $helpcodes -PathType Container)) {
     throw "Helpcodes not found at $helpcodes; run git submodule update --init"
 }
 python (Join-Path $automationRoot 'scripts/product_lock.py') verify-contracts $automationRoot
-if ($LASTEXITCODE -ne 0) { throw 'The engine submodule does not match the product lock' }
+# A non-zero exit also covers git or python failing outright, which reads nothing
+# like a contract mismatch. Point at the output instead of naming a cause.
+if ($LASTEXITCODE -ne 0) { throw "verify-contracts exited $LASTEXITCODE; see the output above" }
 python (Join-Path $automationRoot 'scripts/product_lock.py') verify-checkout engine (Join-Path $automationRoot 'vendor/MetasequoiaImeEngine')
 if ($LASTEXITCODE -ne 0) { throw 'The Engine checkout does not match the product lock' }
 python (Join-Path $automationRoot 'scripts/product_lock.py') fetch-dictionaries --staging-root $StagingRoot

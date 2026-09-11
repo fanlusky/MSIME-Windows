@@ -57,6 +57,10 @@ STDAPI CGetTextExtentEditSession::DoEditSession(TfEditCookie ec)
         const POINT anchor = GetPhysicalTextAnchor(_pContextView, rc);
         Global::Point[0] = anchor.x;
         Global::Point[1] = anchor.y;
+        // This is the per-keystroke caret source. Tell the sink the session now
+        // has a usable anchor, so a later transient TS_E_NOLAYOUT can be answered
+        // by keeping this position instead of parking the window off-screen.
+        _pTfTextLayoutSink->_MarkAnchorValid();
         if (Global::current_process_name == Global::ZEN_BROWSER)
         {
             Global::firefox_like_cnt++;

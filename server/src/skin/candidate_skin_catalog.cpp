@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <fstream>
+#include <iterator>
 #include <system_error>
 
 namespace CandidateSkinCatalog
@@ -187,7 +189,18 @@ std::optional<Package> Load(const std::filesystem::path &skinsRoot, const std::s
     const std::filesystem::path manifest = directory / L"skin.toml";
     try
     {
-        const toml::table root = toml::parse_file(manifest.string());
+        // Read via the wide path and parse the text. toml::parse_file(manifest.string()) would run the
+        // path through the ANSI code page: skins live under the user profile, so a non-ASCII (e.g.
+        // Chinese) user name corrupts it, and on a code page that cannot represent the characters
+        // path::string() throws right past this try block's toml handlers.
+        std::ifstream input(manifest, std::ios::binary);
+        if (!input)
+        {
+            SetError(error, "缺少或无法解析 skin.toml");
+            return std::nullopt;
+        }
+        const std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+        const toml::table root = toml::parse(text);
         if (root["schema_version"].value_or(0) != 1)
         {
             SetError(error, "仅支持 schema_version 1");

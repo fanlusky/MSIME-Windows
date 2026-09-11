@@ -1,13 +1,22 @@
+#include "MetasequoiaImeEngine/core/data_path.h"
 #include "MetasequoiaImeEngine/user_dictionary/user_dictionary_journal.h"
 
+#include <exception>
 #include <filesystem>
 #include <iostream>
 #include <string>
 #include <windows.h>
 
-int wmain(int argc, wchar_t **argv)
+namespace
 {
-    std::filesystem::path data_dir = std::filesystem::path(user_dictionary::default_user_db_path()).parent_path();
+int run(int argc, wchar_t **argv)
+{
+    // The journal API speaks UTF-8 (see default_user_db_path), so never convert through
+    // path::string()/path(std::string): those go via the ANSI code page, which corrupts a
+    // non-ASCII (e.g. Chinese) user profile path on a GBK system and throws outright on a
+    // code page that cannot represent the characters.
+    std::filesystem::path data_dir =
+        metasequoia::path_from_utf8(user_dictionary::default_user_db_path().c_str()).parent_path();
     for (int i = 1; i < argc; ++i)
     {
         if (std::wstring(argv[i]) == L"--data-dir" && i + 1 < argc)
@@ -21,8 +30,9 @@ int wmain(int argc, wchar_t **argv)
         }
     }
 
-    const auto result = user_dictionary::replay((data_dir / "msime_user.db").string(), (data_dir / "msime.db").string(),
-                                                (data_dir / "english.db").string());
+    const auto result = user_dictionary::replay(metasequoia::path_to_utf8(data_dir / L"msime_user.db"),
+                                                metasequoia::path_to_utf8(data_dir / L"msime.db"),
+                                                metasequoia::path_to_utf8(data_dir / L"english.db"));
     if (!result.error.empty())
     {
         std::cerr << result.error << '\n';
@@ -30,4 +40,25 @@ int wmain(int argc, wchar_t **argv)
     }
     std::cout << "Applied " << result.applied << " user dictionary operations.\n";
     return 0;
+}
+} // namespace
+
+int wmain(int argc, wchar_t **argv)
+{
+    // The installer aborts the upgrade on any non-zero exit, so an escaping exception would
+    // fastfail (0xC0000409) and leave the user with a failed install and no diagnosis.
+    try
+    {
+        return run(argc, argv);
+    }
+    catch (const std::exception &error)
+    {
+        std::cerr << "user dictionary replay failed: " << error.what() << '\n';
+        return 1;
+    }
+    catch (...)
+    {
+        std::cerr << "user dictionary replay failed with an unknown error\n";
+        return 1;
+    }
 }

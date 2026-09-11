@@ -7,7 +7,6 @@
 #include <string>
 
 #include "config/ime_config.h"
-#include "global/globals.h"
 #include "utils/common_utils.h"
 
 namespace
@@ -45,10 +44,9 @@ const std::wstring &ResolveLogPathUnlocked()
 
     // Diagnostics should still be available when the Desktop is temporarily
     // unavailable (for example, an offline redirected profile).
-    const std::string local_appdata = CommonUtils::get_local_appdata_path();
-    if (local_appdata.empty())
+    if (CommonUtils::get_local_appdata_path_w().empty())
         return g_log_path;
-    const std::wstring app_directory = string_to_wstring(local_appdata) + L"\\" + GlobalIme::AppName;
+    const std::wstring app_directory = CommonUtils::get_ime_data_path_w();
     const std::wstring log_directory = app_directory + L"\\logs";
     CreateDirectoryW(app_directory.c_str(), nullptr);
     if (!CreateDirectoryW(log_directory.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)

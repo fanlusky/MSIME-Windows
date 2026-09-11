@@ -3,9 +3,6 @@
 
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://msime-contracts; style-src 'unsafe-inline'; img-src data: https://appassets https://candidate-skins; font-src data: https://appassets https://candidate-skins">
-  <script src="https://msime-contracts/schema.js"></script>
-  <script src="https://msime-contracts/runtime.js"></script>
-  <script>const serializeHostMessage = message => MsimeProtocol.serializeClientMessage(message, "menu");</script>
   <meta charset="UTF-8">
   <title>(IME)TrayMenu</title>
   <style>
@@ -215,6 +212,9 @@
     </div>
   </div>
 
+  <script src="https://msime-contracts/schema.js"></script>
+  <script src="https://msime-contracts/runtime.js"></script>
+  <script>const serializeHostMessage = message => MsimeProtocol.serializeClientMessage(message, "menu");</script>
   <script>
     // Initial state comes from C++ (SyncMenuFloatingToolbarToggle) so this
     // toggle stays in sync with Settings / general.floating_toolbar.

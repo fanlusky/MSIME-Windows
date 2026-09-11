@@ -20,18 +20,18 @@
 
 using namespace Microsoft::WRL;
 
-const std::wstring LocalAssetsPath = fmt::format(             //
-    L"{}\\{}\\assets",                                        //
-    string_to_wstring(CommonUtils::get_local_appdata_path()), //
-    GlobalIme::AppName                                        //
+const std::wstring LocalAssetsPath = fmt::format( //
+    L"{}\\{}\\assets",                            //
+    CommonUtils::get_local_appdata_path_w(),      //
+    GlobalIme::AppName                            //
 );
 
 inline std::wstring GetLocalAssetsPath()
 {
     // Prefer a live lookup: static LocalAssetsPath can be empty if CRT init ran
     // before the user profile environment was fully available.
-    const std::wstring live = fmt::format(L"{}\\{}\\assets", //
-                                          string_to_wstring(CommonUtils::get_local_appdata_path()), GlobalIme::AppName);
+    const std::wstring live =
+        fmt::format(L"{}\\{}\\assets", CommonUtils::get_local_appdata_path_w(), GlobalIme::AppName);
     if (live.empty() || live[0] == L'\\')
     {
         return LocalAssetsPath;

@@ -5,6 +5,9 @@
 #include <string>
 #include <vector>
 
+// This header is shared with the portable test target, which builds on a bare Linux runner with no
+// vcpkg tree and no engine headers. Keep it dependency-free; path helpers live in test_utf8_path.h.
+
 namespace test
 {
 struct TestCase

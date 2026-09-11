@@ -39,7 +39,7 @@ const DWORD WM_InsertText = WM_USER + 19;
 const DWORD WM_RefreshLanguageBarTheme = WM_USER + 20;
 const DWORD WM_PairedPunctuationMoveLeft = WM_USER + 21;
 const DWORD WM_ReplaceRepeatedSmartPunctuation = WM_USER + 22;
-const DWORD WM_MinttyShiftRelease = WM_USER + 23;
+const DWORD WM_BareShiftRelease = WM_USER + 23;
 const DWORD WM_UpdateVoiceComposition = WM_USER + 24;
 const DWORD WM_CommitVoiceComposition = WM_USER + 25;
 const DWORD WM_CancelVoiceComposition = WM_USER + 26;
@@ -70,6 +70,9 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
 {
     friend class CCompositionProcessorEngine;
     friend class CKeyHandlerEditSession;
+    // Needs _IsComposing() to tell a host's transient context-view teardown apart
+    // from a real end of composition.
+    friend class CCandidateListUIPresenter;
 
   public:
     CMetasequoiaIME();
@@ -372,16 +375,21 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     bool _MatchModifierReleaseHotkey(WPARAM wParam, _Out_ GUID *hotkeyGuid);
     bool _QueueInputHotkey(_In_ ITfContext *pContext, REFGUID hotkeyGuid, _Out_ BOOL *pIsEaten);
 
-    // mintty exposes IME composition through the legacy IMM bridge, but some
-    // versions do not forward bare modifier key-up events to ITfKeyEventSink.
-    // Observe only this host thread and feed a missed bare-Shift release back
-    // into the normal deferred hotkey path.
-    void _InitMinttyKeyboardHook();
-    void _UninitMinttyKeyboardHook();
-    void _HandleMinttyShiftRelease(UINT sequence);
-    void _MarkMinttyShiftHandled();
-    static LRESULT CALLBACK _MinttyKeyboardHookProc(int code, WPARAM wParam, LPARAM lParam);
-    static thread_local CMetasequoiaIME *_minttyKeyboardHookOwner;
+    // mintty routes composition over the legacy IMM bridge and never offers a
+    // bare modifier key-up to ITfKeyEventSink, so there is no sink event to
+    // hang the toggle on. Observe only this host thread and feed the missed
+    // bare-Shift release back into the normal deferred hotkey path.
+    // _MarkBareShiftHandled() latches the presses the key-event sink already
+    // toggled, so a host that does deliver the release never toggles twice.
+    // Keep this mintty-only: hosts whose problem is a stale GetKeyState()
+    // rather than a missing callback are handled in the sink, and windows/
+    // AGENTS.md asks that hooks in the injected DLL stay the exception.
+    void _InitBareShiftKeyboardHook();
+    void _UninitBareShiftKeyboardHook();
+    void _HandleHookedBareShiftRelease(UINT sequence);
+    void _MarkBareShiftHandled();
+    static LRESULT CALLBACK _BareShiftKeyboardHookProc(int code, WPARAM wParam, LPARAM lParam);
+    static thread_local CMetasequoiaIME *_bareShiftHookOwner;
 
     void _StartComposition(_In_ ITfContext *pContext);
     HRESULT _EndComposition(_In_opt_ ITfContext *pContext, _In_opt_ ITfComposition *expectedComposition = nullptr,
@@ -589,13 +597,13 @@ class CMetasequoiaIME : public ITfTextInputProcessorEx,
     bool _ctrlHotkeyArmed;
     std::chrono::steady_clock::time_point _modifierHotkeyExpire;
 
-    HHOOK _minttyKeyboardHook;
-    BYTE _minttyShiftDownMask;
-    bool _minttyShiftArmed;
-    UINT _minttyShiftSequence;
-    UINT _minttyShiftHandledSequence;
-    uint64_t _minttyShiftFocusGeneration;
-    ULONGLONG _minttyShiftExpireTick;
+    HHOOK _bareShiftHook;
+    BYTE _bareShiftDownMask;
+    bool _bareShiftArmed;
+    UINT _bareShiftSequence;
+    UINT _bareShiftHandledSequence;
+    uint64_t _bareShiftFocusGeneration;
+    ULONGLONG _bareShiftExpireTick;
 
     LONG _refCount;
 

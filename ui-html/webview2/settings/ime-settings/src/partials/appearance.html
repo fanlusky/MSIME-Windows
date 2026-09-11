@@ -62,19 +62,12 @@
     </div>
     <div class="divider"></div>
     <div class="section-header">
-      <div class="section-title">候选窗中文补充字体</div>
-      <div class="dropdown">
-        <div class="dropdown-toggle font-combobox" id="candFontBtn">
-          <input class="font-search-input" type="text" value="Noto Sans SC"
-                 autocomplete="off" spellcheck="false" aria-label="搜索候选窗中文补充字体"
-                 aria-controls="candFontMenu" aria-autocomplete="list">
-          <div class="arrow">
-            <img src="./assets/arrow.svg" alt="arrow">
-          </div>
-        </div>
-        <div class="dropdown-menu font-dropdown-menu compact-scroll-menu" id="candFontMenu"></div>
+      <div>
+        <div class="section-title">候选窗补充字体</div>
+        <div class="floating-toolbar-description">主字体缺字时按以下顺序回落，最后使用系统字体。</div>
       </div>
     </div>
+    <div id="candFallbackFontList" class="fallback-font-list" role="group" aria-label="补充字体回落顺序"></div>
     <div class="divider"></div>
     <div class="section-header">
       <div class="section-title">候选窗字号</div>

@@ -3,6 +3,18 @@
 #include "tests/includes/test_framework.h"
 #include <type_traits>
 
+TEST_CASE(font_fallback_upgrade_preserves_legacy_fonts_and_order)
+{
+    const std::string next = "[appearance]\nfallback_fonts = [\"Noto Sans SC\", \"Microsoft YaHei\"]\n";
+    const std::string old = "[appearance]\nfont = \"SimSun\"\ndefault_font = \"DengXian\"\n";
+    const auto migrated = MergeConfigIntoTemplate(next, old, old);
+    REQUIRE(migrated.find("[\"SimSun\", \"DengXian\"]") != std::string::npos);
+    const std::string custom = "[appearance]\nfallback_fonts = [\n \"Font#1\", # comment\n \"Font]2\"\n]\n";
+    REQUIRE(MergeConfigIntoTemplate(next, custom, next).find("Font]2") != std::string::npos);
+    REQUIRE(MergeConfigIntoTemplate(next, "[appearance]\nfallback_fonts = []\n", next).find("fallback_fonts = []") !=
+            std::string::npos);
+}
+
 TEST_CASE(shortcut_config_upgrade_preserves_word_selection_and_adds_defaults)
 {
     const std::string old_config =

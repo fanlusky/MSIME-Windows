@@ -166,3 +166,46 @@
 .arrange-item {
   margin-top: 12px;
 }
+
+.fallback-font-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  row-gap: 8px;
+  margin: 8px 0;
+}
+.fallback-font-select {
+  width: 100px;
+}
+.fallback-font-select > .font-search-input {
+  flex: 1;
+  width: 0;
+  text-overflow: ellipsis;
+}
+.fallback-font-select > img {
+  flex-shrink: 0;
+}
+.fallback-font-menu {
+  left: 0;
+  right: auto;
+  min-width: 168px;
+  width: max-content;
+  max-width: min(320px, 80vw);
+}
+.fallback-font-add {
+  margin-left: 8px;
+  width: 100px;
+  justify-content: center;
+  padding-right: 12px;
+}
+.fallback-font-add > span {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 18px;
+  height: 18px;
+}
+.fallback-font-add:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

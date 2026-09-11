@@ -1,4 +1,5 @@
 #include "tests/includes/test_framework.h"
+#include "tests/includes/test_utf8_path.h"
 #include "MetasequoiaImeEngine/providers/wubi_candidate_provider.h"
 #include "MetasequoiaImeEngine/schemes/wubi_scheme.h"
 #include <filesystem>
@@ -22,7 +23,7 @@ std::filesystem::path CreateWubiDatabase()
     std::filesystem::remove(path);
 
     sqlite3 *db = nullptr;
-    if (sqlite3_open(path.string().c_str(), &db) != SQLITE_OK)
+    if (sqlite3_open(test::Utf8(path).c_str(), &db) != SQLITE_OK)
     {
         throw std::runtime_error("Failed to create temporary Wubi database.");
     }
@@ -69,7 +70,7 @@ TEST_CASE(WubiProviderUsesExactCodeAndFixedWeightOrder)
 {
     const auto db_path = CreateWubiDatabase();
     {
-        WubiCandidateProvider provider(db_path.string());
+        WubiCandidateProvider provider(test::Utf8(db_path));
         QueryRequest request;
         request.scheme = SchemeType::Wubi;
         request.raw_input = "a";

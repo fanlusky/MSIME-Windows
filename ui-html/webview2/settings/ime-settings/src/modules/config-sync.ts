@@ -43,6 +43,8 @@ function applyConfigData(data: Record<string, any>, target?: string): void {
         },
         {
           font: data?.appearance?.font,
+          fallback_fonts: data?.appearance?.fallback_fonts,
+          fallback_font_css_families: data?.appearance?.fallback_font_css_families,
           font_css_family: data?.appearance?.font_css_family,
           english_font: data?.appearance?.english_font,
           english_font_css_family: data?.appearance?.english_font_css_family,
@@ -117,6 +119,12 @@ function applyConfigData(data: Record<string, any>, target?: string): void {
   }
   if (typeof data?.input?.paired_punctuation === 'boolean') {
     applyToggleState('pairedPunctuationToggleBtn', data.input.paired_punctuation);
+  }
+  if (typeof data?.quanpin?.autocorrect_transposition === 'boolean') {
+    applyToggleState('autocorrectTranspositionToggleBtn', data.quanpin.autocorrect_transposition);
+  }
+  if (typeof data?.quanpin?.autocorrect_neighbor === 'boolean') {
+    applyToggleState('autocorrectNeighborToggleBtn', data.quanpin.autocorrect_neighbor);
   }
   if (data?.input?.punctuation_lock === 'chinese' || data?.input?.punctuation_lock === 'english' ||
       data?.input?.punctuation_lock === 'follow') {

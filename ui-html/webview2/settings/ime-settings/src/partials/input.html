@@ -120,6 +120,33 @@
   <div class="section">
     <div class="section-header">
       <div>
+        <div class="section-title">输入纠错</div>
+        <div class="input-setting-description">全拼输错时按误键类型给出纠正候选，默认关闭；开启后预编辑始终显示原始输入，纠正结果仅出现在候选中</div>
+      </div>
+    </div>
+    <div class="section-header">
+      <div>
+        <div class="section-title">乱序纠错</div>
+        <div class="input-setting-description">相邻字母顺序打错时纠正，如 sahng → shang（上）</div>
+      </div>
+      <div class="ftb-toggle-btn" id="autocorrectTranspositionToggleBtn" role="switch" aria-checked="false" tabindex="0">
+        <div class="ftb-toggle-knob"></div>
+      </div>
+    </div>
+    <div class="section-header">
+      <div>
+        <div class="section-title">邻键纠错</div>
+        <div class="input-setting-description">误触相邻按键时纠正，如 shabg → shang（上）；默认关闭</div>
+      </div>
+      <div class="ftb-toggle-btn" id="autocorrectNeighborToggleBtn" role="switch" aria-checked="false" tabindex="0">
+        <div class="ftb-toggle-knob"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <div>
         <div class="section-title">候选词翻译</div>
         <div class="input-setting-description">仅在竖排候选窗口中显示中文与所选语种的互译，每项最多两个简短释义</div>
       </div>

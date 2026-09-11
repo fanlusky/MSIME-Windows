@@ -169,7 +169,8 @@ ComPtr<IDWriteTextLayout> CreateCachedTextLayout(IDWriteFactory *factory, const 
                                                  DWRITE_FONT_WEIGHT fontWeight, float width, float height,
                                                  DWRITE_TEXT_ALIGNMENT textAlignment,
                                                  DWRITE_PARAGRAPH_ALIGNMENT paragraphAlignment,
-                                                 DWRITE_WORD_WRAPPING wordWrapping)
+                                                 DWRITE_WORD_WRAPPING wordWrapping,
+                                                 const std::vector<std::wstring> &fallbackFamilies = {})
 {
     ComPtr<IDWriteTextLayout> layout;
     if (!factory)
@@ -181,6 +182,7 @@ ComPtr<IDWriteTextLayout> CreateCachedTextLayout(IDWriteFactory *factory, const 
     struct TextFormatKey
     {
         std::wstring family;
+        std::vector<std::wstring> fallbackFamilies;
         float size = 0.0f;
         DWRITE_FONT_WEIGHT weight = DWRITE_FONT_WEIGHT_NORMAL;
         DWRITE_TEXT_ALIGNMENT textAlignment = DWRITE_TEXT_ALIGNMENT_LEADING;
@@ -191,9 +193,9 @@ ComPtr<IDWriteTextLayout> CreateCachedTextLayout(IDWriteFactory *factory, const 
     static std::vector<TextFormatKey> formatCache;
     for (auto &entry : formatCache)
     {
-        if (entry.family == fontFamily && entry.size == fontSize && entry.weight == fontWeight &&
-            entry.textAlignment == textAlignment && entry.paragraphAlignment == paragraphAlignment &&
-            entry.wordWrapping == wordWrapping && entry.format)
+        if (entry.family == fontFamily && entry.fallbackFamilies == fallbackFamilies && entry.size == fontSize &&
+            entry.weight == fontWeight && entry.textAlignment == textAlignment &&
+            entry.paragraphAlignment == paragraphAlignment && entry.wordWrapping == wordWrapping && entry.format)
         {
             format = entry.format;
             break;
@@ -213,7 +215,9 @@ ComPtr<IDWriteTextLayout> CreateCachedTextLayout(IDWriteFactory *factory, const 
         format->SetTextAlignment(textAlignment);
         format->SetParagraphAlignment(paragraphAlignment);
         format->SetWordWrapping(wordWrapping);
+        ApplyFontFallback(factory, format.Get(), fallbackFamilies);
         TextFormatKey entry;
+        entry.fallbackFamilies = fallbackFamilies;
         entry.family = fontFamily;
         entry.size = fontSize;
         entry.weight = fontWeight;
@@ -2666,10 +2670,11 @@ float CandidateList::EstimateTextWidth(const std::wstring &text, float fontSize)
     IDWriteFactory *factory = GetSharedDWriteFactory();
     const Theme &theme = ThemeManager::GetCurrent();
     const std::wstring &fontFamily =
-        theme.textInputFontFamily.empty() ? L"Microsoft YaHei UI" : theme.textInputFontFamily;
+        appearance_.fontFamily.empty() ? theme.textInputFontFamily : appearance_.fontFamily;
     ComPtr<IDWriteTextLayout> layout = CreateCachedTextLayout(
         factory, fontFamily, text, fontSize, DWRITE_FONT_WEIGHT_NORMAL, 4096.0f, std::max(fontSize * 2.0f, 1.0f),
-        DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP);
+        DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP,
+        appearance_.fallbackFontFamilies);
     if (!layout)
     {
         float width = 0.0f;
@@ -2777,6 +2782,8 @@ void CandidateList::Render(DeviceResources &deviceResources)
     }
 
     const Theme &theme = ThemeManager::GetCurrent();
+    const std::wstring &fontFamily =
+        appearance_.fontFamily.empty() ? theme.textInputFontFamily : appearance_.fontFamily;
 
     for (size_t index = 0; index < items_.size(); ++index)
     {
@@ -2831,42 +2838,43 @@ void CandidateList::Render(DeviceResources &deviceResources)
                                        horizontal ? itemRect.height - textHeight : itemRect.height};
 
         auto &cache = layoutCache_[index];
-        if (cache.fontFamily != theme.textInputFontFamily || cache.labelWidth != labelRect.width)
+        if (cache.fontFamily != fontFamily || cache.labelWidth != labelRect.width)
         {
             cache.labelLayout = CreateCachedTextLayout(
-                factory, theme.textInputFontFamily, items_[index].label, appearance_.labelFontSize,
-                DWRITE_FONT_WEIGHT_NORMAL, std::max(labelRect.width, 1.0f), std::max(labelRect.height, 1.0f),
-                DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP);
+                factory, fontFamily, items_[index].label, appearance_.labelFontSize, DWRITE_FONT_WEIGHT_NORMAL,
+                std::max(labelRect.width, 1.0f), std::max(labelRect.height, 1.0f), DWRITE_TEXT_ALIGNMENT_LEADING,
+                DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP, appearance_.fallbackFontFamilies);
             cache.labelWidth = labelRect.width;
-            cache.fontFamily = theme.textInputFontFamily;
+            cache.fontFamily = fontFamily;
         }
-        if (cache.fontFamily != theme.textInputFontFamily || cache.textWidth != textRect.width)
+        if (cache.fontFamily != fontFamily || cache.textWidth != textRect.width)
         {
             cache.textLayout = CreateCachedTextLayout(
-                factory, theme.textInputFontFamily, items_[index].text, appearance_.fontSize, DWRITE_FONT_WEIGHT_NORMAL,
+                factory, fontFamily, items_[index].text, appearance_.fontSize, DWRITE_FONT_WEIGHT_NORMAL,
                 std::max(textRect.width, 1.0f), std::max(textRect.height, 1.0f), DWRITE_TEXT_ALIGNMENT_LEADING,
-                DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP);
+                DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP, appearance_.fallbackFontFamilies);
             cache.textWidth = textRect.width;
-            cache.fontFamily = theme.textInputFontFamily;
+            cache.fontFamily = fontFamily;
         }
-        if (cache.fontFamily != theme.textInputFontFamily || cache.annotationWidth != annotationRect.width)
+        if (cache.fontFamily != fontFamily || cache.annotationWidth != annotationRect.width)
         {
             cache.annotationLayout = CreateCachedTextLayout(
-                factory, theme.textInputFontFamily, items_[index].annotation, appearance_.annotationFontSize,
+                factory, fontFamily, items_[index].annotation, appearance_.annotationFontSize,
                 DWRITE_FONT_WEIGHT_NORMAL, std::max(annotationRect.width, 1.0f), std::max(annotationRect.height, 1.0f),
-                DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP);
+                DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP,
+                appearance_.fallbackFontFamilies);
             cache.annotationWidth = annotationRect.width;
-            cache.fontFamily = theme.textInputFontFamily;
+            cache.fontFamily = fontFamily;
         }
-        if (cache.fontFamily != theme.textInputFontFamily || cache.translationWidth != translationRect.width)
+        if (cache.fontFamily != fontFamily || cache.translationWidth != translationRect.width)
         {
             cache.translationLayout = CreateCachedTextLayout(
-                factory, theme.textInputFontFamily, items_[index].translation, translationFontSize,
-                DWRITE_FONT_WEIGHT_NORMAL, std::max(translationRect.width, 1.0f),
-                std::max(translationRect.height, 1.0f), DWRITE_TEXT_ALIGNMENT_LEADING,
-                DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP);
+                factory, fontFamily, items_[index].translation, translationFontSize, DWRITE_FONT_WEIGHT_NORMAL,
+                std::max(translationRect.width, 1.0f), std::max(translationRect.height, 1.0f),
+                DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP,
+                appearance_.fallbackFontFamilies);
             cache.translationWidth = translationRect.width;
-            cache.fontFamily = theme.textInputFontFamily;
+            cache.fontFamily = fontFamily;
         }
 
         ID2D1SolidColorBrush *labelBrush = deviceResources.GetSolidColorBrush(appearance_.labelColor);

@@ -1,4 +1,5 @@
 #include "tests/includes/test_framework.h"
+#include "tests/includes/test_utf8_path.h"
 #include "MetasequoiaImeEngine/english/english_dictionary.h"
 
 #include <chrono>
@@ -21,7 +22,7 @@ class TemporaryEnglishDatabase
         path_ = directory_ / "english.db";
 
         sqlite3 *db = nullptr;
-        if (sqlite3_open(path_.string().c_str(), &db) != SQLITE_OK)
+        if (sqlite3_open(test::Utf8(path_).c_str(), &db) != SQLITE_OK)
         {
             const std::string error = db == nullptr ? "unknown error" : sqlite3_errmsg(db);
             if (db != nullptr)
@@ -71,7 +72,7 @@ class TemporaryEnglishDatabase
 TEST_CASE(EnglishDictionaryOrdersByExactMatchThenLengthAndWord)
 {
     TemporaryEnglishDatabase database;
-    EnglishDictionary dictionary(database.path().string());
+    EnglishDictionary dictionary(test::Utf8(database.path()));
 
     const auto candidates = dictionary.query_prefix("hel", 4);
     REQUIRE_EQ(candidates.size(), static_cast<size_t>(4));
@@ -86,7 +87,7 @@ TEST_CASE(EnglishDictionaryOrdersByExactMatchThenLengthAndWord)
 TEST_CASE(EnglishDictionaryRestrictsResultsToTheRequestedPrefix)
 {
     TemporaryEnglishDatabase database;
-    EnglishDictionary dictionary(database.path().string());
+    EnglishDictionary dictionary(test::Utf8(database.path()));
 
     const auto candidates = dictionary.query_prefix("help", 10);
     REQUIRE_EQ(candidates.size(), static_cast<size_t>(2));
@@ -98,10 +99,10 @@ TEST_CASE(EnglishDictionaryRestrictsResultsToTheRequestedPrefix)
 TEST_CASE(EnglishDictionaryMigratesLegacySchemaAndSupportsMultipleDisplaysPerKey)
 {
     TemporaryEnglishDatabase database;
-    EnglishDictionary dictionary(database.path().string());
+    EnglishDictionary dictionary(test::Utf8(database.path()));
 
     sqlite3 *db = nullptr;
-    REQUIRE_EQ(sqlite3_open(database.path().string().c_str(), &db), SQLITE_OK);
+    REQUIRE_EQ(sqlite3_open(test::Utf8(database.path()).c_str(), &db), SQLITE_OK);
     REQUIRE_EQ(sqlite3_exec(db, "INSERT INTO english_words(word,display,weight) VALUES('hello','Hello',100);", nullptr,
                             nullptr, nullptr),
                SQLITE_OK);
@@ -117,10 +118,10 @@ TEST_CASE(EnglishDictionaryMigratesLegacySchemaAndSupportsMultipleDisplaysPerKey
 TEST_CASE(EnglishDictionaryQueriesBothGlossDirections)
 {
     TemporaryEnglishDatabase database;
-    EnglishDictionary dictionary(database.path().string());
+    EnglishDictionary dictionary(test::Utf8(database.path()));
 
     sqlite3 *db = nullptr;
-    REQUIRE_EQ(sqlite3_open(database.path().string().c_str(), &db), SQLITE_OK);
+    REQUIRE_EQ(sqlite3_open(test::Utf8(database.path()).c_str(), &db), SQLITE_OK);
     REQUIRE_EQ(sqlite3_exec(db,
                             "INSERT INTO en_zh_glosses VALUES('implement','实现；执行');"
                             "INSERT INTO zh_en_glosses VALUES('实现','realize; implement');",
@@ -137,7 +138,7 @@ TEST_CASE(EnglishDictionaryPrefersSiblingCustomTranslations)
 {
     TemporaryEnglishDatabase database;
     sqlite3 *db = nullptr;
-    REQUIRE_EQ(sqlite3_open(database.path().string().c_str(), &db), SQLITE_OK);
+    REQUIRE_EQ(sqlite3_open(test::Utf8(database.path()).c_str(), &db), SQLITE_OK);
     REQUIRE_EQ(sqlite3_exec(db,
                             "CREATE TABLE IF NOT EXISTS zh_en_glosses("
                             "chinese TEXT COLLATE BINARY PRIMARY KEY,english_gloss TEXT NOT NULL) WITHOUT ROWID;"
@@ -153,7 +154,7 @@ TEST_CASE(EnglishDictionaryPrefersSiblingCustomTranslations)
         output << "hust\t华中科技大学\n";
     }
 
-    EnglishDictionary dictionary(database.path().string());
+    EnglishDictionary dictionary(test::Utf8(database.path()));
     REQUIRE_EQ(dictionary.query_english_gloss("华科"), std::string("Huazhong University of Science and Technology"));
     REQUIRE_EQ(dictionary.query_chinese_gloss("hust"), std::string("华中科技大学"));
     std::error_code error;
@@ -163,9 +164,9 @@ TEST_CASE(EnglishDictionaryPrefersSiblingCustomTranslations)
 TEST_CASE(EnglishDictionaryUpsertsGlossForCloudFallback)
 {
     TemporaryEnglishDatabase database;
-    EnglishDictionary dictionary(database.path().string());
-    REQUIRE(EnglishDictionary::upsert_gloss(database.path().string(), true, "水杉", "metasequoia"));
+    EnglishDictionary dictionary(test::Utf8(database.path()));
+    REQUIRE(EnglishDictionary::upsert_gloss(test::Utf8(database.path()), true, "水杉", "metasequoia"));
     REQUIRE_EQ(dictionary.query_english_gloss("水杉"), std::string("metasequoia"));
-    REQUIRE(EnglishDictionary::upsert_gloss(database.path().string(), false, "metasequoia", "水杉"));
+    REQUIRE(EnglishDictionary::upsert_gloss(test::Utf8(database.path()), false, "metasequoia", "水杉"));
     REQUIRE_EQ(dictionary.query_chinese_gloss("metasequoia"), std::string("水杉"));
 }

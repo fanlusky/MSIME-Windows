@@ -46,6 +46,10 @@ set(TEST_SOURCE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_user_dictionary_journal.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_config_template_merge.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_config_non_ascii_path.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_dictionary_replay_non_ascii_path.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_skin_catalog_non_ascii_path.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_non_ascii_path_contract.cpp"
+    "${CMAKE_SOURCE_DIR}/src/skin/candidate_skin_catalog.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_system_font_family.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_dictionary_validation.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_skin_css_policy.cpp"
@@ -69,10 +73,15 @@ target_include_directories(${TEST_EXECUTABLE_NAME}
 
 # test_default_config_credentials reads the config the installer actually ships, so the check is
 # against the shipped file rather than a restatement of today's placeholder spellings.
+# test_dictionary_replay_non_ascii_path launches the real replay tool, because the path handling it
+# guards lives in that executable's main() and cannot be linked into the test binary.
 target_compile_definitions(${TEST_EXECUTABLE_NAME}
     PRIVATE
     "MSIME_DEFAULT_CONFIG_PATH=\"${CMAKE_SOURCE_DIR}/../installer/default_config/config.default.toml\""
+    "MSIME_DICTIONARY_REPLAY_EXE=\"$<TARGET_FILE:${DICTIONARY_REPLAY_EXECUTABLE_NAME}>\""
 )
+
+add_dependencies(${TEST_EXECUTABLE_NAME} ${DICTIONARY_REPLAY_EXECUTABLE_NAME})
 
 target_link_libraries(${TEST_EXECUTABLE_NAME}
     PRIVATE

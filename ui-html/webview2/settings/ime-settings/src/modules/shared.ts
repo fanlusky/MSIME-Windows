@@ -65,7 +65,8 @@ export function setupDropdownMenu(
   messageAction: string,
   useStopPropagation: boolean = false,
   configPath?: string,
-  valueTransform: (value: string) => string | number | boolean = (value) => value
+  valueTransform: (value: string) => string | number | boolean = (value) => value,
+  signal?: AbortSignal
 ): void {
   const btn = document.getElementById(btnId);
   const menu = document.getElementById(menuId);
@@ -97,7 +98,7 @@ export function setupDropdownMenu(
     } else {
       menu.classList.remove('open');
     }
-  });
+  }, { signal });
 
   // Event delegation so dynamically rebuilt items (e.g. system fonts) keep working.
   menu.addEventListener('click', (event: Event) => {
@@ -173,7 +174,7 @@ export function setupDropdownMenu(
     }
 
     menu.classList.remove('open');
-  });
+  }, { signal });
 
   // 点击外部关闭
   document.addEventListener('click', (e: Event) => {
@@ -181,7 +182,7 @@ export function setupDropdownMenu(
     if (!btn.contains(target) && !menu.contains(target)) {
       menu.classList.remove('open');
     }
-  });
+  }, { signal });
 }
 
 export function applyDropdownValue(btnId: string, menuId: string, value: string | undefined): void {

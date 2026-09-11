@@ -40,6 +40,7 @@
 #include <fstream>
 #include <functional>
 #include <optional>
+#include <sstream>
 #include <vector>
 
 // WebView diagnostics were useful while fixing the rendering issues, but they
@@ -1357,19 +1358,12 @@ bool GetCandidateWebviewState(bool &isVisible, RECT &bounds)
 
 std::wstring ReadHtmlFile(const std::wstring &filePath)
 {
-    std::wifstream file(filePath);
+    std::ifstream file(filePath, std::ios::binary);
     if (!file)
-    {
-        (void)0;
         return L"";
-    }
-    // Use Boost Locale to handle UTF-8
-    file.imbue(boost::locale::generator().generate("en_US.UTF-8"));
-    std::wstringstream buffer;
+    std::ostringstream buffer;
     buffer << file.rdbuf();
-    std::wstring content = buffer.str();
-    (void)0;
-    return content;
+    return string_to_wstring(buffer.str());
 }
 
 std::wstring GetAppdataPath()
@@ -2243,7 +2237,7 @@ int PrepareHtmlForWnds()
     // e.g. C:\\Users\\SonnyCalcr\\AppData\\Local\\metasequoiaime
     std::wstring assetPath = fmt::format( //
         L"{}\\{}",                        //
-        string_to_wstring(CommonUtils::get_local_appdata_path()), GlobalIme::AppName);
+        CommonUtils::get_local_appdata_path_w(), GlobalIme::AppName);
 
     //
     // 候选窗口
@@ -2484,15 +2478,25 @@ bool ApplyConfiguredCandidateAppearance()
 
     nlohmann::json cfg = {{"font", ResolveSystemFontFamilyForCss(GetConfiguredCandidateFont())},
                           {"english_font", ResolveSystemFontFamilyForCss(GetConfiguredCandidateEnglishFont())},
-                          {"default_font", ResolveSystemFontFamilyForCss(GetConfiguredCandidateDefaultFont())},
+                          {"fallback_fonts", GetConfiguredCandidateFallbackFontFamilies()},
                           {"font_size", GetConfiguredCandidateFontSize()},
                           {"preedit_font_size", GetConfiguredCandidateWindowPreeditFontSize()},
                           {"cand_text_color", GetConfiguredCandidateTextColor()}};
+    std::string family;
+    auto appendFont = [&](const std::string &font) {
+        // JSON quoting also escapes CSS quotes/backslashes; font names exclude control characters.
+        if (!family.empty())
+            family += ", ";
+        family += nlohmann::json(font).dump(-1, ' ', false);
+    };
+    appendFont(ResolveSystemFontFamilyForCss(GetConfiguredCandidateEnglishFont()));
+    for (const auto &font : GetConfiguredCandidateFallbackFontFamilies())
+        appendFont(font);
+    cfg["font_family"] = family + ", sans-serif";
     const std::wstring script =
         L"(function(c){"
         L"const root=document.documentElement;"
-        L"const quote=function(f){return /\\s/.test(f)?'\"'+String(f).replace(/\"/g,'\\\\\"')+'\"':String(f);};"
-        L"const family=[c.english_font,c.font,c.default_font,'sans-serif'].filter(Boolean).map(quote).join(', ');"
+        L"const family=c.font_family;"
         L"root.style.setProperty('--cand-font-family', family);"
         L"root.style.setProperty('--cand-font-size', String(c.font_size||16)+'px');"
         L"root.style.setProperty('--preedit-font-size', String(c.preedit_font_size||c.font_size||16)+'px');"
@@ -2523,7 +2527,7 @@ bool ApplyConfiguredFloatingToolbarAppearance(std::function<void()> onComplete)
 {
     if (FloatingToolbarPresenter::Instance().IsBound())
     {
-        FloatingToolbarPresenter::Instance().RelayoutHost();
+        FloatingToolbarPresenter::Instance().ApplyAppearance();
         if (onComplete)
         {
             onComplete();
@@ -2777,10 +2781,10 @@ HRESULT OnControllerCreatedCandWnd(     //
         webview3CandWnd->SetVirtualHostNameToFolderMapping(L"msime-contracts", contractsPath.wstring().c_str(),
                                                            COREWEBVIEW2_HOST_RESOURCE_ACCESS_KIND_ALLOW);
 
-        const std::wstring assetPath = fmt::format(                   //
-            L"{}\\{}\\html\\webview2\\candwnd",                       //
-            string_to_wstring(CommonUtils::get_local_appdata_path()), //
-            GlobalIme::AppName                                        //
+        const std::wstring assetPath = fmt::format(  //
+            L"{}\\{}\\html\\webview2\\candwnd",      //
+            CommonUtils::get_local_appdata_path_w(), //
+            GlobalIme::AppName                       //
         );
 
         // Assets mapping
@@ -2791,7 +2795,7 @@ HRESULT OnControllerCreatedCandWnd(     //
         );                                                                            //
         const std::wstring skinsPath = fmt::format(                                   //
             L"{}\\{}\\skins",                                                         //
-            string_to_wstring(CommonUtils::get_local_appdata_path()),                 //
+            CommonUtils::get_local_appdata_path_w(),                                  //
             GlobalIme::AppName                                                        //
         );
         const HRESULT skinsMappingHr = webview3CandWnd->SetVirtualHostNameToFolderMapping(
@@ -3473,10 +3477,10 @@ HRESULT OnControllerCreatedSettingsWnd(            //
     // Configure virtual host path
     if (SUCCEEDED(webviewSettingsWnd->QueryInterface(IID_PPV_ARGS(&webview3SettingsWnd))))
     {
-        const std::wstring assetPath = fmt::format(                   //
-            L"{}\\{}\\html\\webview2\\settings\\ime-settings\\dist",  //
-            string_to_wstring(CommonUtils::get_local_appdata_path()), //
-            GlobalIme::AppName                                        //
+        const std::wstring assetPath = fmt::format(                  //
+            L"{}\\{}\\html\\webview2\\settings\\ime-settings\\dist", //
+            CommonUtils::get_local_appdata_path_w(),                 //
+            GlobalIme::AppName                                       //
         );
         // Assets mapping
         webview3SettingsWnd->SetVirtualHostNameToFolderMapping( //
@@ -3811,6 +3815,17 @@ HRESULT OnControllerCreatedSettingsWnd(            //
                             {
                                 const std::string value = json::value_to<std::string>(data.at("value"));
                                 if (SetConfiguredCandidateFont(value))
+                                {
+                                    ApplyConfiguredCandidateAppearance();
+                                    PostSettingsConfig();
+                                }
+                            }
+                            else if (path == "appearance.fallback_fonts")
+                            {
+                                // configUpdate accepts scalar values; structured settings use a JSON string.
+                                const auto fonts = nlohmann::json::parse(json::value_to<std::string>(data.at("value")))
+                                                       .get<std::vector<std::string>>();
+                                if (SetConfiguredCandidateFallbackFonts(fonts))
                                 {
                                     ApplyConfiguredCandidateAppearance();
                                     PostSettingsConfig();
@@ -4544,6 +4559,8 @@ void PostSettingsConfig()
             {"page_size", GetConfiguredCandidatePageSize()},
             {"font", GetConfiguredCandidateFont()},
             {"font_css_family", ResolveSystemFontFamilyForCss(GetConfiguredCandidateFont())},
+            {"fallback_fonts", GetConfiguredCandidateFallbackFonts()},
+            {"fallback_font_css_families", GetConfiguredCandidateFallbackFontFamilies()},
             {"english_font", GetConfiguredCandidateEnglishFont()},
             {"english_font_css_family", ResolveSystemFontFamilyForCss(GetConfiguredCandidateEnglishFont())},
             {"default_font", GetConfiguredCandidateDefaultFont()},

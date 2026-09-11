@@ -20,6 +20,8 @@ function postConfigUpdate(path: string, value: string | number | boolean): void 
 }
 
 export type CandidateAppearanceConfig = {
+  fallback_fonts?: string[];
+  fallback_font_css_families?: string[];
   font?: string;
   font_css_family?: string;
   english_font?: string;
@@ -44,6 +46,8 @@ export type CandidatePreviewHelpcodeConfig = {
 };
 
 let previewFont = 'Noto Sans SC';
+let previewFallbackFonts = ['Noto Sans SC', 'Microsoft YaHei'];
+let previewFallbackCssFamilies = [...previewFallbackFonts];
 let previewEnglishFont = 'Segoe UI';
 let previewDefaultFont = 'Microsoft YaHei';
 // Keep persisted/menu labels separate from the family Chromium actually uses.
@@ -87,10 +91,99 @@ const FALLBACK_ENGLISH_FONTS = [
 ];
 
 function quoteFont(name: string): string {
-  // Escape the escape character first. Quoting only `"` leaves a name ending in a backslash able to
-  // consume the closing quote -- `foo\` became `"foo\"` -- and whatever followed in the fontFamily
-  // string was then parsed as CSS rather than as part of the family name.
-  return /\s/.test(name) ? `"${name.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"` : name;
+  return `"${name.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+let addingFallbackFont = false;
+let fallbackFontListeners: AbortController | undefined;
+
+function renderFallbackFonts(): void {
+  const list = document.getElementById('candFallbackFontList');
+  if (!list) return;
+  fallbackFontListeners?.abort();
+  fallbackFontListeners = new AbortController();
+  const { signal } = fallbackFontListeners;
+  list.replaceChildren();
+  const displayed = [...previewFallbackFonts];
+  if (addingFallbackFont || displayed.length === 0) displayed.push('');
+  displayed.forEach((font, index) => {
+    if (index > 0) {
+      const comma = document.createElement('span');
+      comma.textContent = '，';
+      comma.setAttribute('aria-hidden', 'true');
+      list.appendChild(comma);
+    }
+    const dropdown = document.createElement('div');
+    dropdown.className = 'dropdown fallback-font-dropdown';
+    const button = document.createElement('div');
+    button.id = `fallbackFontBtn${index}`;
+    button.className = 'dropdown-toggle font-combobox fallback-font-select';
+    button.setAttribute('aria-label', `第 ${index + 1} 个补充字体`);
+    button.title = font || '选择补充字体';
+    const label = document.createElement('input');
+    label.type = 'text';
+    label.className = 'font-search-input';
+    label.value = font;
+    label.placeholder = '搜索字体';
+    label.autocomplete = 'off';
+    label.spellcheck = false;
+    label.setAttribute('aria-label', `搜索第 ${index + 1} 个补充字体`);
+    label.setAttribute('aria-controls', `fallbackFontMenu${index}`);
+    label.setAttribute('aria-autocomplete', 'list');
+    button.appendChild(label);
+    const arrow = document.createElement('img');
+    arrow.src = './assets/arrow.svg';
+    arrow.alt = '';
+    button.appendChild(arrow);
+    const menu = document.createElement('div');
+    menu.id = `fallbackFontMenu${index}`;
+    menu.className = 'dropdown-menu compact-scroll-menu fallback-font-menu';
+    const names = font ? ['', ...new Set([font, ...fontList])] : [...new Set(fontList)];
+    names.forEach((name) => {
+      const option = document.createElement('div');
+      option.className = 'dropdown-item';
+      option.dataset.value = name;
+      option.textContent = name || '移除此字体';
+      option.setAttribute('aria-disabled', String(Boolean(name && name !== font && previewFallbackFonts.includes(name))));
+      menu.appendChild(option);
+    });
+    dropdown.appendChild(button);
+    dropdown.appendChild(menu);
+    list.appendChild(dropdown);
+    setupDropdownMenu(button.id, menu.id, '', true, 'appearance.fallback_fonts', (value) => {
+      if (value && previewFallbackFonts.some((name, i) => i !== index && name === value)) return JSON.stringify(previewFallbackFonts);
+      if (!value) {
+        previewFallbackFonts.splice(index, 1);
+        previewFallbackCssFamilies.splice(index, 1);
+      } else {
+        previewFallbackFonts[index] = value;
+        previewFallbackCssFamilies[index] = value;
+      }
+      addingFallbackFont = false;
+      renderFallbackFonts();
+      applyCandidatePreviewStyle();
+      return JSON.stringify(previewFallbackFonts);
+    }, signal);
+    setupFontSearch({
+      btnId: button.id, menuId: menu.id,
+      getSelected: () => font,
+      getSelectedCssFamily: () => previewFallbackCssFamilies[index] || font
+    }, signal);
+  });
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'dropdown-toggle fallback-font-add';
+  const addIcon = document.createElement('span');
+  addIcon.textContent = '+';
+  add.appendChild(addIcon);
+  add.setAttribute('aria-label', '添加补充字体');
+  add.disabled = addingFallbackFont || previewFallbackFonts.length === 0 || previewFallbackFonts.length >= 32;
+  add.addEventListener('click', () => {
+    addingFallbackFont = true;
+    renderFallbackFonts();
+    document.getElementById(`fallbackFontBtn${previewFallbackFonts.length}`)?.querySelector<HTMLInputElement>('input')?.focus();
+  });
+  list.appendChild(add);
 }
 
 function appearancePreviewRoots(): HTMLElement[] {
@@ -147,11 +240,11 @@ export function updateCandidatePreviewHelpcode(config: CandidatePreviewHelpcodeC
 }
 
 function applyCandidatePreviewStyle(): void {
-  // English font first so Latin glyphs prefer it; CJK falls through to Chinese font.
-  const family = [previewEnglishFontCssFamily, previewFontCssFamily, previewDefaultFontCssFamily, 'sans-serif']
+  // Only missing glyphs fall through to the ordered supplementary families.
+  const family = [previewEnglishFontCssFamily, ...previewFallbackCssFamilies]
     .filter(Boolean)
     .map(quoteFont)
-    .join(', ');
+    .join(', ') + ', sans-serif';
   appearancePreviewRoots().forEach((el) => {
     el.style.setProperty('--cand-font-family', family);
     el.style.setProperty('--cand-font-size', `${previewFontSize}px`);
@@ -207,12 +300,6 @@ type FontMenu = {
 };
 
 const FONT_MENUS: FontMenu[] = [
-  {
-    btnId: 'candFontBtn',
-    menuId: 'candFontMenu',
-    getSelected: () => previewFont,
-    getSelectedCssFamily: () => previewFontCssFamily
-  },
   {
     btnId: 'candEnglishFontBtn',
     menuId: 'candEnglishFontMenu',
@@ -276,7 +363,7 @@ function filterFontMenu(menu: FontMenu, query: string): void {
   menuElement.scrollTop = 0;
 }
 
-function setupFontSearch(menu: FontMenu): void {
+function setupFontSearch(menu: FontMenu, signal?: AbortSignal): void {
   const control = document.getElementById(menu.btnId);
   const menuElement = document.getElementById(menu.menuId);
   const input = control?.querySelector<HTMLInputElement>('.font-search-input');
@@ -296,20 +383,24 @@ function setupFontSearch(menu: FontMenu): void {
     if ((event.target as HTMLElement | null)?.closest('.dropdown-item')) {
       event.preventDefault();
     }
-  });
-  input.addEventListener('focus', () => input.select());
-  input.addEventListener('input', () => filterFontMenu(menu, input.value));
+  }, { signal });
+  input.addEventListener('focus', () => input.select(), { signal });
+  input.addEventListener('input', () => {
+    menuElement.classList.add('open');
+    filterFontMenu(menu, input.value);
+  }, { signal });
   input.addEventListener('blur', () => {
     // Let a dropdown-item click finish first, then restore the persisted value
     // when keyboard focus leaves the whole combobox.
     setTimeout(() => {
+      if (signal?.aborted) return;
       const active = document.activeElement;
       if (!active || (!control.contains(active) && !menuElement.contains(active))) {
         menuElement.classList.remove('open');
         reset();
       }
     }, 0);
-  });
+  }, { signal });
   input.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape') {
       return;
@@ -322,12 +413,12 @@ function setupFontSearch(menu: FontMenu): void {
       menuElement.classList.remove('open');
       input.blur();
     }
-  });
+  }, { signal });
   document.addEventListener('click', (event) => {
     if (!control.contains(event.target as Node) && !menuElement.contains(event.target as Node)) {
       reset();
     }
-  });
+  }, { signal });
 }
 
 function populateFontMenus(systemFonts: string[] | undefined): void {
@@ -370,6 +461,15 @@ export function applyAppearanceConfig(
     previewDefaultFont = candidateAppearance.default_font;
     previewDefaultFontCssFamily = candidateAppearance.default_font_css_family || previewDefaultFont;
   }
+  if (Array.isArray(candidateAppearance?.fallback_fonts)) {
+    previewFallbackFonts = [...candidateAppearance.fallback_fonts];
+    previewFallbackCssFamilies = previewFallbackFonts.map((font, index) =>
+      candidateAppearance.fallback_font_css_families?.[index] || font);
+  } else if (candidateAppearance) {
+    previewFallbackFonts = [previewFont, previewDefaultFont];
+    previewFallbackCssFamilies = [previewFontCssFamily, previewDefaultFontCssFamily];
+  }
+  renderFallbackFonts();
   if (typeof candidateAppearance?.font_size === 'number') {
     previewFontSize = candidateAppearance.font_size;
     applyDropdownValue('candFontSizeBtn', 'candFontSizeMenu', String(candidateAppearance.font_size));
@@ -389,6 +489,7 @@ export function applyAppearanceConfig(
   }
   applyDropdownValue('uiBackendBtn', 'uiBackendMenu', candidateAppearance?.ui_backend);
   populateFontMenus(candidateAppearance?.system_fonts);
+  renderFallbackFonts();
   syncColorControls(candidateAppearance?.cand_text_color);
   applyCandidatePreviewStyle();
   applyCandidatePreviewHelpcode();
@@ -403,6 +504,7 @@ export async function setupAppearance() {
   wnd_h.innerHTML = await loadHTML(`/src/partials/candidate/candidate-wnd-h.html`);
   wnd_h.style.display = 'none';
   populateFontMenus(undefined);
+  renderFallbackFonts();
   applyCandidatePreviewStyle();
   applyCandidatePreviewHelpcode();
   applyCandidatePreviewPreedit();
@@ -449,20 +551,12 @@ export async function setupAppearance() {
     });
     setupFontSearch(menu);
   });
-  setupDropdownMenu('candFontBtn', 'candFontMenu', '', true, 'appearance.font', (value) => {
-    const cssFamily = value === previewFont ? previewFontCssFamily : value;
-    previewFont = value;
-    previewFontCssFamily = cssFamily;
-    applyCandidatePreviewStyle();
-    filterFontMenu(FONT_MENUS[0], '');
-    return value;
-  });
   setupDropdownMenu('candEnglishFontBtn', 'candEnglishFontMenu', '', true, 'appearance.english_font', (value) => {
     const cssFamily = value === previewEnglishFont ? previewEnglishFontCssFamily : value;
     previewEnglishFont = value;
     previewEnglishFontCssFamily = cssFamily;
     applyCandidatePreviewStyle();
-    filterFontMenu(FONT_MENUS[1], '');
+    filterFontMenu(FONT_MENUS[0], '');
     return value;
   });
   setupDropdownMenu('candFontSizeBtn', 'candFontSizeMenu', '', true, 'appearance.font_size', (value) => {

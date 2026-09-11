@@ -29,6 +29,14 @@ class CTfTextLayoutSink : public ITfTextLayoutSink
         return _pContextDocument;
     };
 
+    // Callers that read the caret straight from ITfContextView (the edit-session
+    // path) report their success here, so _GetTextExt knows whether Global::Point
+    // already holds a usable anchor for this layout session.
+    void _MarkAnchorValid()
+    {
+        _hasValidAnchor = true;
+    }
+
     virtual VOID _LayoutChangeNotification(_In_ RECT *lpRect) = 0;
     virtual VOID _LayoutDestroyNotification() = 0;
 
@@ -43,4 +51,5 @@ class CTfTextLayoutSink : public ITfTextLayoutSink
     CMetasequoiaIME *_pTextService;
     DWORD _dwCookieTextLayoutSink;
     LONG _refCount;
+    bool _hasValidAnchor;
 };

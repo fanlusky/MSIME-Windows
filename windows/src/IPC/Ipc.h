@@ -1,5 +1,6 @@
 #pragma once
 
+#include "KeyEventSendResult.h"
 #include "VoiceCompositionPipe.h"
 #include <Windows.h>
 #include <atomic>
@@ -9,13 +10,6 @@
 #include <vector>
 
 #include "../../../vendor/MetasequoiaImeEngine/contracts/windows_ipc.h"
-
-enum class KeyEventSendResult
-{
-    Sent,
-    DefinitelyNotSent,
-    DeliveryAmbiguous,
-};
 
 int InitIpc();
 int InitNamedpipe();

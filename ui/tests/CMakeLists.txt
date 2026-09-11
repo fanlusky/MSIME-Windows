@@ -4,6 +4,7 @@ add_executable(${TEST_EXECUTABLE_NAME}
     src/main.cpp
     src/test_fonts.cpp
     src/test_layout.cpp
+    src/test_font_fallback.cpp
     includes/test_framework.h
 )
 

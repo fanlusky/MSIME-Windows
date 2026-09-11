@@ -3,9 +3,6 @@
 
 <head>
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://msime-contracts; style-src 'unsafe-inline'; img-src data: https://appassets https://candidate-skins; font-src data: https://appassets https://candidate-skins">
-  <script src="https://msime-contracts/schema.js"></script>
-  <script src="https://msime-contracts/runtime.js"></script>
-  <script>const serializeHostMessage = message => MsimeProtocol.serializeClientMessage(message, "toolbar");</script>
   <meta charset="UTF-8">
   <title>IME(WeChat Light FTB)</title>
   <style>
@@ -278,6 +275,9 @@
     </div>
   </div>
 </body>
+<script src="https://msime-contracts/schema.js"></script>
+<script src="https://msime-contracts/runtime.js"></script>
+<script>const serializeHostMessage = message => MsimeProtocol.serializeClientMessage(message, "toolbar");</script>
 <script>
   // 
   // 左侧拖拽区域

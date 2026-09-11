@@ -201,6 +201,12 @@ void ApplyUiLessFromPacket(const FanyImeNamedpipeData &pipe_data)
     }
 }
 
+// A task that waited at least this long was delivered behind a stalled worker,
+// so the state it describes may already be superseded. Normal typing never gets
+// near it: queue waits stay under a few milliseconds unless something blocks the
+// task thread.
+constexpr ULONGLONG kCandidateHideBacklogMs = 24;
+
 void RequestShowCandidateWindow()
 {
     if (IsUiLessMode() || !::global_hwnd)
@@ -915,6 +921,14 @@ std::string BuildCurrentCandidatePage()
 
         CandidateViewItem view;
         view.text = word;
+        if (!item.corrected_from.empty())
+        {
+            // Correction-sourced candidates carry a light visible marker (PRD R5/AC7).
+            // Only the display text is touched: commits, word frequency updates and
+            // pinned-position lookups read item.word / page_words and must never see
+            // the marker suffix.
+            view.text += "*";
+        }
         if (item.source == CandidateSource::Generated && show_helpcodes)
         {
             // Generated whole-sentence candidates carry the raw spelling in
@@ -1520,9 +1534,16 @@ void WorkerThread()
 
         case TaskType::HideCandidate: {
             ::ReadDataFromNamedPipe(0b100000);
-            CAND_DIAG_LOGF(L"task HideCandidate client={} epoch={} request={}", task.client_id, task.activation_epoch,
-                           task.pipe_data.request_id);
-            PostMessage(::global_hwnd, WM_HIDE_MAIN_WINDOW, 0, 0);
+            const ULONGLONG queue_elapsed_ms = task.enqueued_at_ms == 0 ? 0 : GetTickCount64() - task.enqueued_at_ms;
+            CAND_DIAG_LOGF(L"task HideCandidate client={} epoch={} request={} queued_ms={}", task.client_id,
+                           task.activation_epoch, task.pipe_data.request_id, queue_elapsed_ms);
+            // Only a hide this thread delivered late can belong to a keystroke the
+            // user has already typed past — that is the one worth holding briefly,
+            // because a show for a later keystroke is right behind it. A hide
+            // delivered on time is a real commit or focus loss and must take effect
+            // now; delaying it leaves the candidate window hanging after the word is
+            // already on screen, which is exactly the snap that typing loses.
+            PostMessage(::global_hwnd, WM_HIDE_MAIN_WINDOW, queue_elapsed_ms >= kCandidateHideBacklogMs ? 1 : 0, 0);
             /* 清理状态 */
             ClearState();
             break;
@@ -3096,8 +3117,41 @@ void TsfDiagnosticPipeEventListenerLoopThread()
     }
 }
 
+// Stopwatch for the per-keystroke candidate build. Everything this function does
+// runs on the shared task thread, so a stall anywhere in it delays the hide/show
+// messages queued behind it — which is what reaches the screen as flicker. The
+// splits exist to tell those segments apart: the engine candidate lookup and the
+// user-dictionary fixed-position pass both touch a database, and only a
+// measurement says which one is paying for it.
+class CandidateBuildTimer
+{
+  public:
+    // Milliseconds since the previous split, then restarts the segment.
+    double Split()
+    {
+        const auto now = std::chrono::steady_clock::now();
+        const double ms = std::chrono::duration<double, std::milli>(now - last_).count();
+        last_ = now;
+        return ms;
+    }
+    double TotalMs() const
+    {
+        return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start_).count();
+    }
+
+  private:
+    std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point last_ = start_;
+};
+
 void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch)
 {
+    CandidateBuildTimer segment;
+    // Zero means the branch taken this keystroke has no such segment, not that
+    // the segment was instant.
+    double queryMs = 0;
+    double fixedPosMs = 0;
+
     auto &ui = Global::candidate_ui;
     std::string pinyin = wstring_to_string(Global::PinyinString);
     const std::string current_input = g_inputSession->get_pinyin_sequence_with_cases();
@@ -3140,8 +3194,10 @@ void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch)
         const std::string typed = g_inputSession->get_pinyin_sequence();
         for (auto &item : items)
             item.pinyin = typed;
+        queryMs = segment.Split();
         user_dictionary::apply_fixed_positions(user_dictionary::default_user_db_path(), CurrentRankingContextKey(),
                                                items, false);
+        fixedPosMs = segment.Split();
     }
     else if (IsYModeInput(current_input))
     {
@@ -3158,11 +3214,13 @@ void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch)
     else
     {
         items = g_inputSession->get_candidates();
+        queryMs = segment.Split();
         user_dictionary::apply_fixed_positions(
             user_dictionary::default_user_db_path(), CurrentRankingContextKey(), items,
             g_inputSession->get_pinyin_sequence().size() == 1,
             [](const std::string &key, const std::string &value) { return g_inputSession->find_candidate(key, value); },
             g_inputSession->has_active_helpcode());
+        fixedPosMs = segment.Split();
         if (g_inputSession->get_pinyin_sequence().size() == 1 && items.size() > 24)
             items.resize(24);
     }
@@ -3172,9 +3230,14 @@ void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch)
         items.emplace_back(pinyin, pinyin, 1, CandidateSource::Fallback);
     }
 
+    // Whatever the branch above did that the two splits did not already claim.
+    const double branchMs = segment.Split();
+    const size_t itemCount = items.size();
+
     ui.set_items(std::move(items));
     RefreshCandidatePageUi(false);
     PublishCandidateUiOwner(client_id, activation_epoch);
+    const double uiMs = segment.Split();
 
     const SchemeType scheme = g_inputSession->current_scheme_type();
     if (g_english_input_mode)
@@ -3195,6 +3258,7 @@ void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch)
     {
         UpdateEnglishInput("");
     }
+    const double englishMs = segment.Split();
 
     if (!g_english_input_mode && !IsSpecialModeCompositionActive(current_input) &&
         GetConfiguredEmojiMixedInputEnabled() && (scheme == SchemeType::Quanpin || scheme == SchemeType::Shuangpin) &&
@@ -3206,6 +3270,7 @@ void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch)
     {
         UpdateEmojiInput("");
     }
+    const double emojiMs = segment.Split();
 
     if (!g_english_input_mode && !IsSpecialModeCompositionActive(current_input) &&
         GetConfiguredKaomojiMixedInputEnabled() && (scheme == SchemeType::Quanpin || scheme == SchemeType::Shuangpin) &&
@@ -3217,6 +3282,11 @@ void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch)
     {
         UpdateKaomojiInput("");
     }
+    const double kaomojiMs = segment.Split();
+
+    CAND_DIAG_LOGF(L"candidate build total_ms={:.1f} query_ms={:.1f} fixed_pos_ms={:.1f} branch_ms={:.1f} "
+                   L"ui_ms={:.1f} english_ms={:.1f} emoji_ms={:.1f} kaomoji_ms={:.1f} items={}",
+                   segment.TotalMs(), queryMs, fixedPosMs, branchMs, uiMs, englishMs, emojiMs, kaomojiMs, itemCount);
 }
 
 void ApplyCloudCandidate(const std::string &candidate, const std::string &pinyin, uint64_t generation,

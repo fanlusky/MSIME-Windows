@@ -46,10 +46,22 @@ constexpr UINT_PTR TIMER_ID_FTB_VISIBILITY_RECONCILE = 9;
 constexpr UINT_PTR TIMER_ID_FTB_DPI_REMEASURE = 10;
 constexpr UINT_PTR TIMER_ID_CANDIDATE_MOVE_SETTLE = 11;
 constexpr UINT kCandidateMoveSettleMs = 50;
-// WebView2 backend: TSF may briefly toggle "should_show" while composing,
-// which can hide the candidate host right after it is un-cloaked.
-// Keep it visible for a short grace window so it can actually be perceived.
-constexpr UINT kCandidateHideGraceMs = 150;
+// A hide that is immediately followed by another show is not a teardown: it is
+// one keystroke of a burst the worker thread drained late (backspacing the
+// composition empty and typing again). Acting on it cloaks a visible candidate
+// window and un-cloaks it a few frames later, which is the flicker seen while
+// the machine is busy. Defer the hide by this much and drop it outright when a
+// show arrives first; a real commit or focus loss still hides, just this many
+// milliseconds later.
+constexpr UINT_PTR TIMER_ID_CANDIDATE_HIDE_GRACE = 12;
+constexpr UINT kCandidateHideGraceMs = 50;
+// A show repeating the previous frame's preedit, page and caret within this
+// window is a duplicate post rather than new state — the candidate rebuild and
+// the English/cloud merge each request a show per keystroke. Rendering both
+// paints the same picture twice. Keep the window short so anything the
+// signature does not capture (skin reload, DPI change) self-heals on the next
+// keystroke instead of sticking.
+constexpr UINT kCandidateShowDedupWindowMs = 250;
 // Long enough fallback when the page never posts ready (old HTML / failed JS).
 // Page-ready normally ends the grace earlier; until then the toolbar stays shown.
 constexpr UINT kFloatingToolbarPaintGraceMs = 6000;
@@ -73,7 +85,13 @@ std::atomic<bool> g_candidate_force_layout{false};
 std::atomic<uint64_t> g_candidate_content_generation{0};
 int g_last_placed_caret_x = Global::INVALID_Y;
 int g_last_placed_caret_y = Global::INVALID_Y;
-ULONGLONG g_candidate_hide_grace_until_tick = 0;
+// A WM_HIDE_MAIN_WINDOW is armed on TIMER_ID_CANDIDATE_HIDE_GRACE rather than
+// applied straight away; a show inside the grace window cancels it.
+bool g_candidate_hide_pending = false;
+// Last frame actually painted, used to drop duplicate shows. Cleared on hide so
+// the next session always paints.
+std::wstring g_last_rendered_candidate_signature;
+ULONGLONG g_last_rendered_candidate_tick = 0;
 bool g_candidate_session_anchor_valid = false;
 POINT g_candidate_session_anchor{};
 bool g_has_last_candidate_clip = false;
@@ -1803,7 +1821,7 @@ void ApplyConfiguredFloatingToolbarSize()
 {
     if (FloatingToolbarPresenter::Instance().IsBound())
     {
-        FloatingToolbarPresenter::Instance().RelayoutHost();
+        FloatingToolbarPresenter::Instance().ApplyAppearance();
         return;
     }
     ::FTB_WND_WIDTH = ConfiguredFloatingToolbarWidth();
@@ -2168,6 +2186,26 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
     if (message == WM_SHOW_MAIN_WINDOW)
     {
         g_candidate_show_msg_pending.store(false);
+        // A show arriving while a hide is still inside its grace window means the
+        // hide belonged to an earlier keystroke of the same burst. Drop it, so the
+        // window stays up and the user never sees the blink.
+        if (g_candidate_hide_pending)
+        {
+            KillTimer(hwnd, TIMER_ID_CANDIDATE_HIDE_GRACE);
+            g_candidate_hide_pending = false;
+            CAND_DIAG_LOGF(L"hide cancelled by show within grace");
+        }
+        // This handler always renders the newest published state, never a payload
+        // captured when the message was posted, so an older queued show can only
+        // repaint what the newer one is about to repaint. Under load the worker
+        // drains a backlog and posts several at once; painting every one of them
+        // is what turns a queue stall into visible strobing.
+        MSG supersedingShow{};
+        if (PeekMessage(&supersedingShow, hwnd, WM_SHOW_MAIN_WINDOW, WM_SHOW_MAIN_WINDOW, PM_NOREMOVE))
+        {
+            CAND_DIAG_LOGF(L"candidate-frame path=superseded");
+            return 0;
+        }
         const uint64_t contentGeneration = ++g_candidate_content_generation;
         const ULONGLONG updateStartedTick = GetTickCount64();
         ::ReadDataFromSharedMemory(0b1000000);
@@ -2187,6 +2225,23 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
             (void)0;
         }
         const POINT layoutCaret = GetCandidateLayoutCaret();
+        const std::wstring preedit =
+            GetConfiguredCandidateWindowPreeditStyle() == "empty" ? std::wstring{} : GetPreeditWithCaretMarker();
+        // Suppress a repaint that would reproduce the frame already on screen.
+        // g_candidate_force_layout marks the cases (DPI / display change) where
+        // the same content must still be re-laid out, so never dedup through it.
+        const std::wstring frameSignature =
+            fmt::format(L"{}|{}|{},{}|{}", preedit, candidatePage->candidate_string, layoutCaret.x, layoutCaret.y,
+                        candidatePage->selected_index_in_page);
+        if (::is_global_wnd_cand_shown && !g_candidate_force_layout.load() &&
+            frameSignature == g_last_rendered_candidate_signature &&
+            updateStartedTick - g_last_rendered_candidate_tick < kCandidateShowDedupWindowMs)
+        {
+            CAND_DIAG_LOGF(L"candidate-frame path=dedup content_gen={}", contentGeneration);
+            return 0;
+        }
+        g_last_rendered_candidate_signature = frameSignature;
+        g_last_rendered_candidate_tick = updateStartedTick;
         if (CandidatePresenter::Instance().IsBound())
         {
             CandidatePresenter::Instance().ShowFromGlobalState(layoutCaret);
@@ -2204,14 +2259,16 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
         if (!IsCandidateWebviewReady())
         {
             DeferCandidateShowUntilWebviewReady();
+            // Nothing was painted, so this frame must not count as rendered:
+            // the replay posted once the webview is ready would otherwise be
+            // deduped against itself and the window would never appear.
+            g_last_rendered_candidate_signature.clear();
             CAND_DIAG_LOGF(L"candidate-frame path=deferred-webview content_gen={} {}", contentGeneration,
                            DescribeCandidateHostState());
             return 0;
         }
         RaiseCandidateHostForShow(L"show-candidate");
 
-        std::wstring preedit =
-            GetConfiguredCandidateWindowPreeditStyle() == "empty" ? std::wstring{} : GetPreeditWithCaretMarker();
         std::wstring str = preedit + L"," + candidatePage->candidate_string;
         const bool sameCaret = g_last_placed_caret_x == layoutCaret.x && g_last_placed_caret_y == layoutCaret.y;
         const bool alreadyVisible = IsCandidateHostPaintedVisible(hwnd);
@@ -2276,10 +2333,30 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
         return 0;
     }
 
-    if (message == WM_HIDE_MAIN_WINDOW)
+    if (message == WM_HIDE_MAIN_WINDOW || (message == WM_TIMER && wParam == TIMER_ID_CANDIDATE_HIDE_GRACE))
     {
+        // wParam != 0 marks a hide the worker delivered late, i.e. one that may
+        // already be superseded by keystrokes queued behind it. Only those get the
+        // grace; a hide arriving on time is a real commit or focus loss and is
+        // applied straight away so typing keeps its snap.
+        if (message == WM_HIDE_MAIN_WINDOW && wParam != 0)
+        {
+            // Repeat hides while one is already armed need no extra work — that is
+            // where the redundant back-to-back hides get absorbed.
+            if (!g_candidate_hide_pending)
+            {
+                g_candidate_hide_pending = true;
+                SetTimer(hwnd, TIMER_ID_CANDIDATE_HIDE_GRACE, kCandidateHideGraceMs, nullptr);
+            }
+            CAND_DIAG_LOGF(L"hide message deferred grace_ms={} {}", kCandidateHideGraceMs,
+                           DescribeCandidateHostState());
+            return 0;
+        }
+        KillTimer(hwnd, TIMER_ID_CANDIDATE_HIDE_GRACE);
+        g_candidate_hide_pending = false;
         CAND_DIAG_LOGF(L"hide message begin {}", DescribeCandidateHostState());
         ::is_global_wnd_cand_shown = false;
+        g_last_rendered_candidate_signature.clear();
         KillTimer(hwnd, TIMER_ID_CANDIDATE_MOVE_SETTLE);
         g_candidate_session_anchor_valid = false;
         ++g_candidate_content_generation;
@@ -2330,7 +2407,10 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
         const bool forceLayout = g_candidate_force_layout.exchange(false);
         const POINT layoutCaret = GetCandidateLayoutCaret();
         const bool sameCaret = g_last_placed_caret_x == layoutCaret.x && g_last_placed_caret_y == layoutCaret.y;
-        if (!forceLayout && !GetConfiguredCandidateWindowFollowCursor())
+        // Position locking applies only after the first usable anchor has been
+        // placed. A deferred show still needs its first valid MoveCandidate.
+        const bool awaitingInitialPlacement = g_last_placed_caret_y == Global::INVALID_Y;
+        if (!forceLayout && !GetConfiguredCandidateWindowFollowCursor() && !awaitingInitialPlacement)
         {
             CAND_DIAG_LOGF(L"candidate-position move-ignored locked_anchor=({},{}) reported=({},{})", layoutCaret.x,
                            layoutCaret.y, Global::Point[0], Global::Point[1]);

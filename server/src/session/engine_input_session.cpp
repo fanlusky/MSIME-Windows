@@ -1,6 +1,7 @@
 #include "engine_input_session.h"
 #include "config/ime_config.h"
 #include "MetasequoiaImeEngine/common/helpcode_utils.h"
+#include "MetasequoiaImeEngine/quanpin/quanpin_utils.h"
 
 EngineInputSession::EngineInputSession(SchemeType scheme, const ShuangpinProfile &profile)
     : paths_(metasequoia::RuntimePaths::legacy()), session_(scheme, profile, paths_)
@@ -29,7 +30,10 @@ void EngineInputSession::ApplyConfiguration()
     }
     session_.set_shuangpin_helpcode_enabled(GetConfiguredShuangpinHelpcodeEnabled());
     session_.set_quanpin_helpcode_enabled(GetConfiguredQuanpinHelpcodeEnabled());
-    session_.set_quanpin_autocorrect_enabled(GetConfiguredQuanpinAutocorrectEnabled());
+    const unsigned autocorrect_types =
+        (GetConfiguredQuanpinAutocorrectTransposition() ? quanpin::kAutocorrectTransposition : 0u) |
+        (GetConfiguredQuanpinAutocorrectNeighbor() ? quanpin::kAutocorrectNeighbor : 0u);
+    session_.set_quanpin_autocorrect_types(autocorrect_types);
     session_.set_shuangpin_preedit_uses_raw(GetConfiguredShuangpinPreeditMode() == "shuangpin");
 }
 

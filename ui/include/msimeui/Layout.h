@@ -362,6 +362,7 @@ class TextBlock : public Visual
     void SetFontSize(float fontSize);
     void SetTextAlignment(DWRITE_TEXT_ALIGNMENT alignment);
     void SetFontFamily(std::wstring fontFamily);
+    void SetFallbackFontFamilies(std::vector<std::wstring> families);
     void SetTextLayoutPadding(Thickness padding);
     void SetLetterSpacing(float dips);
     void SetCaretIndex(size_t index);
@@ -382,6 +383,8 @@ class TextBlock : public Visual
     bool bold_ = false;
     DWRITE_TEXT_ALIGNMENT textAlignment_ = DWRITE_TEXT_ALIGNMENT_LEADING;
     std::wstring fontFamilyOverride_;
+    std::vector<std::wstring> fallbackFontFamilies_;
+    bool hasCustomFontFallback_ = false;
     Thickness textLayoutPadding_ = {0.0f, 3.0f, 0.0f, 3.0f};
     float letterSpacing_ = 0.0f;
     bool showCaret_ = false;
