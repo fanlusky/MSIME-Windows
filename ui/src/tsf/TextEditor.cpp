@@ -300,7 +300,7 @@ std::wstring CTextEditor::GetSelectedText() const
 void CTextEditor::MoveSelectionNext()
 {
     UINT nTextLength = GetTextLength();
-    if (_nSelEnd < nTextLength)
+    if (_nSelStart == _nSelEnd && _nSelEnd < nTextLength)
         _nSelEnd++;
 
     _nSelStart = _nSelEnd;
@@ -316,7 +316,7 @@ void CTextEditor::MoveSelectionNext()
 
 void CTextEditor::MoveSelectionPrev()
 {
-    if (_nSelStart > 0)
+    if (_nSelStart == _nSelEnd && _nSelStart > 0)
         _nSelStart--;
 
     _nSelEnd = _nSelStart;
