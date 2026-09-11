@@ -110,6 +110,24 @@ FLOAT GetScaleForPoint(POINT pt)
     return ScaleFromMonitor(MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST));
 }
 
+ResolvedCandidateScale ResolveCandidateScaleForCaret(POINT caret)
+{
+    // SM_REMOTESESSION is only set inside a real remote session; console and
+    // local logons never see it, so the local path is byte-for-byte unchanged.
+    // GetDpiForWindow returns 0 for an invalid/absent foreground HWND, which
+    // drops to the monitor path instead of trusting a bogus 0 scale.
+    if (GetSystemMetrics(SM_REMOTESESSION))
+    {
+        const UINT dpi = GetDpiForWindow(GetForegroundWindow());
+        if (dpi != 0)
+        {
+            return {static_cast<FLOAT>(dpi) / static_cast<FLOAT>(USER_DEFAULT_SCREEN_DPI),
+                    CandidateScaleSource::RdpForeground};
+        }
+    }
+    return {GetScaleForPoint(caret), CandidateScaleSource::Monitor};
+}
+
 HalfScreenDipLimits QueryHalfScreenDipLimitsForPoint(POINT pt)
 {
     HalfScreenDipLimits limits{};

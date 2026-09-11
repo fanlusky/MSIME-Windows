@@ -67,6 +67,23 @@ int AlignHostPixels(int value)
     return ((value + kBucket - 1) / kBucket) * kBucket;
 }
 
+// Recompute half-screen DIP limits against `scale` when it differs from the
+// monitor-derived scale, so clamping and window sizing stay on one scale
+// (mirrors the webview path's rasterization-scale composition).
+HalfScreenDipLimits ApplyScaleToHalfScreenLimits(POINT pt, FLOAT scale)
+{
+    HalfScreenDipLimits limits = QueryHalfScreenDipLimitsForPoint(pt);
+    if (scale > 0.0f)
+    {
+        const double monitorWidthPx = static_cast<double>((std::max)(1, limits.monitor.right - limits.monitor.left));
+        const double monitorHeightPx = static_cast<double>((std::max)(1, limits.monitor.bottom - limits.monitor.top));
+        limits.scale = scale;
+        limits.maxWidthDip = (monitorWidthPx * 0.5) / static_cast<double>(scale);
+        limits.maxHeightDip = (monitorHeightPx * 0.5) / static_cast<double>(scale);
+    }
+    return limits;
+}
+
 D2D1_COLOR_F ParseCssColor(const std::string &text, D2D1_COLOR_F fallback)
 {
     std::string value = TrimCopy(text);
@@ -848,14 +865,23 @@ void CandidatePresenter::RestoreHostAfterMenu()
     impl_->hostExpandedForMenu = false;
 }
 
-void CandidatePresenter::PlaceAndShow(POINT caret, float widthDip, float heightDip, float cardLeftDip, float cardTopDip)
+void CandidatePresenter::PlaceAndShow(POINT caret, float widthDip, float heightDip, float cardLeftDip, float cardTopDip,
+                                      const ResolvedCandidateScale &resolved)
 {
-    const HalfScreenDipLimits limits = QueryHalfScreenDipLimitsForPoint(caret);
-    FLOAT scale = limits.scale > 0.0f ? limits.scale : GetScaleForPoint(caret);
+    FLOAT scale = resolved.scale;
+    CandidateScaleSource scaleSource = resolved.source;
+    if (scale <= 0.0f)
+    {
+        const ResolvedCandidateScale now = ResolveCandidateScaleForCaret(caret);
+        scale = now.scale;
+        scaleSource = now.source;
+    }
     if (scale <= 0.0f)
     {
         scale = 1.0f;
+        scaleSource = CandidateScaleSource::Monitor;
     }
+    const HalfScreenDipLimits limits = ApplyScaleToHalfScreenLimits(caret, scale);
     widthDip = static_cast<float>(ClampWidthDipToHalfScreen(widthDip, limits));
     heightDip = static_cast<float>(ClampHeightDipToHalfScreen(heightDip, limits));
     lastLayoutWidthDip_ = widthDip;
@@ -910,9 +936,24 @@ void CandidatePresenter::PlaceAndShow(POINT caret, float widthDip, float heightD
         y = monitor.top + 2 - cardTopPx;
     }
     SetWindowPos(hwnd_, HWND_TOPMOST, x, y, widthPx, heightPx, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    // Rendering must use the same scale the window was just sized with: the ui
+    // override replaces GetDpiForWindow (144 inside RDP) so DIPs map exactly
+    // onto the pixels computed above. Must land before EnsureForComposition —
+    // a freshly created target reads it through DpiForHwnd().
+    const FLOAT dpiOverride = scale * 96.0f;
+    impl_->window->SetDpiOverride(dpiOverride);
+    impl_->resources.SetDpiOverride(dpiOverride);
     impl_->resources.EnsureForComposition(hwnd_);
     Present();
     SetCandidateHostCloaked(false);
+    // Acceptance trace for the RDP candidate-scale fix: which scale authority
+    // won, and the system's own (potentially diverging) DPI values. Coordinates
+    // and DPI only — never user input, per the diagnostic logging red lines.
+    CAND_DIAG_LOGF(L"candidate-d2d place source={} scale={:.3f} hwnd_dpi={} system_dpi={} remote={} caret=({},{}) "
+                   L"size_px=({},{})",
+                   scaleSource == CandidateScaleSource::RdpForeground ? L"rdp-foreground" : L"monitor", scale,
+                   GetDpiForWindow(hwnd_), GetDpiForSystem(), GetSystemMetrics(SM_REMOTESESSION) ? 1 : 0, caret.x,
+                   caret.y, widthPx, heightPx);
 }
 
 void CandidatePresenter::ShowFromGlobalState()
@@ -970,7 +1011,11 @@ void CandidatePresenter::ShowFromGlobalState(POINT caret)
     }
     FillItemsFromUi();
     impl_->list->SetHoverEnabled(hoverArmed_);
-    const HalfScreenDipLimits limits = QueryHalfScreenDipLimitsForPoint(caret);
+    // Resolve the scale once per show and thread it through measure, clamping,
+    // window sizing and rendering DPI — a foreground window changing mid-show
+    // must not split measure (clamped at one scale) from placement (another).
+    const ResolvedCandidateScale scale = ResolveCandidateScaleForCaret(caret);
+    const HalfScreenDipLimits limits = ApplyScaleToHalfScreenLimits(caret, scale.scale);
     const float maxW = limits.maxWidthDip > 1.0 ? static_cast<float>(limits.maxWidthDip) : 480.0f;
     const float maxH = limits.maxHeightDip > 1.0 ? static_cast<float>(limits.maxHeightDip) : 640.0f;
     impl_->root->InvalidateMeasure();
@@ -992,7 +1037,7 @@ void CandidatePresenter::ShowFromGlobalState(POINT caret)
         cardLeftDip = card.x;
         cardTopDip = card.y;
     }
-    PlaceAndShow(caret, widthDip, heightDip, cardLeftDip, cardTopDip);
+    PlaceAndShow(caret, widthDip, heightDip, cardLeftDip, cardTopDip, scale);
     ::is_global_wnd_cand_shown = true;
 }
 
