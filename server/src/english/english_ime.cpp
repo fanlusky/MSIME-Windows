@@ -1,6 +1,6 @@
 #include "english_ime.h"
 
-#include "MetasequoiaImeEngine/english/english_dictionary.h"
+#include "MSIME-Engine/english/english_dictionary.h"
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>

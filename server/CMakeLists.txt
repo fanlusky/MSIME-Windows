@@ -67,7 +67,7 @@ set(_metasequoia_saved_build_testing "${BUILD_TESTING}")
 set(BUILD_TESTING OFF)
 set(METASEQUOIA_IME_BUILD_VOICE ON CACHE BOOL "" FORCE)
 set(MSIME_VOICE_CAPTURE ON CACHE BOOL "" FORCE)
-add_subdirectory("${MSIME_VENDOR_DIR}/MetasequoiaImeEngine" "${CMAKE_BINARY_DIR}/MetasequoiaImeEngine" EXCLUDE_FROM_ALL)
+add_subdirectory("${MSIME_VENDOR_DIR}/MSIME-Engine" "${CMAKE_BINARY_DIR}/MSIME-Engine" EXCLUDE_FROM_ALL)
 set(BUILD_TESTING "${_metasequoia_saved_build_testing}")
 unset(_metasequoia_saved_build_testing)
 
@@ -117,7 +117,7 @@ add_compile_options(/Zc:__cplusplus /FS /utf-8)
 include_directories("./")
 include_directories("./src/")
 include_directories("${MSIME_VENDOR_DIR}")
-include_directories("${MSIME_VENDOR_DIR}/MetasequoiaImeEngine/utfcpp/source/")
+include_directories("${MSIME_VENDOR_DIR}/MSIME-Engine/utfcpp/source/")
 
 set(MY_EXECUTABLE_NAME "MetasequoiaImeServer")
 set(WATCHDOG_EXECUTABLE_NAME "MetasequoiaImeWatchdog")
@@ -238,7 +238,7 @@ target_include_directories(${PROJECT_NAME}
     PRIVATE
     "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/include"
     "${CMAKE_SOURCE_DIR}/src/voice-input"
-    "${MSIME_VENDOR_DIR}/MetasequoiaImeEngine/voice/third_party/miniaudio"
+    "${MSIME_VENDOR_DIR}/MSIME-Engine/voice/third_party/miniaudio"
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE MetasequoiaIme::Engine MetasequoiaIme::Voice MetasequoiaIme::VoiceCapture)

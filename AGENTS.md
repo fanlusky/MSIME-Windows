@@ -17,14 +17,14 @@ Windows 端的全部一方源码在本仓。**合仓改变的是仓库数量，�
 | `installer/` | 收集产物、自签名、Inno Setup 打包 | [installer/README.md](installer/README.md) |
 | `log/` | 日志采集库 | — |
 | `experiments/tsf-edit-control/` | TSF 编辑控件实验工程，不参与产品构建 | — |
-| `vendor/` | submodule：`MetasequoiaImeEngine`、`opencc`、`cpp-pinyin` | 上游仓库 |
+| `vendor/` | submodule：`MSIME-Engine`、`opencc`、`cpp-pinyin` | 上游仓库 |
 | `scripts/`、`tests/`、`docs/` | 产品级构建与发布脚本、组合验证、产品文档 | 本文件 |
 
 改一个组件之前先确认它有没有自己的 AGENTS.md，那份比本文件更具体。
 
 ## 组件之间的边界
 
-- **协议的唯一来源是 Engine 的 `contracts/`**。IPC 线格式、opcode、语音分帧和 WebView 消息定义都在 `vendor/MetasequoiaImeEngine/contracts/`，`windows/` 和 `server/` 各自引用同一份头文件。不要在任何一侧重新定义或复制一份。
+- **协议的唯一来源是 Engine 的 `contracts/`**。IPC 线格式、opcode、语音分帧和 WebView 消息定义都在 `vendor/MSIME-Engine/contracts/`，`windows/` 和 `server/` 各自引用同一份头文件。不要在任何一侧重新定义或复制一份。
 - **`ui/` 不许反向依赖产品**。它不读 Server 配置、IPC、引擎、词库或全局输入状态；业务通过数据和回调接入。`ui/scripts/check-boundary.py` 在 CI 里检查已知的反向依赖，新增依赖会红。
 - **窗口归 `server/`，页面归 `ui-html/`**。HWND、尺寸、位置、DPI、Z-order 和 WebView2 controller 的生命周期在 `server/src/window/` 与 `server/src/webview2/`；页面结构、样式和浏览器端交互在 `ui-html/webview2/`。改消息 `type`、JSON 字段或页面导出的 JS 函数时两侧要一起改。
 - **候选与输入状态的权威在 Server 和引擎**，页面只负责展示和发出用户动作，不要在网页侧复制状态机。
@@ -52,7 +52,7 @@ cmake -S ui      -B ui/build -A x64                # GUI 框架
 
 `product-lock.json` 只记录仍来自仓外的东西：Engine（在本仓是 submodule）、词库 Release 的 tag、source commit 和每个产物的 SHA256。**Server、页面、GUI 框架和安装器不在清单里**——它们是本仓的目录，本仓的一个 commit 就已经把它们钉住了。辅助码也不在——它已经并入 Engine，钉住契约的那个 gitlink 同时钉住了辅助码表。
 
-- 引擎的权威是 `vendor/MetasequoiaImeEngine` 的 gitlink；`product-lock.json` 里的 `engine.commit` 只是把它记下来，供产物清单和发布门禁使用。两者必须一致，`product_lock.py verify-contracts` 会检查。bump submodule 时同一个 PR 里把 `engine.commit` 改过来。
+- 引擎的权威是 `vendor/MSIME-Engine` 的 gitlink；`product-lock.json` 里的 `engine.commit` 只是把它记下来，供产物清单和发布门禁使用。两者必须一致，`product_lock.py verify-contracts` 会检查。bump submodule 时同一个 PR 里把 `engine.commit` 改过来。
 - `refresh` 不再解析任何浮动源码引用：引擎取自本地 gitlink，词库取自指定 tag。词库清单里记录了构建它的 commit 和当时工作树是否干净，`verify-assets` 一并校验——摘要只能证明字节是评审过的字节，证明不了它来自一个能重建的源。
 - 发布门禁 `verify-published` 要求清单里每个提交都能从各自仓库默认分支到达，只在发布路径执行，不进 CI。理由见 [docs/product-release.md](docs/product-release.md)。
 
@@ -114,7 +114,7 @@ release workflow 里的每一段 shell 都抽在 `scripts/ci/` 下，workflow �
 | `revalidate-draft-release.sh` | 发布前复查 draft 仍指向被构建的那个 commit |
 | `publish-release.sh` | 上传产物、追加说明、发布 |
 
-合仓之前 CI 要把五个仓 checkout 到历史目录名下，`Prepare-PackageFiles.ps1` 才能不改一行地跑。现在源目录名由 workflow 显式传参（`-TsfDirectory windows -ServerDirectory server -UiHtmlDirectory ui-html -NoticesDirectory . -HelpCodeDirectory vendor/MetasequoiaImeEngine/helpcode`），只有词库还落在仓根的 `MetasequoiaImeDict/`，用的是那个参数的默认值。改动这些脚本里的产物路径时，要连同 release workflow 一起核对。
+合仓之前 CI 要把五个仓 checkout 到历史目录名下，`Prepare-PackageFiles.ps1` 才能不改一行地跑。现在源目录名由 workflow 显式传参（`-TsfDirectory windows -ServerDirectory server -UiHtmlDirectory ui-html -NoticesDirectory . -HelpCodeDirectory vendor/MSIME-Engine/helpcode`），只有词库还落在仓根的 `MetasequoiaImeDict/`，用的是那个参数的默认值。改动这些脚本里的产物路径时，要连同 release workflow 一起核对。
 
 词库不在 CI 里现建，从产品锁指定仓库的 `dict-*` release 下载并校验 SHA256。词库源数据与构建入口已并入 MSIME-Engine，现有 MSIME-Dict release 作为不可变旧产物保留；换发布源要在 `product_lock.py` 里明确评审，不是改个 tag 就能悄悄完成的事。词库改了要先在 Engine 跑构建 workflow 并勾选 publish，再发 Windows 版本；通过 `scripts/product_lock.py refresh --dictionary-tag <tag>` 更新产品锁并评审摘要变更；发布构建不能临时覆盖词库版本。
 

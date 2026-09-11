@@ -9,7 +9,7 @@ FILES = ('schema.js', 'runtime.js', 'schema.d.ts', 'runtime.d.ts', 'messages.ts'
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--check', action='store_true')
 args = parser.parse_args()
-source = MONOREPO_ROOT / 'vendor/MetasequoiaImeEngine/contracts/webview'
+source = MONOREPO_ROOT / 'vendor/MSIME-Engine/contracts/webview'
 destination = ROOT / 'webview2/shared'
 for name in FILES:
     expected = (source / name).read_bytes()

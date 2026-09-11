@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-forbidden = re.compile(r'MetasequoiaImeEngine|MSIME-Server|config/ime_config\.h|global/globals\.h|ipc/event_listener\.h|GlobalIme::|\bg_inputSession\b')
+forbidden = re.compile(r'MSIME-Engine|MSIME-Server|config/ime_config\.h|global/globals\.h|ipc/event_listener\.h|GlobalIme::|\bg_inputSession\b')
 failures = []
 for directory in ('include', 'src'):
     for path in (ROOT / directory).rglob('*'):

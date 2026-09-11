@@ -1,6 +1,6 @@
 #pragma once
 
-#include "MetasequoiaImeEngine/quanpin/quanpin_query.h"
+#include "MSIME-Engine/quanpin/quanpin_query.h"
 
 #include <cstddef>
 #include <string>

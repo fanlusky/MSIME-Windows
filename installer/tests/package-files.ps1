@@ -29,7 +29,7 @@ try {
         'LICENSE',
         'server/assets/config/config.toml',
         'server/src/resource/MetasequoiaIME.ico',
-        'vendor/MetasequoiaImeEngine/helpcode/helpcodes/helpcode.txt',
+        'vendor/MSIME-Engine/helpcode/helpcodes/helpcode.txt',
         'MetasequoiaImeDict/out/msime.db',
         'MetasequoiaImeDict/out/others.db',
         'MetasequoiaImeDict/out/dict_japanese.dat',

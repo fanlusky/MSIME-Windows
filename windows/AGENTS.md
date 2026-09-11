@@ -61,7 +61,7 @@
 
 ## IPC 协议——单一契约
 
-协议定义的唯一来源是 `../vendor/MetasequoiaImeEngine/contracts/`，Server 读的是同一个 submodule 里的同一份定义——合仓之前两边各挂一份 gitlink、靠 `product-lock.json` 强制两者相等，现在只有一份，不可能不一致。TSF 仅引用头文件，不链接引擎运行库。这里保留已发布的固定宽度 Win32 ABI：
+协议定义的唯一来源是 `../vendor/MSIME-Engine/contracts/`，Server 读的是同一个 submodule 里的同一份定义——合仓之前两边各挂一份 gitlink、靠 `product-lock.json` 强制两者相等，现在只有一份，不可能不一致。TSF 仅引用头文件，不链接引擎运行库。这里保留已发布的固定宽度 Win32 ABI：
 
 - 修改管道名、opcode、字段、容量或对齐时，在共享 contracts 中修改并保留 ABI 检查，再同步更新 submodule 与 `product-lock.json` 的 `engine.commit`。禁止恢复两份手写定义。
 - 主连接的版本化 ClientHello 必须获得关联 request_id 的 ProtocolReady 后才可发键；协议确认包不能作为候选或上屏文本。新 Server 兼容旧 DLL 的未版本化 hello；新 DLL 对旧或不兼容 Server 使用现有原始输入回退。版本与能力规则见共享 contracts/README.md。

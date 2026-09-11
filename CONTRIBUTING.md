@@ -22,7 +22,7 @@ git clone --recursive https://github.com/metasequoiaime/MSIME-Windows.git
 cd MSIME-Windows
 ```
 
-忘了 `--recursive` 的话补一句 `git submodule update --init --recursive`。`vendor/MetasequoiaImeEngine` 是跨平台输入引擎，缺了它任何一个 C++ 组件都编不过。
+忘了 `--recursive` 的话补一句 `git submodule update --init --recursive`。`vendor/MSIME-Engine` 是跨平台输入引擎，缺了它任何一个 C++ 组件都编不过。
 
 词库不在版本库里，构建时从 MSIME-Engine 的 `dict-*` release 按锁定的 tag 和摘要取用：
 
@@ -79,7 +79,7 @@ Set-Location ..\installer
 
 ## 改动前要知道的几条边界
 
-- **协议的唯一来源是 Engine 的 `contracts/`。** IPC 线格式、opcode、语音分帧和 WebView 消息定义都在 `vendor/MetasequoiaImeEngine/contracts/`，两侧引用同一份头文件，不要在任何一侧另写一份。
+- **协议的唯一来源是 Engine 的 `contracts/`。** IPC 线格式、opcode、语音分帧和 WebView 消息定义都在 `vendor/MSIME-Engine/contracts/`，两侧引用同一份头文件，不要在任何一侧另写一份。
 - **`ui/` 不许反向依赖产品。** 它不读 Server 配置、IPC、引擎、词库或全局输入状态。`ui/scripts/check-boundary.py` 在 CI 里检查。
 - **窗口归 `server/`，页面归 `ui-html/`。** 改消息 `type`、JSON 字段或页面导出的 JS 函数时两侧一起改。
 - **`ui-html/webview2/shared/` 是生成物**，由 `ui-html/scripts/sync-contracts.py` 从 submodule 同步，CI 用 `--check` 校验。要改契约就去改 Engine。

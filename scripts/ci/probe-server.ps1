@@ -8,7 +8,7 @@ $server = (Resolve-Path $ServerRoot).Path
 $binary = Join-Path $server "$BuildDir/bin/Release/MetasequoiaImeServer.exe"
 # The engine is a submodule of the repository, not of the server, so the contracts do not move with
 # -ServerRoot.
-$contracts = Join-Path $automationRoot 'vendor/MetasequoiaImeEngine/contracts'
+$contracts = Join-Path $automationRoot 'vendor/MSIME-Engine/contracts'
 # An include directory that does not exist is not a configure error; it surfaces minutes later as
 # C1083 on a header nobody moved. Say what is actually wrong, before building anything.
 if (-not (Test-Path -LiteralPath (Join-Path $contracts 'ipc_negotiation.h') -PathType Leaf)) {

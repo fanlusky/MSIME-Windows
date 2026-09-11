@@ -2,7 +2,7 @@
 
 一个 Windows 版本的完整一方源码就是本仓的一个提交：TSF、Server、GUI 框架、页面和安装器都是目录，不需要再被清单钉住。
 
-`product-lock.json` 只覆盖仍来自仓外的输入：Engine 的提交，以及词库 Release 的 source commit 和每个产物的 SHA256。辅助码已并入 Engine，由同一个 gitlink 钉住，不再单列。Engine 在本仓是 `vendor/MetasequoiaImeEngine` submodule，gitlink 才是权威；清单里的 `engine.commit` 是它的记录副本，供产物清单和发布门禁使用，`product_lock.py verify-contracts` 保证两者一致。
+`product-lock.json` 只覆盖仍来自仓外的输入：Engine 的提交，以及词库 Release 的 source commit 和每个产物的 SHA256。辅助码已并入 Engine，由同一个 gitlink 钉住，不再单列。Engine 在本仓是 `vendor/MSIME-Engine` submodule，gitlink 才是权威；清单里的 `engine.commit` 是它的记录副本，供产物清单和发布门禁使用，`product_lock.py verify-contracts` 保证两者一致。
 
 发布任务不解析 `main` 或 `latest`。递归 submodule 沿固定 gitlink 检出，不执行 `git submodule update --remote`。
 

@@ -1,8 +1,8 @@
 #include "emoji/emoji_ime.h"
 
-#include "MetasequoiaImeEngine/local_modes/emoji_query.h"
-#include "MetasequoiaImeEngine/core/data_path.h"
-#include "MetasequoiaImeEngine/shuangpin/shuangpin_profile.h"
+#include "MSIME-Engine/local_modes/emoji_query.h"
+#include "MSIME-Engine/core/data_path.h"
+#include "MSIME-Engine/shuangpin/shuangpin_profile.h"
 #include "config/ime_config.h"
 #include <atomic>
 #include <condition_variable>

@@ -3,7 +3,7 @@
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-engine = root / 'vendor/MetasequoiaImeEngine/contracts/product_lock.py'
+engine = root / 'vendor/MSIME-Engine/contracts/product_lock.py'
 vendored = root / 'scripts/product_lock_shared.py'
 for path in (engine, vendored):
     if not path.is_file():

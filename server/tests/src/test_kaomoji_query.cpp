@@ -1,6 +1,6 @@
 #include "tests/includes/test_framework.h"
-#include "MetasequoiaImeEngine/local_modes/kaomoji_query.h"
-#include "MetasequoiaImeEngine/shuangpin/shuangpin_profile.h"
+#include "MSIME-Engine/local_modes/kaomoji_query.h"
+#include "MSIME-Engine/shuangpin/shuangpin_profile.h"
 #include "config/ime_config.h"
 #include "utils/common_utils.h"
 

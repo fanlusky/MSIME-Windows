@@ -489,7 +489,7 @@ jobs:
           pwsh -File ./Prepare-PackageFiles.ps1 -TargetVersion $env:TARGET_VERSION
           -RepoRoot (Resolve-Path '..').Path
           -TsfDirectory windows -ServerDirectory server -UiHtmlDirectory ui-html -NoticesDirectory .
-          -HelpCodeDirectory vendor/MetasequoiaImeEngine/helpcode
+          -HelpCodeDirectory vendor/MSIME-Engine/helpcode
 
       - name: Embed the exact product dependency manifest
         env:

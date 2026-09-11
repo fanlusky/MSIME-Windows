@@ -1,8 +1,8 @@
 #pragma once
 
 #include "input_session.h"
-#include "MetasequoiaImeEngine/common/helpcode_utils.h"
-#include "MetasequoiaImeEngine/core/input_session.h"
+#include "MSIME-Engine/common/helpcode_utils.h"
+#include "MSIME-Engine/core/input_session.h"
 
 class EngineInputSession : public IInputSession
 {

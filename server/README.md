@@ -28,7 +28,7 @@ $devLocalData = Join-Path $PWD 'build/dev-local'
 $devData = Join-Path $devLocalData 'metasequoiaime'
 New-Item -ItemType Directory -Force $devData | Out-Null
 Copy-Item MetasequoiaImeDict/out/* $devData -Force
-Copy-Item vendor/MetasequoiaImeEngine/helpcode/helpcodes $devData -Recurse -Force
+Copy-Item vendor/MSIME-Engine/helpcode/helpcodes $devData -Recurse -Force
 Copy-Item server/assets/tables/* $devData -Force
 Copy-Item server/assets/config/config.toml $devData -Force
 Push-Location ui-html/webview2/settings/ime-settings

@@ -13,7 +13,7 @@
 
 ## CI 契约
 
-根 `.github/workflows/release.yml` **不加修改地调用本目录的 `Prepare-PackageFiles.ps1` 和 `Compile-Installer.ps1`**。源目录名是 `Prepare-PackageFiles.ps1` 的参数，不是写死在脚本里的字面量：默认值为 `windows/`、`server/`、`ui-html/` 和仓根授权文件；旧目录或自定义布局通过参数覆盖。回归检查同时执行默认路径和显式参数的打包。辅助码默认读取 `vendor/MetasequoiaImeEngine/helpcode/`，词库缓存位于 `MetasequoiaImeDict/out/`。
+根 `.github/workflows/release.yml` **不加修改地调用本目录的 `Prepare-PackageFiles.ps1` 和 `Compile-Installer.ps1`**。源目录名是 `Prepare-PackageFiles.ps1` 的参数，不是写死在脚本里的字面量：默认值为 `windows/`、`server/`、`ui-html/` 和仓根授权文件；旧目录或自定义布局通过参数覆盖。回归检查同时执行默认路径和显式参数的打包。辅助码默认读取 `vendor/MSIME-Engine/helpcode/`，词库缓存位于 `MetasequoiaImeDict/out/`。
 
 合仓后 release workflow 传的是本仓的目录名，辅助码随固定 Engine gitlink 检出，词库按产品锁下载到仓根缓存：
 
@@ -38,7 +38,7 @@ pwsh -File ./Prepare-PackageFiles.ps1 -TargetVersion 1.2.3 -RepoRoot .. `
 - Windows SDK（提供 `signtool.exe`）
 - 先初始化本仓 submodule，并完成 `windows/`、`server/` 的 Release 编译以及 `ui-html/` 设置页构建。Release 构建必须生成同目录 PDB；打包脚本会拒绝缺少匹配符号的产物。
 - 在仓库根目录运行 `python scripts/product_lock.py fetch-dictionaries --staging-root .`，下载并验证产品锁中的词库。
-- `vendor/MetasequoiaImeEngine/helpcode/helpcodes/` 随引擎检出，无需旧 HelpCode 仓库。
+- `vendor/MSIME-Engine/helpcode/helpcodes/` 随引擎检出，无需旧 HelpCode 仓库。
 
 ## 本地打包路径
 

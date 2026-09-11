@@ -2,7 +2,7 @@
 
 #include "ipc/ipc_protocol_limits.h"
 #include "utils/common_utils.h"
-#include "MetasequoiaImeEngine/quanpin/quanpin_utils.h"
+#include "MSIME-Engine/quanpin/quanpin_utils.h"
 
 #include <algorithm>
 #include <cctype>

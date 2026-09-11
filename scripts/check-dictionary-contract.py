@@ -2,7 +2,7 @@
 """Reject a vendored validator that differs from the reviewed Engine gitlink."""
 from pathlib import Path
 root = Path(__file__).resolve().parents[1]
-source = root / 'vendor/MetasequoiaImeEngine/contracts/dictionary/product.py'
+source = root / 'vendor/MSIME-Engine/contracts/dictionary/product.py'
 # An engine submodule that was never checked out is not a validator that drifted. Reporting both as
 # "differs" sends whoever reads it looking for a content change that is not there.
 if not source.is_file():

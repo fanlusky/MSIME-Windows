@@ -40,10 +40,10 @@ class PrepareEnvironmentTests(unittest.TestCase):
                 expected = (root / 'custom vcpkg/scripts/buildsystems/vcpkg.cmake').as_posix()
                 self.assertEqual(by_name['vcpkg-release']['cacheVariables']['CMAKE_TOOLCHAIN_FILE'], expected)
             clangd = (target / '.clangd').read_text().replace('\\', '/')
-            self.assertIn('vendor/MetasequoiaImeEngine/utfcpp/source', clangd)
+            self.assertIn('vendor/MSIME-Engine/utfcpp/source', clangd)
             if component == 'server':
-                self.assertIn('vendor/MetasequoiaImeEngine/voice/include', clangd)
-                self.assertIn('vendor/MetasequoiaImeEngine/voice/third_party/miniaudio', clangd)
+                self.assertIn('vendor/MSIME-Engine/voice/include', clangd)
+                self.assertIn('vendor/MSIME-Engine/voice/third_party/miniaudio', clangd)
                 self.assertIn('/ui/include', clangd)
                 self.assertFalse((target / 'tests/CMakePresets.json').exists())
 

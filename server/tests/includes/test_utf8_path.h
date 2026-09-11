@@ -1,6 +1,6 @@
 #pragma once
 
-#include "MetasequoiaImeEngine/core/data_path.h"
+#include "MSIME-Engine/core/data_path.h"
 
 #include <filesystem>
 #include <string>

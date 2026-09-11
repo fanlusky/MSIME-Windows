@@ -161,7 +161,7 @@ class ProductLockTests(unittest.TestCase):
                 lock.verify_checkout("engine", ROOT, self.data)
 
     def test_a_path_that_is_not_a_submodule_cannot_pass_as_the_engine(self):
-        for reply in ("", "100644 blob " + "0" * 40 + "\tvendor/MetasequoiaImeEngine"):
+        for reply in ("", "100644 blob " + "0" * 40 + "\tvendor/MSIME-Engine"):
             with self.subTest(reply=reply):
                 with mock.patch.object(lock, "git", return_value=reply):
                     with self.assertRaises(ValueError):
@@ -172,9 +172,9 @@ class ProductLockTests(unittest.TestCase):
 
     def test_independently_bumped_tsf_contract_is_rejected(self):
         expected = self.data["repositories"]["engine"]["commit"]
-        with mock.patch.object(lock, "git", return_value=f"160000 commit {expected}\tvendor/MetasequoiaImeEngine"):
+        with mock.patch.object(lock, "git", return_value=f"160000 commit {expected}\tvendor/MSIME-Engine"):
             lock.verify_contracts(ROOT, self.data)
-        with mock.patch.object(lock, "git", return_value="160000 commit " + "0" * 40 + "\tvendor/MetasequoiaImeEngine"):
+        with mock.patch.object(lock, "git", return_value="160000 commit " + "0" * 40 + "\tvendor/MSIME-Engine"):
             with self.assertRaises(ValueError):
                 lock.verify_contracts(ROOT, self.data)
 

@@ -8,7 +8,7 @@ $automationRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $server = (Resolve-Path $ServerRoot).Path
 # The helpcodes moved into the engine, so the gitlink that pins the contracts pins the tables too.
 # verify-contracts is what keeps that gitlink and the lock from drifting apart.
-$helpcodes = Join-Path $automationRoot 'vendor/MetasequoiaImeEngine/helpcode/helpcodes'
+$helpcodes = Join-Path $automationRoot 'vendor/MSIME-Engine/helpcode/helpcodes'
 if (-not (Test-Path -LiteralPath $helpcodes -PathType Container)) {
     throw "Helpcodes not found at $helpcodes; run git submodule update --init"
 }
@@ -16,7 +16,7 @@ python (Join-Path $automationRoot 'scripts/product_lock.py') verify-contracts $a
 # A non-zero exit also covers git or python failing outright, which reads nothing
 # like a contract mismatch. Point at the output instead of naming a cause.
 if ($LASTEXITCODE -ne 0) { throw "verify-contracts exited $LASTEXITCODE; see the output above" }
-python (Join-Path $automationRoot 'scripts/product_lock.py') verify-checkout engine (Join-Path $automationRoot 'vendor/MetasequoiaImeEngine')
+python (Join-Path $automationRoot 'scripts/product_lock.py') verify-checkout engine (Join-Path $automationRoot 'vendor/MSIME-Engine')
 if ($LASTEXITCODE -ne 0) { throw 'The Engine checkout does not match the product lock' }
 python (Join-Path $automationRoot 'scripts/product_lock.py') fetch-dictionaries --staging-root $StagingRoot
 if ($LASTEXITCODE -ne 0) { throw 'Could not provision locked dictionaries' }

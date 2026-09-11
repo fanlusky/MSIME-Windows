@@ -1,6 +1,6 @@
 #pragma once
 
-#include "MetasequoiaImeEngine/core/scheme_type.h"
+#include "MSIME-Engine/core/scheme_type.h"
 #include <toml++/toml.h>
 #include <filesystem>
 #include <map>

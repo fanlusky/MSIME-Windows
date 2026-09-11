@@ -10,7 +10,7 @@ name: Engine bump triage
 on:
   pull_request:
     paths:
-      - 'vendor/MetasequoiaImeEngine'
+      - 'vendor/MSIME-Engine'
 
 # Read-only by default, matching every other workflow here. The write scopes this job needs to merge
 # the bump are granted on the job instead, so a second job added later starts from the same floor
@@ -28,7 +28,7 @@ jobs:
       contents: write
       pull-requests: write
     env:
-      SUBMODULE: vendor/MetasequoiaImeEngine
+      SUBMODULE: vendor/MSIME-Engine
       ENGINE: metasequoiaime/MSIME-Engine
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       PR_URL: ${{ github.event.pull_request.html_url }}

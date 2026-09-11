@@ -1,6 +1,6 @@
 #pragma once
 
-#include "MetasequoiaImeEngine/core/word_item.h"
+#include "MSIME-Engine/core/word_item.h"
 #include <cstdint>
 #include <functional>
 #include <string>

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "MetasequoiaImeEngine/core/input_session.h"
-#include "MetasequoiaImeEngine/shuangpin/shuangpin_dictionary.h"
+#include "MSIME-Engine/core/input_session.h"
+#include "MSIME-Engine/shuangpin/shuangpin_dictionary.h"
 #include <Windows.h>
 #include <string>
 #include <vector>

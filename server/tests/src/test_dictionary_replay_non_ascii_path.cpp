@@ -1,7 +1,7 @@
 #include "tests/includes/test_framework.h"
 
-#include "MetasequoiaImeEngine/core/data_path.h"
-#include "MetasequoiaImeEngine/user_dictionary/user_dictionary_journal.h"
+#include "MSIME-Engine/core/data_path.h"
+#include "MSIME-Engine/user_dictionary/user_dictionary_journal.h"
 
 #include <windows.h>
 

@@ -36,7 +36,7 @@ REPOSITORIES = {
     "engine": "metasequoiaime/MSIME-Engine",
 }
 ROOT_COMPONENTS = ()
-ENGINE_GITLINK = "vendor/MetasequoiaImeEngine"
+ENGINE_GITLINK = "vendor/MSIME-Engine"
 ASSETS = {
     "msime.db", "english.db", "others.db", "dict_japanese.dat",
     "mozc_dictionary_oss_README.txt", "SHA256SUMS.txt",

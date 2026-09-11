@@ -29,7 +29,7 @@ vcpkg_include_path = normpath(
     )
 )
 monorepo_root_path = normpath(os.path.dirname(project_root_path))
-engine_path = normpath(os.path.join(monorepo_root_path, "vendor", "MetasequoiaImeEngine"))
+engine_path = normpath(os.path.join(monorepo_root_path, "vendor", "MSIME-Engine"))
 utfcpp_path = normpath(os.path.join(engine_path, "utfcpp", "source"))
 webview2_path = normpath(
     os.path.join(

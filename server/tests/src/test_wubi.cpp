@@ -1,7 +1,7 @@
 #include "tests/includes/test_framework.h"
 #include "tests/includes/test_utf8_path.h"
-#include "MetasequoiaImeEngine/providers/wubi_candidate_provider.h"
-#include "MetasequoiaImeEngine/schemes/wubi_scheme.h"
+#include "MSIME-Engine/providers/wubi_candidate_provider.h"
+#include "MSIME-Engine/schemes/wubi_scheme.h"
 #include <filesystem>
 #include <sqlite3.h>
 #include <stdexcept>

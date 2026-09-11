@@ -17,7 +17,7 @@
 #include <utility>
 #include <vector>
 #include "ipc.h"
-#include "MetasequoiaImeEngine/contracts/ipc_negotiation.h"
+#include "MSIME-Engine/contracts/ipc_negotiation.h"
 #include "ipc/active_client_state.h"
 #include "ipc/event_listener.h"
 #include "ipc/outbound_session_state.h"

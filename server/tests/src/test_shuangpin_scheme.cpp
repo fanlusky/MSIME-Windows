@@ -1,7 +1,7 @@
 #include "tests/includes/test_framework.h"
-#include "MetasequoiaImeEngine/core/ime_session.h"
-#include "MetasequoiaImeEngine/schemes/shuangpin_scheme.h"
-#include "MetasequoiaImeEngine/shuangpin/shuangpin_query.h"
+#include "MSIME-Engine/core/ime_session.h"
+#include "MSIME-Engine/schemes/shuangpin_scheme.h"
+#include "MSIME-Engine/shuangpin/shuangpin_query.h"
 #include <utility>
 #include <vector>
 
