@@ -2247,17 +2247,17 @@ CMetasequoiaIME::KeyDownDispatchResult CMetasequoiaIME::_DispatchKeyDown(
             const bool shouldFinalizeHighlightedCandidateWithPunctuation =
                 _candidateMode != CANDIDATE_NONE && _pCandidateListUIPresenter &&
                 Global::CommitWithHighlightedCandPunc.count(wch) > 0;
-            // Numpad '.' (VK_DECIMAL) keeps ASCII '.' in Chinese punctuation mode.
-            if (code == VK_DECIMAL)
-            {
-                punctuationCommitText = L".";
-            }
-            else if (shouldFinalizeHighlightedCandidateWithPunctuation)
+            if (shouldFinalizeHighlightedCandidateWithPunctuation)
             {
                 // Empty means the edit session must consume this request's
                 // candidate reply and append the punctuation derived from wch
                 // (including smart-punctuation against the candidate text).
                 punctuationCommitText.clear();
+            }
+            else if (code == VK_DECIMAL)
+            {
+                // Numpad '.' stays ASCII, including after a candidate.
+                punctuationCommitText = L".";
             }
             else if (CCompositionProcessorEngine::IsSmartAsciiPunctuationKey(wch) &&
                      Global::SmartPunctuationEnabled.load(std::memory_order_relaxed))

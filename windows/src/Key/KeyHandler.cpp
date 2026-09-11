@@ -1186,7 +1186,14 @@ HRESULT CMetasequoiaIME::_HandleCompositionPunctuation(TfEditCookie ec, _In_ ITf
                 const std::wstring candidate(receivedData->candidate_string);
                 const WCHAR preceding =
                     candidate.empty() ? _GetPrecedingCharForSmartPunctuation(ec, pContext) : candidate.back();
-                punctuationStr = candidate + _ResolveSmartPunctuation(wch, preceding);
+                if (code == VK_DECIMAL || wch == L'/' || wch == L'-' || wch == L'+')
+                {
+                    punctuationStr = candidate + (code == VK_DECIMAL ? L'.' : wch);
+                }
+                else
+                {
+                    punctuationStr = candidate + _ResolveSmartPunctuation(wch, preceding);
+                }
             }
         }
     }

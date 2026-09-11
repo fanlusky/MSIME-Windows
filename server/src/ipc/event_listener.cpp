@@ -707,11 +707,14 @@ bool IsCommitWithHighlightedCandidatePunctuationInCandidateMode(UINT keycode, WC
         L'^',  //
         L'&',  //
         L'*',  //
+        L'-',  // Numpad arithmetic keys are not candidate paging keys.
+        L'+',  //
         L'(',  //
         L')',  //
         L'[',  //
         L']',  //
         L'\\', //
+        L'/',  //
         L';',  //
         L':',  //
         L'\'', //

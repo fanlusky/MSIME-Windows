@@ -585,8 +585,6 @@ bool IsCommitWithHighlightedCandidatePunctuationInCandidateMode(UINT uCode, WCHA
     case VK_NEXT:
     case VK_OEM_MINUS:
     case VK_OEM_PLUS:
-    case VK_SUBTRACT:
-    case VK_ADD:
     case VK_HOME:
     case VK_END:
     case VK_TAB:
