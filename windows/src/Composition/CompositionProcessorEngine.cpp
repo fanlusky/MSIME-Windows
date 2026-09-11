@@ -514,12 +514,12 @@ void CCompositionProcessorEngine::GetCandidateList(_Inout_ CMetasequoiaImeArray<
     }
     for (UINT index = 0; index < pCandidateList->Count();)
     {
-        CCandidateListItem *pLI = pCandidateList->GetAt(index);
+        CCandidateListItem *pItem = pCandidateList->GetAt(index);
         CStringRange startItemString;
         CStringRange endItemString;
 
-        startItemString.Set(pLI->_ItemString.Get(), 1);
-        endItemString.Set(pLI->_ItemString.Get() + pLI->_ItemString.GetLength() - 1, 1);
+        startItemString.Set(pItem->_ItemString.Get(), 1);
+        endItemString.Set(pItem->_ItemString.Get() + pItem->_ItemString.GetLength() - 1, 1);
 
         index++;
     }
@@ -981,7 +981,7 @@ CCompositionProcessorEngine::PreservedKeyAction CCompositionProcessorEngine::Get
 }
 
 void CCompositionProcessorEngine::OnPreservedKey( //
-    ITfContext *pContext,                         //
+    ITfContext * /*pContext*/,                    //
     REFGUID rguid,                                //
     _Out_ BOOL *pIsEaten,                         //
     _In_ ITfThreadMgr *pThreadMgr,                //
@@ -2694,7 +2694,7 @@ BOOL CCompositionProcessorEngine::IsVirtualKeyKeystrokeComposition( //
 //----------------------------------------------------------------------------
 
 BOOL CCompositionProcessorEngine::IsVirtualKeyKeystrokeCandidate(
-    UINT uCode, _In_ _KEYSTROKE_STATE *pKeyState, CANDIDATE_MODE candidateMode, _Out_ BOOL *pfRetCode,
+    UINT uCode, _In_ _KEYSTROKE_STATE *pKeyState, CANDIDATE_MODE /*candidateMode*/, _Out_ BOOL *pfRetCode,
     _In_ CMetasequoiaImeArray<_KEYSTROKE> *pKeystrokeMetric)
 {
     if (pfRetCode == nullptr)

@@ -1,4 +1,6 @@
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include "ipc/ipc.h"
 #include "ipc/input_key_policy.h"
 #include "tests/includes/test_framework.h"

@@ -22,8 +22,6 @@ std::wstring string_to_wstring(const std::string &str)
 void SendUnicode(const wchar_t data)
 {
     INPUT input[4];
-    HWND current_hwnd = GetForegroundWindow();
-    // SetFocus(current_hwnd);
 
     input[0].type = INPUT_KEYBOARD;
     input[0].ki.wVk = 0;

@@ -1980,24 +1980,24 @@ int CreateCandidateWindow(HINSTANCE hInstance)
     // TODO: 这里的初始 width 和 height 需要设置足够大，不然，底部的 item 会不接受响应。不然，也可以在 wndProc
     // 中刷新一下 webview
     //
-    dwExStyle = WS_EX_LAYERED |             //
-                WS_EX_TOOLWINDOW |          //
-                WS_EX_NOACTIVATE;           //
-                                            // WS_EX_TOPMOST;              //
-    HWND hwnd_menu = CreateWindowEx(        //
-        dwExStyle,                          //
-        szWindowClass,                      //
-        lpWindowNameMenu,                   //
-        WS_POPUP,                           //
-        200,                                //
-        200,                                //
-        (::MENU_WINDOW_WIDTH)*scale,        //
-        (::MENU_WINDOW_HEIGHT * 2) * scale, //
-        nullptr,                            //
-        nullptr,                            //
-        hInstance,                          //
-        nullptr                             //
-    );                                      //
+    dwExStyle = WS_EX_LAYERED |                               //
+                WS_EX_TOOLWINDOW |                            //
+                WS_EX_NOACTIVATE;                             //
+                                                              // WS_EX_TOPMOST;              //
+    HWND hwnd_menu = CreateWindowEx(                          //
+        dwExStyle,                                            //
+        szWindowClass,                                        //
+        lpWindowNameMenu,                                     //
+        WS_POPUP,                                             //
+        200,                                                  //
+        200,                                                  //
+        static_cast<int>((::MENU_WINDOW_WIDTH)*scale),        //
+        static_cast<int>((::MENU_WINDOW_HEIGHT * 2) * scale), //
+        nullptr,                                              //
+        nullptr,                                              //
+        hInstance,                                            //
+        nullptr                                               //
+    );                                                        //
     if (!hwnd_menu)
     {
 #ifdef FANY_DEBUG
@@ -2104,13 +2104,14 @@ int CreateCandidateWindow(HINSTANCE hInstance)
     (void)0;
 #endif
 
-    HWINEVENTHOOK hook = SetWinEventHook( //
-        EVENT_SYSTEM_FOREGROUND,          //
-        EVENT_OBJECT_LOCATIONCHANGE,      //
-        nullptr,                          //
-        WinEventProc,                     //
-        0,                                //
-        0,                                //
+    // The hook lives for the whole process; nothing ever unhooks it, so the handle is not kept.
+    SetWinEventHook(                 //
+        EVENT_SYSTEM_FOREGROUND,     //
+        EVENT_OBJECT_LOCATIONCHANGE, //
+        nullptr,                     //
+        WinEventProc,                //
+        0,                           //
+        0,                           //
         WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
 
     MSG msg;
@@ -2885,7 +2886,6 @@ LRESULT CALLBACK WndProcMenuWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
         int left = Global::Point[0];
         int top = Global::Point[1];
         int right = Global::Keycode;
-        int bottom = Global::ModifiersDown;
         // Refresh physical size from CSS DIPs * this HWND's current DPI so a
         // live display-scale change cannot leave a stale pixel cache.
         const FLOAT scale = GetWebViewRasterizationScale(hwnd);
@@ -2899,8 +2899,7 @@ LRESULT CALLBACK WndProcMenuWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
             ::MENU_CONTENT_HEIGHT_DIP = 300.0;
         }
         UpdateMenuPhysicalSizeCache(hwnd, scale);
-        int iconWidth = (right - left) * ::SCALE;
-        int iconHeight = (bottom - top) * ::SCALE;
+        int iconWidth = static_cast<int>((right - left) * ::SCALE);
         int iconMiddleX = left + iconWidth / 2;
         int menuX = iconMiddleX - ::MENU_WINDOW_WIDTH / 2;
         int menuY = top - ::MENU_WINDOW_HEIGHT;

@@ -42,7 +42,7 @@ STDAPI CMetasequoiaIME::OnUninitDocumentMgr(_In_ ITfDocumentMgr *pDocMgr)
 // focus document, or now no document holds the input focus.
 //----------------------------------------------------------------------------
 
-STDAPI CMetasequoiaIME::OnSetFocus(_In_ ITfDocumentMgr *pDocMgrFocus, _In_ ITfDocumentMgr *pDocMgrPrevFocus)
+STDAPI CMetasequoiaIME::OnSetFocus(_In_ ITfDocumentMgr *pDocMgrFocus, _In_ ITfDocumentMgr * /*pDocMgrPrevFocus*/)
 {
     if (!IsNamedpipeFocusStateOwner(this))
     {

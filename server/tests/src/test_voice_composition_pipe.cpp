@@ -1,4 +1,6 @@
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include "ipc/voice_composition_pipe.h"
 #include "tests/includes/test_framework.h"
 #include <algorithm>

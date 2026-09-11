@@ -4,7 +4,6 @@
 #include "MetasequoiaIME.h"
 #include <debugapi.h>
 #include <fmt/xchar.h>
-#include "../Utils/PerfTimer.h"
 
 namespace
 {
@@ -90,7 +89,6 @@ class CEndCompositionEditSession : public CEditSessionBase
 void CMetasequoiaIME::_TerminateComposition(TfEditCookie ec, _In_ ITfContext *pContext, BOOL isCalledFromDeactivate)
 {
     isCalledFromDeactivate;
-    PerfTimer timer;
 
     if (_pComposition != nullptr)
     {
@@ -107,20 +105,15 @@ void CMetasequoiaIME::_TerminateComposition(TfEditCookie ec, _In_ ITfContext *pC
         }
 
         // remove the display attribute from the composition range.
-        PerfTimer clearDisplayAttrTimer;
         _ClearCompositionDisplayAttributes(ec, pContext, terminatingComposition);
-        double clearDisplayAttrElapsedMs = clearDisplayAttrTimer.ElapsedMs();
 
-        PerfTimer endCompositionTimer;
         const HRESULT endResult = SafeEndComposition(terminatingComposition, ec);
         if (FAILED(endResult) && _pComposition == terminatingComposition)
         {
             // if we fail to EndComposition, then we need to close the reverse reading window.
             _DeleteCandidateList(TRUE, pContext);
         }
-        double endCompositionElapsedMs = endCompositionTimer.ElapsedMs();
 
-        PerfTimer releaseCompositionTimer;
         if (_pComposition == terminatingComposition)
         {
             _pComposition->Release();
@@ -137,13 +130,10 @@ void CMetasequoiaIME::_TerminateComposition(TfEditCookie ec, _In_ ITfContext *pC
             // newer composition on the same ITfContext pointer.
             if (_pContext == ownerContext && _pContext)
             {
-                PerfTimer releaseContextTimer;
                 _pContext->Release();
                 _pContext = nullptr;
-                double releaseContextElapsedMs = releaseContextTimer.ElapsedMs();
             }
         }
-        double releaseCompositionElapsedMs = releaseCompositionTimer.ElapsedMs();
 
         if (ownerContext)
         {
@@ -170,16 +160,13 @@ HRESULT CMetasequoiaIME::_EndComposition(_In_opt_ ITfContext *pContext, _In_opt_
     CEndCompositionEditSession *pEditSession = new (std::nothrow)
         CEndCompositionEditSession(this, pContext, target, _CaptureFocusSessionToken(), bypassFocusValidation);
     HRESULT hr = S_OK;
-    PerfTimer timer;
 
     if (nullptr != pEditSession)
     {
-        PerfTimer requestTimer;
         HRESULT editSessionHr = E_FAIL;
         const HRESULT requestHr = pContext->RequestEditSession(_tfClientId, pEditSession,
                                                                TF_ES_ASYNCDONTCARE | TF_ES_READWRITE, &editSessionHr);
         hr = FAILED(requestHr) ? requestHr : editSessionHr;
-        double requestElapsedMs = requestTimer.ElapsedMs();
         pEditSession->Release();
     }
     else

@@ -15,7 +15,6 @@
 #include <winuser.h>
 #include "Ipc.h"
 #include "fmt/xchar.h"
-#include "../Utils/PerfTimer.h"
 
 //////////////////////////////////////////////////////////////////////
 //
@@ -38,7 +37,6 @@ HRESULT CMetasequoiaIME::_HandleCandidateFinalize(TfEditCookie ec, _In_ ITfConte
                                                   const std::wstring &prefetchedText)
 {
     HRESULT hr = S_OK;
-    PerfTimer finalizeTimer;
 
     CStringRange keyStrokebuffer = _pCompositionProcessorEngine->GetKeystrokeBuffer();
     DWORD_PTR keystrokeBufLen = keyStrokebuffer.GetLength();
@@ -46,18 +44,14 @@ HRESULT CMetasequoiaIME::_HandleCandidateFinalize(TfEditCookie ec, _In_ ITfConte
     CStringRange candidateString(keyStrokebuffer);
     const std::wstring &pendingCommitCandidate = prefetchedText;
 
-    // _pCandidateListUIPresenter would be null in uwp/metro apps
-    if (nullptr == _pCandidateListUIPresenter)
-    {
-        // goto NoPresenter;
-    }
+    // _pCandidateListUIPresenter is null in uwp/metro apps; the commit path below does not
+    // need it, so there is nothing to branch on here.
 
     if (candidateLen)
     {
         if (!pendingCommitCandidate.empty())
         {
             candidateString.Set(pendingCommitCandidate.c_str(), pendingCommitCandidate.length());
-            PerfTimer insertTextTimer;
             hr = _InsertTextToComposition(ec, pContext, &candidateString);
             if (FAILED(hr))
             {
@@ -68,7 +62,6 @@ HRESULT CMetasequoiaIME::_HandleCandidateFinalize(TfEditCookie ec, _In_ ITfConte
                 return hr;
             }
 
-            PerfTimer completeTimer;
             _HandleCompleteCommitFirst(ec, pContext);
             return hr;
         }
@@ -78,7 +71,6 @@ HRESULT CMetasequoiaIME::_HandleCandidateFinalize(TfEditCookie ec, _In_ ITfConte
         const bool hasPrefetchedServerCandidate = _TakePendingServerCandidate(&serverMsgType, &serverCandidateString);
         if (!hasPrefetchedServerCandidate)
         {
-            PerfTimer pipeReadTimer;
             struct FanyImeNamedpipeDataToTsf *receivedData = TryReadDataFromServerPipeWithTimeout(requestId);
             serverMsgType = receivedData->msg_type;
             serverCandidateString = receivedData->candidate_string;
@@ -100,7 +92,6 @@ HRESULT CMetasequoiaIME::_HandleCandidateFinalize(TfEditCookie ec, _In_ ITfConte
             GlobalIme::word_for_creating_word = L"";
             GlobalIme::pending_create_word_preedit.clear();
             candidateString.Set(serverCandidateString.c_str(), serverCandidateString.length());
-            PerfTimer insertTextTimer;
             hr = _InsertTextToComposition(ec, pContext, &candidateString);
             if (FAILED(hr))
             {
@@ -173,9 +164,6 @@ HRESULT CMetasequoiaIME::_HandleCandidateFinalize(TfEditCookie ec, _In_ ITfConte
         }
     }
 
-NoPresenter:
-
-    PerfTimer completeTimer;
     _HandleCompleteCommitFirst(ec, pContext);
 
     return hr;
@@ -209,11 +197,6 @@ HRESULT CMetasequoiaIME::_HandleCandidateFinalizeForVKReturn(TfEditCookie ec, _I
     CStringRange candidateString;
     candidateString.Set(commitText.c_str(), candidateLen);
 
-    if (nullptr == _pCandidateListUIPresenter)
-    {
-        // goto NoPresenter;
-    }
-
     if (candidateLen)
     {
         hr = _AddComposingAndChar(ec, pContext, &candidateString);
@@ -225,8 +208,6 @@ HRESULT CMetasequoiaIME::_HandleCandidateFinalizeForVKReturn(TfEditCookie ec, _I
 
         committedLastChar = candidateString.Get()[candidateLen - 1];
     }
-
-NoPresenter:
 
     _HandleComplete(ec, pContext);
 
@@ -848,26 +829,15 @@ Exit:
 
 void CCandidateListUIPresenter::_EndCandidateList()
 {
-    PerfTimer timer;
-    const bool hadUiElement = (_uiElementId != static_cast<DWORD>(-1));
-    const bool hadUiSession = (_candidateUiSessionActive != FALSE);
-    PerfTimer endUiTimer;
     EndUIElement();
-    double endUiElapsedMs = endUiTimer.ElapsedMs();
 
-    PerfTimer endSessionTimer;
     EndCandidateUiSession();
-    double endSessionElapsedMs = endSessionTimer.ElapsedMs();
 
-    PerfTimer clearStateTimer;
     _candidateState.Clear();
     _candidateWindowVisible = FALSE;
     _lastUiLessCandidatePage.clear();
-    double clearStateElapsedMs = clearStateTimer.ElapsedMs();
 
-    PerfTimer endLayoutTimer;
     _EndLayout();
-    double endLayoutElapsedMs = endLayoutTimer.ElapsedMs();
 }
 
 void CCandidateListUIPresenter::_PrepareForAsyncCleanup()
@@ -886,7 +856,6 @@ void CCandidateListUIPresenter::_NotifyUI()
         // UILess: host draws via ITfUIElementSink — never raise an IME HWND.
         return;
     }
-    PerfTimer timer;
     if (_candidateUiSessionActive)
     {
         UpdateCandidateUiSession();
@@ -906,7 +875,6 @@ void CCandidateListUIPresenter::_NotifyUI()
 void CCandidateListUIPresenter::_SetText(_In_ CMetasequoiaImeArray<CCandidateListItem> *pCandidateList,
                                          BOOL isAddFindKeyCode)
 {
-    PerfTimer timer;
     if (!_isShowMode)
     {
         // Prefer the synchronous UiLessComposition pipe payload (already applied
@@ -924,13 +892,9 @@ void CCandidateListUIPresenter::_SetText(_In_ CMetasequoiaImeArray<CCandidateLis
         return;
     }
 
-    PerfTimer addCandidateTimer;
     AddCandidateToCandidateListUI(pCandidateList, isAddFindKeyCode);
-    double addCandidateElapsedMs = addCandidateTimer.ElapsedMs();
 
-    PerfTimer setPageIndexTimer;
     SetPageIndexWithScrollInfo(pCandidateList);
-    double setPageIndexElapsedMs = setPageIndexTimer.ElapsedMs();
 
     _NotifyUI();
 }
@@ -1105,7 +1069,6 @@ void CCandidateListUIPresenter::_MoveWindowToTextExt()
 VOID CCandidateListUIPresenter::_LayoutChangeNotification(_In_ RECT *lpRect)
 {
     lpRect;
-    PerfTimer timer;
     if (_asyncCleanupPending || !_candidateUiSessionActive)
     {
         // In UWP, layout updates can still arrive after candidate UI teardown; ignore them so the window stays hidden.
@@ -1122,7 +1085,6 @@ VOID CCandidateListUIPresenter::_LayoutChangeNotification(_In_ RECT *lpRect)
 
 VOID CCandidateListUIPresenter::_LayoutDestroyNotification()
 {
-    PerfTimer timer;
     if (_asyncCleanupPending)
     {
         return;
@@ -1391,12 +1353,10 @@ Exit:
 
 void CCandidateListUIPresenter::WriteCandidateUiPayload(_In_ UINT writeFlag)
 {
-    PerfTimer timer;
     CStringRange keyStringBuffer = _pTextService->GetCompositionProcessorEngine()->GetKeystrokeBuffer();
     std::wstring pinyinString(keyStringBuffer.Get(), keyStringBuffer.GetLength());
     Global::PinyinLength = static_cast<int>(pinyinString.length());
 
-    PerfTimer writeTimer;
     WriteDataToSharedMemory(   //
         Global::Keycode,       //
         Global::wch,           //
@@ -1414,13 +1374,8 @@ void CCandidateListUIPresenter::BeginCandidateUiSession()
     {
         return;
     }
-    PerfTimer timer;
-    PerfTimer writePayloadTimer;
     WriteCandidateUiPayload(0b111111);
-    double writePayloadElapsedMs = writePayloadTimer.ElapsedMs();
-    PerfTimer sendEventTimer;
     SendShowCandidateWndEventToUIProcess();
-    double sendEventElapsedMs = sendEventTimer.ElapsedMs();
     _candidateUiSessionActive = TRUE;
 }
 
@@ -1430,29 +1385,19 @@ void CCandidateListUIPresenter::UpdateCandidateUiSession()
     {
         return;
     }
-    PerfTimer timer;
-    PerfTimer writePayloadTimer;
     WriteCandidateUiPayload(0b111111);
-    double writePayloadElapsedMs = writePayloadTimer.ElapsedMs();
-    PerfTimer sendEventTimer;
     SendShowCandidateWndEventToUIProcess();
-    double sendEventElapsedMs = sendEventTimer.ElapsedMs();
 }
 
 void CCandidateListUIPresenter::MoveCandidateUiSession()
 {
-    PerfTimer timer;
     if (_asyncCleanupPending || !_candidateUiSessionActive || !_isShowMode)
     {
         // UILess hosts draw candidates themselves; never chase an IME HWND.
         return;
     }
-    PerfTimer writePayloadTimer;
     WriteCandidateUiPayload(0b001000);
-    double writePayloadElapsedMs = writePayloadTimer.ElapsedMs();
-    PerfTimer sendEventTimer;
     SendMoveCandidateWndEventToUIProcess();
-    double sendEventElapsedMs = sendEventTimer.ElapsedMs();
 }
 
 void CCandidateListUIPresenter::_ReplaceCandidateListFromPage(_In_ const std::wstring &page)
@@ -1614,14 +1559,11 @@ void CCandidateListUIPresenter::_RequestCancelComposition()
 
 void CCandidateListUIPresenter::EndCandidateUiSession()
 {
-    PerfTimer timer;
     if (!_candidateUiSessionActive)
     {
         return;
     }
 
-    PerfTimer sendEventTimer;
     SendHideCandidateWndEventToUIProcess();
-    double sendEventElapsedMs = sendEventTimer.ElapsedMs();
     _candidateUiSessionActive = FALSE;
 }

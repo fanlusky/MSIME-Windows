@@ -1446,14 +1446,16 @@ bool SendToAuxNamedpipe(const std::wstring &pipeData, bool waitForAcknowledgemen
         return false;
     }
     DWORD bytesWritten = 0;
-    BOOL ret = WriteFile(                    //
-        hAuxPipe,                            //
-        pipeData.c_str(),                    //
-        pipeData.length() * sizeof(wchar_t), //
-        &bytesWritten,                       //
-        NULL                                 //
+    // The payload is a single control message, orders of magnitude below DWORD range.
+    const DWORD bytesToWrite = static_cast<DWORD>(pipeData.length() * sizeof(wchar_t));
+    BOOL ret = WriteFile( //
+        hAuxPipe,         //
+        pipeData.c_str(), //
+        bytesToWrite,     //
+        &bytesWritten,    //
+        NULL              //
     );
-    const bool sent = ret && bytesWritten == pipeData.length() * sizeof(wchar_t);
+    const bool sent = ret && bytesWritten == bytesToWrite;
     if (!sent || !waitForAcknowledgement)
     {
         CloseHandle(hAuxPipe);

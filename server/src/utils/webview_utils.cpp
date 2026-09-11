@@ -48,9 +48,9 @@ std::pair<double, double> ParseDivSize(const std::wstring &jsonResult)
                             : parsed.at("height").as_double(); //
         size = std::make_pair(width, height);
     }
-    catch (const std::exception &e)
+    catch (const std::exception &)
     {
-        (void)0;
+        // Malformed measurement payload: keep the default card size.
     }
     return size;
 }

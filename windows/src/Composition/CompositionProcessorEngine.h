@@ -277,11 +277,14 @@ class CCompositionProcessorEngine
     BOOL _hasPendingImeModeAfterCompositionCommit;
     BOOL _pendingImeModeAfterCompositionCommit;
 
-    // Configuration data
-    BOOL _isWildcard : 1;
-    BOOL _isDisableWildcardAtFirst : 1;
-    BOOL _isKeystrokeSort : 1;
-    BOOL _isComLessMode : 1;
+    // Configuration data.
+    // Not bit-fields: BOOL is a signed int, so a one-bit field holds only -1 and 0 and every
+    // `= TRUE` here stored -1 (C4463). Nothing compares these against TRUE today, but a
+    // getter that returns -1 for "true" is a trap, and four ints cost nothing.
+    BOOL _isWildcard;
+    BOOL _isDisableWildcardAtFirst;
+    BOOL _isKeystrokeSort;
+    BOOL _isComLessMode;
     CCandidateRange _candidateListIndexRange;
     UINT _candidateListPhraseModifier;
     UINT _candidateWndWidth;

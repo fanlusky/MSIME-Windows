@@ -6,7 +6,6 @@
 #include "FanyDefines.h"
 #include <debugapi.h>
 #include <fmt/xchar.h>
-#include "../Utils/PerfTimer.h"
 
 //+---------------------------------------------------------------------------
 //
@@ -33,16 +32,11 @@ CGetTextExtentEditSession::CGetTextExtentEditSession(_In_ CMetasequoiaIME *pText
 
 STDAPI CGetTextExtentEditSession::DoEditSession(TfEditCookie ec)
 {
-    PerfTimer timer;
     RECT rc = {0, 0, 0, 0};
     BOOL isClipped = TRUE;
     HRESULT hr = S_OK;
-    double getTextExtElapsedMs = 0;
-    double layoutChangeElapsedMs = 0;
 
-    PerfTimer getTextExtTimer;
     hr = _pContextView->GetTextExt(ec, _pRangeComposition, &rc, &isClipped);
-    getTextExtElapsedMs = getTextExtTimer.ElapsedMs();
 
     if (SUCCEEDED(hr))
     {
@@ -66,16 +60,12 @@ STDAPI CGetTextExtentEditSession::DoEditSession(TfEditCookie ec)
             Global::firefox_like_cnt++;
             if (Global::firefox_like_cnt == 3)
             {
-                PerfTimer layoutChangeTimer;
                 _pTfTextLayoutSink->_LayoutChangeNotification(&rc);
-                layoutChangeElapsedMs = layoutChangeTimer.ElapsedMs();
             }
         }
         else
         {
-            PerfTimer layoutChangeTimer;
             _pTfTextLayoutSink->_LayoutChangeNotification(&rc);
-            layoutChangeElapsedMs = layoutChangeTimer.ElapsedMs();
         }
     }
 

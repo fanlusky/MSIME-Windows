@@ -511,7 +511,7 @@ STDAPI CLangBarItemButton::GetTooltipString(_Out_ BSTR *pbstrToolTip)
 //
 //----------------------------------------------------------------------------
 
-STDAPI CLangBarItemButton::OnClick(TfLBIClick click, POINT pt, _In_ const RECT *prcArea)
+STDAPI CLangBarItemButton::OnClick(TfLBIClick click, POINT /*pt*/, _In_ const RECT *prcArea)
 {
     if (click == TF_LBI_CLK_RIGHT)
     {

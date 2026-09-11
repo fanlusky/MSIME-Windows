@@ -120,8 +120,9 @@ DWORD WINAPI ServerLaunchThreadProc(LPVOID parameter)
     serverLaunchInFlight.store(false, std::memory_order_release);
     // The reference taken in RequestServerLaunch keeps the TIP mapped even if
     // the host deactivates it while the shell is still resolving the Server.
+    // FreeLibraryAndExitThread is __declspec(noreturn); a trailing `return 0;`
+    // here is dead code (C4702), not a missing-return guard.
     FreeLibraryAndExitThread(static_cast<HMODULE>(parameter), 0);
-    return 0;
 }
 
 // Starting the uiAccess Server goes through the shell, which can block for
@@ -244,16 +245,9 @@ class CPunctuationCommitEditSession : public CEditSessionBase
         {
             return S_FALSE;
         }
-        PerfTimer timer;
         HRESULT hr =
             _pTextService->_HandleCompositionPunctuation(ec, _pContext, _code, _wch, _requestId, _prefetchedText);
         completion.applied = hr == S_OK;
-        LARGE_INTEGER freq = {};
-        LARGE_INTEGER nowQpc = {};
-        QueryPerformanceFrequency(&freq);
-        QueryPerformanceCounter(&nowQpc);
-        const double queueElapsedMs = static_cast<double>(nowQpc.QuadPart - _requestStartQpc.QuadPart) * 1000.0 /
-                                      static_cast<double>(freq.QuadPart);
         return hr;
     }
 
@@ -1894,8 +1888,8 @@ void CMetasequoiaIME::IpcWorkerThread(CMetasequoiaIME *pIME)
         else if (buf.msg_type >= Global::DataToTsfWorkerThreadMsgType::SwitchToEnglish &&
                  buf.msg_type <= Global::DataToTsfWorkerThreadMsgType::SwitchToHalfwidth)
         {
-            const uint64_t focusToken = pIME->_expectedWorkerFocusToken.load(std::memory_order_acquire);
-            pIME->_PostWorkerCompartmentSwitch(buf.msg_type, focusToken);
+            const uint64_t expectedFocusToken = pIME->_expectedWorkerFocusToken.load(std::memory_order_acquire);
+            pIME->_PostWorkerCompartmentSwitch(buf.msg_type, expectedFocusToken);
         }
         else if (buf.msg_type == Global::DataToTsfWorkerThreadMsgType::PagingCommaPeriodChanged)
         {
