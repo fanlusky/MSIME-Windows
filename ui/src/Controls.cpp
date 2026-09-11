@@ -2549,7 +2549,7 @@ size_t ListView::HitTestItem(const PointF &point) const
     return index < items_.size() ? index : static_cast<size_t>(-1);
 }
 
-CandidateList::CandidateList(float itemHeight) : itemHeight_(itemHeight)
+CandidateList::CandidateList(float itemHeight)
 {
     appearance_.itemHeight = itemHeight;
 }
@@ -2638,7 +2638,6 @@ const CandidateList::Item *CandidateList::GetItem(size_t index) const
 void CandidateList::SetAppearance(Appearance appearance)
 {
     appearance_ = appearance;
-    itemHeight_ = appearance_.itemHeight;
     InvalidateLayoutCache();
     InvalidateMeasure();
 }
@@ -2692,78 +2691,143 @@ float CandidateList::EstimateTextWidth(const std::wstring &text, float fontSize)
     return std::ceil(metrics.widthIncludingTrailingWhitespace + std::max(overhang.right, 0.0f) + 1.0f);
 }
 
+float CandidateList::MeasureTextHeight(const std::wstring &text, float fontSize, float width) const
+{
+    if (text.empty())
+        return 0.0f;
+    const Theme &theme = ThemeManager::GetCurrent();
+    const auto &family = appearance_.fontFamily.empty() ? theme.textInputFontFamily : appearance_.fontFamily;
+    const auto layout =
+        CreateCachedTextLayout(GetSharedDWriteFactory(), family, text, fontSize, DWRITE_FONT_WEIGHT_NORMAL, width,
+                               65536.0f, DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_NEAR,
+                               DWRITE_WORD_WRAPPING_WRAP, appearance_.fallbackFontFamilies);
+    DWRITE_TEXT_METRICS metrics{};
+    if (layout && SUCCEEDED(layout->GetMetrics(&metrics)))
+        return std::ceil(metrics.height);
+    return std::ceil(EstimateTextWidth(text, fontSize) / width) * fontSize * 1.25f;
+}
+
+CandidateList::ItemGeometry CandidateList::MeasureItem(size_t index, float width) const
+{
+    const auto &item = items_[index];
+    ItemGeometry geometry;
+    const float labelX = appearance_.contentPadLeft + appearance_.textPadLeft;
+    const float labelW = std::max(EstimateTextWidth(item.label, appearance_.labelFontSize), 9.0f);
+    const float textX = labelX + labelW + appearance_.labelGap;
+    const float contentWidth = std::max(width - textX - appearance_.contentPadRight, 1.0f);
+    const float textW = std::min(std::max(EstimateTextWidth(item.text, appearance_.fontSize), 8.0f), contentWidth);
+    const float textH = std::max(appearance_.itemHeight, MeasureTextHeight(item.text, appearance_.fontSize, textW));
+    geometry.label = {labelX, 0.0f, labelW, appearance_.itemHeight};
+    geometry.text = {textX, 0.0f, textW, textH};
+    float height = textH;
+    float lineEnd = textW;
+
+    // 短字段保持原有并排方式；空间不足时让辅助码和翻译完整换行。
+    if (!item.annotation.empty())
+    {
+        const float annotationW =
+            std::min(EstimateTextWidth(item.annotation, appearance_.annotationFontSize), contentWidth);
+        const bool inlineAnnotation = lineEnd + 4.0f + annotationW <= contentWidth;
+        const float annotationH = std::max(
+            appearance_.itemHeight, MeasureTextHeight(item.annotation, appearance_.annotationFontSize, annotationW));
+        geometry.annotation = {textX + (inlineAnnotation ? lineEnd + 4.0f : 0.0f), inlineAnnotation ? 0.0f : height,
+                               annotationW, annotationH};
+        height = std::max(height, geometry.annotation.y + annotationH);
+        lineEnd = geometry.annotation.x - textX + annotationW;
+    }
+    if (!item.translation.empty())
+    {
+        const float fontSize = appearance_.fontSize * 0.78f;
+        const float gap = appearance_.fontSize * 0.65f;
+        const float naturalTranslationWidth = EstimateTextWidth(item.translation, fontSize);
+        const float translationW = std::min(naturalTranslationWidth, contentWidth);
+        const bool inlineTranslation = orientation_ == Orientation::Vertical && geometry.annotation.y == 0.0f &&
+                                       lineEnd + gap + translationW <= contentWidth;
+        const float translationH =
+            inlineTranslation
+                ? textH
+                : (naturalTranslationWidth <= contentWidth
+                       ? fontSize * 1.25f
+                       : std::max(fontSize * 1.25f, MeasureTextHeight(item.translation, fontSize, translationW)));
+        geometry.translation = {textX + (inlineTranslation ? lineEnd + gap : 0.0f), inlineTranslation ? 0.0f : height,
+                                translationW, translationH};
+        height = std::max(height, geometry.translation.y + translationH);
+    }
+    geometry.bounds = {0.0f, 0.0f, width, height};
+    return geometry;
+}
+
 RectF CandidateList::ItemRect(size_t index) const
 {
-    if (index >= items_.size())
-    {
+    if (index >= itemGeometry_.size())
         return {};
-    }
-    const float gap = appearance_.itemGap;
-    if (orientation_ == Orientation::Horizontal)
-    {
-        float x = bounds_.x;
-        for (size_t i = 0; i < index; ++i)
-        {
-            x += (i < itemWidths_.size() ? itemWidths_[i] : 48.0f) + gap;
-        }
-        const float width = index < itemWidths_.size() ? itemWidths_[index] : 48.0f;
-        return {x, bounds_.y, width, itemHeight_};
-    }
-    const float itemY = bounds_.y + (itemHeight_ + gap) * static_cast<float>(index);
-    return {bounds_.x, itemY, bounds_.width, itemHeight_};
+    RectF rect = itemGeometry_[index].bounds;
+    rect.x += bounds_.x;
+    rect.y += bounds_.y;
+    return rect;
 }
 
 SizeF CandidateList::Measure(const SizeF &availableSize)
 {
-    itemWidths_.resize(items_.size());
-    itemHeight_ = appearance_.itemHeight;
+    // 宽度变化也会改变每段文字的高度，不能继续使用上一轮的文字布局缓存。
+    InvalidateLayoutCache();
+    itemGeometry_.clear();
+    const float availableWidth = std::max(availableSize.width, 1.0f);
     const float gap = appearance_.itemGap;
-    if (orientation_ == Orientation::Horizontal)
-    {
-        float width = 0.0f;
-        for (size_t i = 0; i < items_.size(); ++i)
-        {
-            const float textWidth = EstimateTextWidth(items_[i].text, appearance_.fontSize) + 6.0f +
-                                    EstimateTextWidth(items_[i].annotation, appearance_.annotationFontSize);
-            const float translationWidth = EstimateTextWidth(items_[i].translation, appearance_.fontSize * 0.78f);
-            const float itemWidth = appearance_.contentPadLeft + appearance_.textPadLeft +
-                                    EstimateTextWidth(items_[i].label, appearance_.labelFontSize) +
-                                    appearance_.labelGap + std::max(textWidth, translationWidth) +
-                                    appearance_.contentPadRight;
-            if (!items_[i].translation.empty())
-                itemHeight_ = appearance_.itemHeight + appearance_.fontSize * 0.78f * 1.25f;
-            itemWidths_[i] = itemWidth;
-            width += itemWidth;
-            if (i + 1 < items_.size())
-            {
-                width += gap;
-            }
-        }
-        return {(std::min)(width, availableSize.width), (std::min)(itemHeight_, availableSize.height)};
-    }
-
+    const bool horizontal = orientation_ == Orientation::Horizontal;
+    std::vector<float> widths;
     float maxWidth = 80.0f;
     for (const auto &item : items_)
     {
-        const float rowWidth =
-            appearance_.contentPadLeft + appearance_.textPadLeft +
-            EstimateTextWidth(item.label, appearance_.labelFontSize) + appearance_.labelGap +
-            EstimateTextWidth(item.text, appearance_.fontSize) + 6.0f +
-            EstimateTextWidth(item.annotation, appearance_.annotationFontSize) +
-            (item.translation.empty()
-                 ? 0.0f
-                 : appearance_.fontSize * 0.65f + EstimateTextWidth(item.translation, appearance_.fontSize * 0.78f)) +
-            appearance_.contentPadRight;
-        maxWidth = (std::max)(maxWidth, rowWidth);
+        const float textWidth = EstimateTextWidth(item.text, appearance_.fontSize) + 6.0f +
+                                EstimateTextWidth(item.annotation, appearance_.annotationFontSize);
+        const float translationWidth = EstimateTextWidth(item.translation, appearance_.fontSize * 0.78f);
+        const float contentWidth =
+            horizontal
+                ? std::max(textWidth, translationWidth)
+                : textWidth + (item.translation.empty() ? 0.0f : appearance_.fontSize * 0.65f + translationWidth);
+        const float width = appearance_.contentPadLeft + appearance_.textPadLeft +
+                            std::max(EstimateTextWidth(item.label, appearance_.labelFontSize), 9.0f) +
+                            appearance_.labelGap + contentWidth + appearance_.contentPadRight;
+        widths.push_back(std::min(width, availableWidth));
+        maxWidth = std::max(maxWidth, width);
     }
-    const float gapCount = items_.empty() ? 0.0f : static_cast<float>(items_.size() - 1);
-    const float height =
-        items_.empty() ? itemHeight_ : itemHeight_ * static_cast<float>(items_.size()) + gap * gapCount;
-    return {(std::min)(maxWidth, availableSize.width), (std::min)(height, availableSize.height)};
+    const float verticalWidth = std::min(maxWidth, availableWidth);
+    float x = 0.0f;
+    float y = 0.0f;
+    float rowHeight = 0.0f;
+    float measuredWidth = horizontal ? 0.0f : verticalWidth;
+    for (size_t i = 0; i < items_.size(); ++i)
+    {
+        auto geometry = MeasureItem(i, horizontal ? widths[i] : verticalWidth);
+        if (horizontal && x > 0.0f && x + geometry.bounds.width > availableWidth)
+        {
+            y += rowHeight + gap;
+            x = 0.0f;
+            rowHeight = 0.0f;
+        }
+        geometry.bounds.x = x;
+        geometry.bounds.y = y;
+        itemGeometry_.push_back(geometry);
+        measuredWidth = std::max(measuredWidth, x + geometry.bounds.width);
+        rowHeight = std::max(rowHeight, geometry.bounds.height);
+        if (horizontal)
+            x += geometry.bounds.width + gap;
+        else if (i + 1 < items_.size())
+        {
+            y += geometry.bounds.height + gap;
+            rowHeight = 0.0f;
+        }
+    }
+    layoutWidth_ = measuredWidth;
+    const float height = items_.empty() ? appearance_.itemHeight : y + rowHeight;
+    return {measuredWidth, std::min(height, availableSize.height)};
 }
 
 void CandidateList::Arrange(const RectF &finalRect)
 {
+    if (std::abs(finalRect.width - layoutWidth_) > 0.5f)
+        Measure({finalRect.width, std::numeric_limits<float>::max()});
     bounds_ = finalRect;
 }
 
@@ -2771,7 +2835,7 @@ void CandidateList::Render(DeviceResources &deviceResources)
 {
     ID2D1RenderTarget *target = deviceResources.GetRenderTarget();
     IDWriteFactory *factory = deviceResources.GetDWriteFactory();
-    if (!target || !factory)
+    if (!target || !factory || itemGeometry_.size() != items_.size())
     {
         return;
     }
@@ -2813,29 +2877,16 @@ void CandidateList::Render(DeviceResources &deviceResources)
         }
 
         const float translationFontSize = appearance_.fontSize * 0.78f;
-        const float translationGap = appearance_.fontSize * 0.65f;
-        const float labelX = itemRect.x + appearance_.contentPadLeft + appearance_.textPadLeft;
-        const float labelW = (std::max)(EstimateTextWidth(items_[index].label, appearance_.labelFontSize), 9.0f);
-        const float textX = labelX + labelW + appearance_.labelGap;
-        const float textW = (std::max)(EstimateTextWidth(items_[index].text, appearance_.fontSize), 8.0f);
-        const float annotationX = textX + textW + (items_[index].annotation.empty() ? 0.0f : 4.0f);
-        const float annotationW = items_[index].annotation.empty()
-                                      ? 0.0f
-                                      : EstimateTextWidth(items_[index].annotation, appearance_.annotationFontSize);
-        const bool horizontal = orientation_ == Orientation::Horizontal;
-        const float textHeight = horizontal ? appearance_.itemHeight : itemRect.height;
-        const float translationX =
-            horizontal ? textX
-                       : annotationX + annotationW + (items_[index].translation.empty() ? 0.0f : translationGap);
-        const float translationW = items_[index].translation.empty()
-                                       ? 0.0f
-                                       : EstimateTextWidth(items_[index].translation, translationFontSize);
-        const RectF labelRect = {labelX, itemRect.y, labelW, textHeight};
-        const RectF textRect = {textX, itemRect.y, textW, textHeight};
-        const RectF annotationRect = {annotationX, itemRect.y, std::max(annotationW, 1.0f), textHeight};
-        const RectF translationRect = {translationX, itemRect.y + (horizontal ? textHeight : 0.0f),
-                                       std::max(translationW, 1.0f),
-                                       horizontal ? itemRect.height - textHeight : itemRect.height};
+        const auto &geometry = itemGeometry_[index];
+        const auto absolute = [&](RectF rect) {
+            rect.x += itemRect.x;
+            rect.y += itemRect.y;
+            return rect;
+        };
+        const RectF labelRect = absolute(geometry.label);
+        const RectF textRect = absolute(geometry.text);
+        const RectF annotationRect = absolute(geometry.annotation);
+        const RectF translationRect = absolute(geometry.translation);
 
         auto &cache = layoutCache_[index];
         if (cache.fontFamily != fontFamily || cache.labelWidth != labelRect.width)
@@ -2843,7 +2894,7 @@ void CandidateList::Render(DeviceResources &deviceResources)
             cache.labelLayout = CreateCachedTextLayout(
                 factory, fontFamily, items_[index].label, appearance_.labelFontSize, DWRITE_FONT_WEIGHT_NORMAL,
                 std::max(labelRect.width, 1.0f), std::max(labelRect.height, 1.0f), DWRITE_TEXT_ALIGNMENT_LEADING,
-                DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP, appearance_.fallbackFontFamilies);
+                DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_WRAP, appearance_.fallbackFontFamilies);
             cache.labelWidth = labelRect.width;
             cache.fontFamily = fontFamily;
         }
@@ -2852,7 +2903,7 @@ void CandidateList::Render(DeviceResources &deviceResources)
             cache.textLayout = CreateCachedTextLayout(
                 factory, fontFamily, items_[index].text, appearance_.fontSize, DWRITE_FONT_WEIGHT_NORMAL,
                 std::max(textRect.width, 1.0f), std::max(textRect.height, 1.0f), DWRITE_TEXT_ALIGNMENT_LEADING,
-                DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP, appearance_.fallbackFontFamilies);
+                DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_WRAP, appearance_.fallbackFontFamilies);
             cache.textWidth = textRect.width;
             cache.fontFamily = fontFamily;
         }
@@ -2861,7 +2912,7 @@ void CandidateList::Render(DeviceResources &deviceResources)
             cache.annotationLayout = CreateCachedTextLayout(
                 factory, fontFamily, items_[index].annotation, appearance_.annotationFontSize,
                 DWRITE_FONT_WEIGHT_NORMAL, std::max(annotationRect.width, 1.0f), std::max(annotationRect.height, 1.0f),
-                DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP,
+                DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_WRAP,
                 appearance_.fallbackFontFamilies);
             cache.annotationWidth = annotationRect.width;
             cache.fontFamily = fontFamily;
@@ -2871,7 +2922,7 @@ void CandidateList::Render(DeviceResources &deviceResources)
             cache.translationLayout = CreateCachedTextLayout(
                 factory, fontFamily, items_[index].translation, translationFontSize, DWRITE_FONT_WEIGHT_NORMAL,
                 std::max(translationRect.width, 1.0f), std::max(translationRect.height, 1.0f),
-                DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_NO_WRAP,
+                DWRITE_TEXT_ALIGNMENT_LEADING, DWRITE_PARAGRAPH_ALIGNMENT_CENTER, DWRITE_WORD_WRAPPING_WRAP,
                 appearance_.fallbackFontFamilies);
             cache.translationWidth = translationRect.width;
             cache.fontFamily = fontFamily;
