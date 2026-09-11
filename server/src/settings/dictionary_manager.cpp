@@ -457,12 +457,13 @@ json::object ImportChinese(const json::object &request)
     std::istringstream stream(content);
     std::string line;
     int line_no = 0;
+    bool in_yaml_header = false;
     while (std::getline(stream, line))
     {
         ++line_no;
         if (!line.empty() && line.back() == '\r')
             line.pop_back();
-        if (line.find_first_not_of(" \t") == std::string::npos)
+        if (Validation::ShouldSkipImportLine(line, in_yaml_header))
             continue;
 
         std::string word, code;
@@ -1006,12 +1007,13 @@ json::object ImportWubi(const json::object &request)
     std::istringstream stream(content);
     std::string line;
     int line_no = 0;
+    bool in_yaml_header = false;
     while (std::getline(stream, line))
     {
         ++line_no;
         if (!line.empty() && line.back() == '\r')
             line.pop_back();
-        if (line.find_first_not_of(" \t") == std::string::npos)
+        if (Validation::ShouldSkipImportLine(line, in_yaml_header))
             continue;
 
         std::string word;

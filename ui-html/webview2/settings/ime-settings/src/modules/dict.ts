@@ -108,8 +108,8 @@ function updateMode(): void {
   document.getElementById('dictHint')!.textContent = english
     ? '按英文前缀查询；批量导入格式为：单词<Tab>显示内容<Tab>权重（兼容无权重的两列文件）'
     : quanpin
-      ? '全拼新增会校验拼音合法性、汉字数量和重复词条；批量导入格式为：词语<Tab>全拼<Tab>权重（仅支持 Tab 分隔，全拼可用 \' 分音节，如 ni\'hao）'
-      : '管理 86 五笔编码、词条及权重；批量导入格式为：词语<Tab>五笔编码<Tab>权重（仅支持 Tab 分隔）';
+      ? '全拼新增会校验拼音合法性、汉字数量和重复词条；批量导入格式为：词语<Tab>全拼[<Tab>权重]（兼容 Rime userdb.txt / dict.yaml，全拼可用空格或 \' 分音节）'
+      : '管理 86 五笔编码、词条及权重；批量导入格式为：词语<Tab>五笔编码[<Tab>权重]（兼容 Rime dict.yaml）';
   const importButton = document.getElementById('dictImportButton') as HTMLButtonElement | null;
   if (importButton) importButton.style.display = '';
   document.getElementById('dictTableHeader')!.innerHTML = english
