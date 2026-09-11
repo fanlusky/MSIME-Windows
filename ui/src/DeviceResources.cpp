@@ -78,6 +78,8 @@ bool DeviceResources::EnsureForWindow(HWND hwnd)
     }
     if (hwndRenderTarget_)
     {
+        const FLOAT dpi = DpiForHwnd();
+        hwndRenderTarget_->SetDpi(dpi, dpi);
         return true;
     }
 
@@ -143,6 +145,8 @@ bool DeviceResources::EnsureForComposition(HWND hwnd)
 
     if (composition_ && deviceContext_ && swapChain_ && pixelWidth_ >= width && pixelHeight_ >= height)
     {
+        const FLOAT dpi = DpiForHwnd();
+        deviceContext_->SetDpi(dpi, dpi);
         return true;
     }
 
