@@ -16,7 +16,7 @@ target_include_directories(${TEST_EXECUTABLE_NAME} PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(${TEST_EXECUTABLE_NAME} PRIVATE msimeui)
 
 if(MSVC)
-    target_compile_options(${TEST_EXECUTABLE_NAME} PRIVATE /W4 /permissive-)
+    target_compile_options(${TEST_EXECUTABLE_NAME} PRIVATE /W4 /permissive- /utf-8)
 endif()
 
 add_test(NAME ${TEST_EXECUTABLE_NAME} COMMAND ${TEST_EXECUTABLE_NAME})
