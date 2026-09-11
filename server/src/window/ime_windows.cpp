@@ -126,6 +126,15 @@ POINT GetCandidateLayoutCaret()
     return g_candidate_session_anchor;
 }
 
+// WM_SETTINGCHANGE lParam points to "ImmersiveColorSet" when the user flips
+// the Windows app light/dark theme. Only meaningful for the D2D presenters:
+// they own their colors, while WebView2 pages restyle themselves.
+bool IsSystemLightDarkToggle(UINT message, LPARAM lParam)
+{
+    return message == WM_SETTINGCHANGE && lParam != 0 && UseD2dSmallWindowUi() &&
+           lstrcmpiW(reinterpret_cast<LPCWSTR>(lParam), L"ImmersiveColorSet") == 0;
+}
+
 struct SuppressCandidateDpiChange
 {
     SuppressCandidateDpiChange()
@@ -2169,6 +2178,17 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
                        DescribeCandidateHostState());
     }
 
+    if (IsSystemLightDarkToggle(message, lParam))
+    {
+        // A visible candidate window must flip immediately; a hidden one
+        // re-resolves its theme on the next ShowFromGlobalState via the
+        // ApplySkin fingerprint.
+        if (::is_global_wnd_cand_shown && CandidatePresenter::Instance().IsBound())
+        {
+            CandidatePresenter::Instance().ShowFromGlobalState(GetCandidateLayoutCaret());
+        }
+    }
+
     if (message == WM_IMEACTIVATE)
     {
         g_is_ime_active = true;
@@ -3604,6 +3624,13 @@ LRESULT CALLBACK WndProcSettingsWindow(HWND hwnd, UINT message, WPARAM wParam, L
 
 LRESULT CALLBACK WndProcFtbWindow(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    // The floating toolbar is persistent, so it cannot rely on being re-themed
+    // on the next show (unlike the tray menu, which re-themes on every open).
+    if (IsSystemLightDarkToggle(message, lParam) && FloatingToolbarPresenter::Instance().IsBound())
+    {
+        FloatingToolbarPresenter::Instance().ApplyTheme();
+    }
+
     if (message == WM_NCHITTEST && FloatingToolbarPresenter::Instance().IsBound())
     {
         POINT client{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};

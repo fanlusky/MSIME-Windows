@@ -540,6 +540,12 @@ class CandidateList : public Visual
         D2D1_COLOR_F rowFillHover = D2D1::ColorF(0x343434);
         D2D1_COLOR_F rowFillPressed = D2D1::ColorF(0x353535);
         D2D1_COLOR_F rowFillSelected = D2D1::ColorF(0x3E3E3E, 0.725f);
+        // Text/label colors for the selected (and pressed) row. Alpha 0 keeps
+        // the normal textColor/labelColor; skins that fill the selected row
+        // with an opaque accent set these to the contrasting color (e.g. white
+        // on the WeChat green first row).
+        D2D1_COLOR_F rowTextSelected = D2D1::ColorF(0, 0.0f);
+        D2D1_COLOR_F rowLabelSelected = D2D1::ColorF(0, 0.0f);
         D2D1_COLOR_F selectedBarColor = D2D1::ColorF(0x6B69D6);
         D2D1_COLOR_F labelColor = D2D1::ColorF(0xE9E8E8, 0.616f);
         D2D1_COLOR_F textColor = D2D1::ColorF(0xE9E8E8);

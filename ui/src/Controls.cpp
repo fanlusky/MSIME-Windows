@@ -2877,8 +2877,14 @@ void CandidateList::Render(DeviceResources &deviceResources)
             cache.fontFamily = fontFamily;
         }
 
-        ID2D1SolidColorBrush *labelBrush = deviceResources.GetSolidColorBrush(appearance_.labelColor);
-        ID2D1SolidColorBrush *textBrush = deviceResources.GetSolidColorBrush(appearance_.textColor);
+        const bool highlighted = selected || pressed;
+        const D2D1_COLOR_F &labelColor = highlighted && appearance_.rowLabelSelected.a > 0.001f
+                                             ? appearance_.rowLabelSelected
+                                             : appearance_.labelColor;
+        const D2D1_COLOR_F &textColor =
+            highlighted && appearance_.rowTextSelected.a > 0.001f ? appearance_.rowTextSelected : appearance_.textColor;
+        ID2D1SolidColorBrush *labelBrush = deviceResources.GetSolidColorBrush(labelColor);
+        ID2D1SolidColorBrush *textBrush = deviceResources.GetSolidColorBrush(textColor);
         ID2D1SolidColorBrush *annotationBrush = deviceResources.GetSolidColorBrush(appearance_.annotationColor);
         D2D1_COLOR_F translationColor = appearance_.annotationColor;
         translationColor.a *= 0.62f;
