@@ -28,7 +28,7 @@ $env:LOCALAPPDATA = Join-Path $PWD 'build/test-data/user-local'
 $env:METASEQUOIA_IME_DATA_DIR = Join-Path $env:LOCALAPPDATA 'metasequoiaime'
 New-Item -ItemType Directory -Force $env:METASEQUOIA_IME_DATA_DIR | Out-Null
 Copy-Item MetasequoiaImeDict/out/* $env:METASEQUOIA_IME_DATA_DIR -Force
-Copy-Item vendor/MetasequoiaImeEngine/helpcode/helpcodes $env:METASEQUOIA_IME_DATA_DIR -Recurse -Force
+Copy-Item engine/helpcode/helpcodes $env:METASEQUOIA_IME_DATA_DIR -Recurse -Force
 Copy-Item server/assets/tables/* $env:METASEQUOIA_IME_DATA_DIR -Force
 Copy-Item server/assets/config/config.toml $env:METASEQUOIA_IME_DATA_DIR -Force
 .\server\tests\scripts\llaunch.ps1 -Configuration Release

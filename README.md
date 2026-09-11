@@ -55,19 +55,29 @@ Windows 端的全部一方源码都在本仓，一次 clone 就能拿到完整�
 |---|---|
 | [`windows/`](windows/) | 核心 TSF 文本服务 DLL：按键预判、焦点、edit session、与 Server 的管道协议 |
 | [`server/`](server/) | Server 端：算法调度、候选窗与工具栏宿主、设置程序、词库管理 |
+| [`engine/`](engine/) | 输入引擎：输入会话、候选查询、辅助码、跨进程契约、语音模块 |
 | [`ui/`](ui/) | 自研原生 GUI 框架（`msimeui`）：Win32 宿主窗口，Direct2D / DirectWrite 渲染 |
 | [`ui-html/`](ui-html/) | 界面资源（HTML / CSS / JS）：候选窗、悬浮工具栏、托盘菜单、设置页 |
 | [`installer/`](installer/) | 收集各组件产物、自签名、Inno Setup 打包 |
 | [`log/`](log/) | 各模块共用的日志采集库 |
 | [`experiments/tsf-edit-control/`](experiments/tsf-edit-control/) | 基于 Win32 TSF 的编辑控件实验工程，附最小宿主 demo |
-| [`vendor/`](vendor/) | submodule：跨平台输入引擎与两个第三方依赖 |
+| [`vendor/`](vendor/) | submodule：opencc 与 cpp-pinyin 两个第三方依赖 |
 | `scripts/`、`tests/`、`docs/`、`product-lock.json` | 产品级构建脚本、组合验证、文档与外部输入清单 |
+
+### 引擎在仓内
+
+`engine/` 曾经是指向 [MSIME-Engine](https://github.com/metasequoiaime/MSIME-Engine) 的 submodule，现在是本仓的一个一等组件，和 `server/`、`windows/` 平级，并按 Windows 做了专门化：本地 Whisper 推理、macOS 示例宿主、上游 CI 与发布配置、以及建库流水线都已裁掉。来源提交和完整裁剪清单见 [`engine/UPSTREAM.md`](engine/UPSTREAM.md)。
+
+这对日常开发意味着三件事：
+
+- **普通 clone 就能构建。** 引擎不再需要 `git submodule update`，`vendor/` 下只剩 opencc 和 cpp-pinyin。
+- **要为 Windows 改引擎就直接改。** 不再需要先往上游提 PR、等合并、再 bump gitlink；引擎和调用它的代码在同一个提交、同一个 PR 里评审。`scripts/format.sh` 也覆盖了引擎源码。
+- **引擎不再被 `product-lock.json` 锁。** 一个本仓提交就钉住了引擎，锁里只剩构建时下载的词库发布。
 
 仍在仓外的部分：
 
-- [MSIME-Engine](https://github.com/metasequoiaime/MSIME-Engine): 跨平台输入引擎，Windows / macOS / Linux 前端共用，在本仓是 `vendor/MetasequoiaImeEngine` submodule。辅助码和词库源数据也在其中。
-- 词库：按固定 tag 和摘要在构建时从 MSIME-Engine 的 `dict-*` release 取用。已归档的 [MSIME-Dict](https://github.com/metasequoiaime/MSIME-Dict) 只读保留，其已发布的 release 仍可用。
-- 语音输入：公共录音、WAV 编码与识别/润色协议位于 MSIME-Engine 的 `voice/`。独立工具 [MetasequoiaVoiceInput](https://github.com/metasequoiaime/MetasequoiaVoiceInput) 已归档，其已发布的 release 仍可下载。
+- 词库：按固定 tag 和摘要在构建时从 `dict-*` release 取用。建库流水线不在本仓，已归档的 [MSIME-Dict](https://github.com/metasequoiaime/MSIME-Dict) 只读保留，其已发布的 release 仍可用。
+- 语音输入的独立工具 [MetasequoiaVoiceInput](https://github.com/metasequoiaime/MetasequoiaVoiceInput) 已归档，其已发布的 release 仍可下载；录音、WAV 编码与识别/润色协议现在在 `engine/voice/`。
 
 ## 功能简介
 
@@ -276,7 +286,7 @@ ASR 提供商可选豆包（流式）、OpenAI、SiliconFlow、Groq。豆包支�
 
 上屏方式可选 TSF、SendInput 或 `Ctrl + V`。豆包流式识别还可开启 inline 预编辑：已识别文字直接显示在输入框中，松开录音键后上屏（仅 TSF 上屏时生效）。录音期间可选择暂时静音其他应用的播放声音。
 
-独立工具 [MetasequoiaVoiceInput](https://github.com/metasequoiaime/MetasequoiaVoiceInput) 已归档，其已发布的 release 仍可下载；源码现在在 MSIME-Engine 的 `voice/`。
+独立工具 [MetasequoiaVoiceInput](https://github.com/metasequoiaime/MetasequoiaVoiceInput) 已归档，其已发布的 release 仍可下载；源码现在在 [`engine/voice/`](engine/voice/)。
 
 ### 手写、屏幕键盘、悬浮工具栏与皮肤
 

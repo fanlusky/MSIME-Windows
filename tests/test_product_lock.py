@@ -19,6 +19,9 @@ class ProductLockTests(unittest.TestCase):
         self.data = lock.load(ROOT / "product-lock.json")
 
     def test_mutable_refs_and_missing_components_are_rejected(self):
+        # REPOSITORIES is empty now that the engine is vendored in-tree, so this loop guards a rule
+        # rather than a current entry: whatever external input is locked next still may not be
+        # pinned to anything a maintainer could move.
         for component in lock.REPOSITORIES:
             for ref in ("main", "latest", "v1.0", "abc123", "a" * 40 + "\n"):
                 with self.subTest(component=component, ref=ref):
@@ -26,9 +29,10 @@ class ProductLockTests(unittest.TestCase):
                     changed["repositories"][component]["commit"] = ref
                     with self.assertRaises(ValueError):
                         lock.validate(changed)
-        del self.data["repositories"]["engine"]
+        changed = copy.deepcopy(self.data)
+        changed["repositories"]["extra"] = {"repository": "metasequoiaime/MSIME-Engine", "commit": "a" * 40}
         with self.assertRaises(ValueError):
-            lock.validate(self.data)
+            lock.validate(changed)
 
     def test_dictionary_provenance_requires_an_immutable_source_commit(self):
         for commit in ("", "main", "a" * 39, "a" * 40 + "\n"):
@@ -151,32 +155,24 @@ class ProductLockTests(unittest.TestCase):
                     lock.fetch_dictionaries(staging, self.data)
             self.assertEqual(before, {path.name: path.read_bytes() for path in target.iterdir()})
 
-    def test_engine_checkout_must_match_the_reviewed_commit(self):
-        with mock.patch.object(lock, "git", return_value=self.data["repositories"]["engine"]["commit"]):
-            lock.verify_checkout("engine", ROOT, self.data)
+    def test_the_engine_is_no_longer_an_external_input(self):
+        # The engine is a directory of this repository, so the commit under test already pins it and
+        # the lock has nothing to say about it. A reappearing entry means either a resurrected
+        # submodule or a hand edit, and both have to fail here rather than be silently carried into
+        # the shipped manifest as a claim about an upstream commit nobody checked.
+        self.assertEqual(self.data["repositories"], {})
+        self.assertFalse((ROOT / "vendor/MetasequoiaImeEngine").exists())
+        self.assertTrue((ROOT / "engine/CMakeLists.txt").is_file())
+        changed = copy.deepcopy(self.data)
+        changed["repositories"]["engine"] = {"repository": "metasequoiaime/MSIME-Engine", "commit": "a" * 40}
+        with self.assertRaises(ValueError):
+            lock.validate(changed)
 
-    def test_wrong_checkout_is_rejected(self):
-        with mock.patch.object(lock, "git", return_value="0" * 40):
-            with self.assertRaises(ValueError):
-                lock.verify_checkout("engine", ROOT, self.data)
-
-    def test_a_path_that_is_not_a_submodule_cannot_pass_as_the_engine(self):
-        for reply in ("", "100644 blob " + "0" * 40 + "\tvendor/MetasequoiaImeEngine"):
-            with self.subTest(reply=reply):
-                with mock.patch.object(lock, "git", return_value=reply):
-                    with self.assertRaises(ValueError):
-                        lock.verify_contracts(ROOT, self.data)
-
-    def test_the_lock_records_the_engine_commit_the_submodule_actually_points_at(self):
-        self.assertEqual(lock.engine_gitlink(ROOT), self.data["repositories"]["engine"]["commit"])
-
-    def test_independently_bumped_tsf_contract_is_rejected(self):
-        expected = self.data["repositories"]["engine"]["commit"]
-        with mock.patch.object(lock, "git", return_value=f"160000 commit {expected}\tvendor/MetasequoiaImeEngine"):
-            lock.verify_contracts(ROOT, self.data)
-        with mock.patch.object(lock, "git", return_value="160000 commit " + "0" * 40 + "\tvendor/MetasequoiaImeEngine"):
-            with self.assertRaises(ValueError):
-                lock.verify_contracts(ROOT, self.data)
+    def test_outputs_export_the_dictionary_tag_and_nothing_else(self):
+        # release.yml reads dictionary_tag off this step. engine_sha was the other export and its
+        # consumers went with the submodule; an export that outlived them would hand a later job a
+        # commit that no longer means anything.
+        self.assertEqual(lock.github_outputs(self.data), f"dictionary_tag={self.data['dictionary']['tag']}\n")
 
     def compare_status(self, status):
         def api(endpoint):

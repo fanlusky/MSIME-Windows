@@ -11,4 +11,11 @@
 *.dat binary
 *.ico binary
 *.mp3 binary
+*.onnx binary
 *.png binary
+
+# The vendored Google Pinyin dictionary sources are UTF-16 and carry a .txt suffix. The heuristic
+# does classify them today, on the NUL bytes UTF-16 puts in every ASCII character, but they are
+# declared for the same reason user_dict.dat is: sampling the head is not a guarantee, and a .txt
+# that silently normalizes to LF is a corrupt dictionary rather than a formatting change.
+engine/googlepinyinime-rev/data/*utf16*.txt binary

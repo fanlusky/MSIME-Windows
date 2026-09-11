@@ -2,7 +2,7 @@
 
 #include "config/ime_config.h"
 #include "engine_input_session.h"
-#include "MetasequoiaImeEngine/shuangpin/shuangpin_profile.h"
+#include "engine/shuangpin/shuangpin_profile.h"
 #include <algorithm>
 #include <stdexcept>
 #include <string>

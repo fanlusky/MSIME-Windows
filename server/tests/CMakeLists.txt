@@ -68,7 +68,7 @@ target_include_directories(${TEST_EXECUTABLE_NAME}
     "${CMAKE_SOURCE_DIR}"
     "${CMAKE_SOURCE_DIR}/src"
     "${MSIME_VENDOR_DIR}"
-    "${MSIME_VENDOR_DIR}/MetasequoiaImeEngine/utfcpp/source"
+    "${MSIME_ENGINE_DIR}/utfcpp/source"
 )
 
 # test_default_config_credentials reads the config the installer actually ships, so the check is
@@ -103,7 +103,7 @@ target_link_libraries(${TEST_EXECUTABLE_NAME}
 add_test(NAME ${TEST_EXECUTABLE_NAME} COMMAND ${TEST_EXECUTABLE_NAME})
 
 # The identical fixture file also runs in Engine's JavaScript contract CI.
-add_executable(test_webview_contract "${MSIME_VENDOR_DIR}/MetasequoiaImeEngine/contracts/webview/test.cpp")
+add_executable(test_webview_contract "${MSIME_ENGINE_DIR}/contracts/webview/test.cpp")
 target_link_libraries(test_webview_contract PRIVATE Boost::json)
 add_test(NAME webview_contract COMMAND test_webview_contract
-    "${MSIME_VENDOR_DIR}/MetasequoiaImeEngine/contracts/webview/fixtures.json")
+    "${MSIME_ENGINE_DIR}/contracts/webview/fixtures.json")

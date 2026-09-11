@@ -1,6 +1,6 @@
 #include "tests/includes/test_framework.h"
-#include "MetasequoiaImeEngine/shuangpin/shuangpin_query.h"
-#include "MetasequoiaImeEngine/shuangpin/shuangpin_utils.h"
+#include "engine/shuangpin/shuangpin_query.h"
+#include "engine/shuangpin/shuangpin_utils.h"
 
 TEST_CASE(ApplySegmentationCasesPreservesUppercaseMarkers)
 {

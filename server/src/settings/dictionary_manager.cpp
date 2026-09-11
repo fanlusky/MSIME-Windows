@@ -6,11 +6,11 @@
 #include "defines/defines.h"
 #include "settings/dictionary_validation.h"
 #include "utils/common_utils.h"
-#include "MetasequoiaImeEngine/common/helpcode_utils.h"
-#include "MetasequoiaImeEngine/quanpin/quanpin_query.h"
-#include "MetasequoiaImeEngine/quanpin/quanpin_utils.h"
-#include "MetasequoiaImeEngine/user_dictionary/user_dictionary_journal.h"
-#include "MetasequoiaImeEngine/english/english_dictionary.h"
+#include "engine/common/helpcode_utils.h"
+#include "engine/quanpin/quanpin_query.h"
+#include "engine/quanpin/quanpin_utils.h"
+#include "engine/user_dictionary/user_dictionary_journal.h"
+#include "engine/english/english_dictionary.h"
 
 #include <cpp-pinyin/G2pglobal.h>
 #include <cpp-pinyin/Pinyin.h>

@@ -1,7 +1,7 @@
 #include "engine_input_session.h"
 #include "config/ime_config.h"
-#include "MetasequoiaImeEngine/common/helpcode_utils.h"
-#include "MetasequoiaImeEngine/quanpin/quanpin_utils.h"
+#include "engine/common/helpcode_utils.h"
+#include "engine/quanpin/quanpin_utils.h"
 
 EngineInputSession::EngineInputSession(SchemeType scheme, const ShuangpinProfile &profile)
     : paths_(metasequoia::RuntimePaths::legacy()), session_(scheme, profile, paths_)

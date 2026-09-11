@@ -19,9 +19,9 @@
 #include "msimeui/Theme.h"
 #include "msimeui/Window.h"
 
-#include "MetasequoiaImeEngine/common/helpcode_utils.h"
-#include "MetasequoiaImeEngine/core/scheme_type.h"
-#include "MetasequoiaImeEngine/core/word_item.h"
+#include "engine/common/helpcode_utils.h"
+#include "engine/core/scheme_type.h"
+#include "engine/core/word_item.h"
 
 #include <d2d1.h>
 #include <windowsx.h>

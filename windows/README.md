@@ -18,4 +18,4 @@ ctest --test-dir windows/build -C Release --output-on-failure
 
 Win32 用 `-A Win32` 和 `x86-windows-static`；安装包两种架构都要。`scripts/` 下是本机开发用的生成、构建、注册和签名脚本，从本目录运行。
 
-引擎契约来自 `../vendor/MetasequoiaImeEngine`，需要 `git submodule update --init --recursive`。
+引擎契约来自 [`../engine/contracts/`](../engine/contracts/)，是本仓的目录，普通检出就有。TSF 只引用这些头文件，不链接引擎运行库。

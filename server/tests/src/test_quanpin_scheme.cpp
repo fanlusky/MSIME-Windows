@@ -1,11 +1,11 @@
 #include "tests/includes/test_framework.h"
 #include "tests/includes/test_utf8_path.h"
-#include "MetasequoiaImeEngine/common/helpcode_utils.h"
-#include "MetasequoiaImeEngine/quanpin/autocorrect_table.h"
-#include "MetasequoiaImeEngine/quanpin/quanpin_dictionary.h"
-#include "MetasequoiaImeEngine/quanpin/quanpin_query.h"
-#include "MetasequoiaImeEngine/quanpin/quanpin_utils.h"
-#include "MetasequoiaImeEngine/schemes/quanpin_scheme.h"
+#include "engine/common/helpcode_utils.h"
+#include "engine/quanpin/autocorrect_table.h"
+#include "engine/quanpin/quanpin_dictionary.h"
+#include "engine/quanpin/quanpin_query.h"
+#include "engine/quanpin/quanpin_utils.h"
+#include "engine/schemes/quanpin_scheme.h"
 #include <algorithm>
 #include <filesystem>
 #include <sqlite3.h>

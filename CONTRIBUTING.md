@@ -22,9 +22,9 @@ git clone --recursive https://github.com/metasequoiaime/MSIME-Windows.git
 cd MSIME-Windows
 ```
 
-忘了 `--recursive` 的话补一句 `git submodule update --init --recursive`。`vendor/MetasequoiaImeEngine` 是跨平台输入引擎，缺了它任何一个 C++ 组件都编不过。
+忘了 `--recursive` 的话补一句 `git submodule update --init --recursive`。`vendor/` 下是 opencc 和 cpp-pinyin，缺了它们 Server 编不过。输入引擎在 `engine/`，是本仓的目录而不是 submodule，普通 clone 就有。
 
-词库不在版本库里，构建时从 MSIME-Engine 的 `dict-*` release 按锁定的 tag 和摘要取用：
+词库不在版本库里，构建时从 `dict-*` release 按锁定的 tag 和摘要取用：
 
 ```powershell
 python scripts/product_lock.py fetch-dictionaries --staging-root .
@@ -79,17 +79,19 @@ Set-Location ..\installer
 
 ## 改动前要知道的几条边界
 
-- **协议的唯一来源是 Engine 的 `contracts/`。** IPC 线格式、opcode、语音分帧和 WebView 消息定义都在 `vendor/MetasequoiaImeEngine/contracts/`，两侧引用同一份头文件，不要在任何一侧另写一份。
+- **协议的唯一来源是 `engine/contracts/`。** IPC 线格式、opcode、语音分帧和 WebView 消息定义都在那里，两侧引用同一份头文件，不要在任何一侧另写一份。
+- **`engine/` 是本仓的一等代码。** 要为 Windows 改引擎就直接改，和改 `server/` 一样评审和测试；引擎和调用它的代码可以、也应该在同一个 PR 里。例外是 `engine/` 下的 `googlepinyinime-rev/`、`utfcpp/`、`voice/third_party/`，那是上游副本。见 [engine/UPSTREAM.md](engine/UPSTREAM.md)。
 - **`ui/` 不许反向依赖产品。** 它不读 Server 配置、IPC、引擎、词库或全局输入状态。`ui/scripts/check-boundary.py` 在 CI 里检查。
 - **窗口归 `server/`，页面归 `ui-html/`。** 改消息 `type`、JSON 字段或页面导出的 JS 函数时两侧一起改。
-- **`ui-html/webview2/shared/` 是生成物**，由 `ui-html/scripts/sync-contracts.py` 从 submodule 同步，CI 用 `--check` 校验。要改契约就去改 Engine。
+- **`ui-html/webview2/shared/` 是生成物**，由 `ui-html/scripts/sync-contracts.py` 从 `engine/contracts/webview/` 同步，CI 用 `--check` 校验。要改契约就去改 `engine/contracts/`，然后在同一个提交里重新生成。
 - **候选与输入状态的权威在 Server 和引擎**，页面只负责展示。
 
 ## 提交前
 
 ```powershell
-ctest --test-dir server/build --output-on-failure       # Server 单元测试
+ctest --test-dir server/build --output-on-failure       # Server 单元测试（引擎随 Server 一起构建）
 python -m unittest discover -s tests                    # 产品级组合验证
+bash scripts/format.sh --check                          # 格式，覆盖 server/windows/ui/log/engine
 bash scripts/ci/check-developer-paths.sh                # 构建输入里不许出现个人目录路径
 ```
 

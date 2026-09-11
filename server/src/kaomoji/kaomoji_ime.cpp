@@ -1,8 +1,8 @@
 #include "kaomoji/kaomoji_ime.h"
 
-#include "MetasequoiaImeEngine/local_modes/kaomoji_query.h"
-#include "MetasequoiaImeEngine/core/data_path.h"
-#include "MetasequoiaImeEngine/shuangpin/shuangpin_profile.h"
+#include "engine/local_modes/kaomoji_query.h"
+#include "engine/core/data_path.h"
+#include "engine/shuangpin/shuangpin_profile.h"
 #include "config/ime_config.h"
 #include <atomic>
 #include <condition_variable>

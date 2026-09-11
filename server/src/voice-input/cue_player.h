@@ -1,7 +1,7 @@
 #pragma once
 
 // Windows cue playback remains in the platform host. Its miniaudio declarations
-// and implementation now come from the pinned Engine VoiceCapture dependency.
+// and implementation now come from the engine's VoiceCapture dependency.
 
 #include <string>
 

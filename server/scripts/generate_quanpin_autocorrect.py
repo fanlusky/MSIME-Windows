@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate MetasequoiaImeEngine/quanpin/autocorrect_table.h from quanpin_utils.cpp.
+"""Generate engine/quanpin/autocorrect_table.h from quanpin_utils.cpp.
 
 The intact pinyin list is parsed directly from the engine source, so the
 generated table can never drift from the runtime syllable list.
@@ -25,7 +25,7 @@ import pathlib
 import re
 import sys
 
-ENGINE_DIR = pathlib.Path(__file__).resolve().parents[2] / "vendor" / "MetasequoiaImeEngine"
+ENGINE_DIR = pathlib.Path(__file__).resolve().parents[2] / "engine"
 UTILS_PATH = ENGINE_DIR / "quanpin" / "quanpin_utils.cpp"
 OUT_PATH = ENGINE_DIR / "quanpin" / "autocorrect_table.h"
 

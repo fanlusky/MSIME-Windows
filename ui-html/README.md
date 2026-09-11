@@ -2,9 +2,9 @@
 
 水杉输入法 Windows 端的界面资源。Server 加载这里的页面来渲染候选窗、悬浮工具栏、托盘菜单和设置窗口。
 
-`webview2/shared/` 是 Engine web 契约的副本，由 `scripts/sync-contracts.py` 从 `../vendor/MetasequoiaImeEngine/contracts/webview/` 生成，CI 用 `--check` 验证两者一致。要改契约请改 Engine，不要直接改这个目录。
+`webview2/shared/` 是引擎 web 契约的副本，由 `scripts/sync-contracts.py` 从 [`../engine/contracts/webview/`](../engine/contracts/webview/) 生成，CI 用 `--check` 验证两者一致。要改契约请改那边，再在同一个提交里重新生成，不要直接改这个目录。
 
-同仓的相关组件：[`../windows/`](../windows/)（TSF 前端）、[`../server/`](../server/)（后端与窗口宿主）。
+同仓的相关组件：[`../windows/`](../windows/)（TSF 前端）、[`../server/`](../server/)（后端与窗口宿主）、[`../engine/`](../engine/)（输入引擎与契约）。
 
 ## 目录
 

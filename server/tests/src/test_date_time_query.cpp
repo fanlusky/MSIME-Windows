@@ -1,5 +1,5 @@
 #include "tests/includes/test_framework.h"
-#include "MetasequoiaImeEngine/local_modes/date_time_query.h"
+#include "engine/local_modes/date_time_query.h"
 
 #include <array>
 

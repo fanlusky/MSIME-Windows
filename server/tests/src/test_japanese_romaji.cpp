@@ -1,10 +1,10 @@
 #include "tests/includes/test_framework.h"
 #include "tests/includes/test_utf8_path.h"
-#include "MetasequoiaImeEngine/japanese/romaji_converter.h"
-#include "MetasequoiaImeEngine/japanese/japanese_sentence_decoder.h"
-#include "MetasequoiaImeEngine/japanese/japanese_matrix_search.h"
-#include "MetasequoiaImeEngine/providers/japanese_candidate_provider.h"
-#include "MetasequoiaImeEngine/schemes/japanese_romaji_scheme.h"
+#include "engine/japanese/romaji_converter.h"
+#include "engine/japanese/japanese_sentence_decoder.h"
+#include "engine/japanese/japanese_matrix_search.h"
+#include "engine/providers/japanese_candidate_provider.h"
+#include "engine/schemes/japanese_romaji_scheme.h"
 #include "src/session/engine_input_session.h"
 #include <algorithm>
 #include <cctype>

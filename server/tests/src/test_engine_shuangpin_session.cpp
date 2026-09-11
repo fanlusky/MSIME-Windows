@@ -1,9 +1,9 @@
 #include "tests/includes/test_framework.h"
 #include "src/session/engine_input_session.h"
 #include "src/config/ime_config.h"
-#include "MetasequoiaImeEngine/common/helpcode_utils.h"
-#include "MetasequoiaImeEngine/quanpin/quanpin_query.h"
-#include "MetasequoiaImeEngine/shuangpin/shuangpin_dictionary.h"
+#include "engine/common/helpcode_utils.h"
+#include "engine/quanpin/quanpin_query.h"
+#include "engine/shuangpin/shuangpin_dictionary.h"
 #include "src/ipc/candidate_selection_policy.h"
 #include <algorithm>
 

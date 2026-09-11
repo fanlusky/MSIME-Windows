@@ -1,2 +1,2 @@
 #pragma once
-#include "MetasequoiaImeEngine/contracts/ipc_protocol_limits.h"
+#include "engine/contracts/ipc_protocol_limits.h"

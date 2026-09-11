@@ -1,6 +1,6 @@
 #include "tests/includes/test_framework.h"
-#include "MetasequoiaImeEngine/local_modes/jianpin_query.h"
-#include "MetasequoiaImeEngine/shuangpin/shuangpin_profile.h"
+#include "engine/local_modes/jianpin_query.h"
+#include "engine/shuangpin/shuangpin_profile.h"
 #include "utils/common_utils.h"
 
 #include <filesystem>

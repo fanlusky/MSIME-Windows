@@ -8,7 +8,7 @@
 #include <tuple>
 #include <vector>
 #include <windows.h>
-#include "MetasequoiaImeEngine/core/word_item.h"
+#include "engine/core/word_item.h"
 #include "window/candidate_view_model.h"
 
 namespace GlobalIme

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-# Also usable without the TSF DLL, Windows SDK or Engine submodules.
+# Also usable without the TSF DLL, the Windows SDK or the engine.
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     project(MsimeTsfLocalPolicyTests LANGUAGES CXX)
     enable_testing()
