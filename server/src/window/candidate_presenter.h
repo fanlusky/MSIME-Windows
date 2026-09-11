@@ -1,5 +1,7 @@
 #pragma once
 
+#include "utils/window_utils.h"
+
 #include <memory>
 #include <string>
 #include <windows.h>
@@ -26,7 +28,11 @@ class CandidatePresenter
     void RebuildScene();
     void ApplySkin();
     void FillItemsFromUi();
-    void PlaceAndShow(POINT caret, float widthDip, float heightDip, float cardLeftDip, float cardTopDip);
+    // `scale` carries the scale resolved once per show in ShowFromGlobalState
+    // so measure, clamping, sizing and rendering all share one source; an
+    // unset (scale == 0) value makes PlaceAndShow resolve it itself.
+    void PlaceAndShow(POINT caret, float widthDip, float heightDip, float cardLeftDip, float cardTopDip,
+                      const ResolvedCandidateScale &scale = {});
     void ArmHoverIfPointerMoved();
     void CommitItem(size_t pageIndex);
     void ShowItemContextMenu(size_t pageIndex, POINT clientPoint);
