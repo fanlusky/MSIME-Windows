@@ -6,36 +6,43 @@
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-Set-Location $PSScriptRoot
 
-$repoRoot = Split-Path -Parent $PSScriptRoot
-$tsfCompile = Join-Path $repoRoot 'windows\scripts\lcompile-release-both.ps1'
-$serverCompile = Join-Path $repoRoot 'server\scripts\lcompile-release.ps1'
-$settingsDir = Join-Path $repoRoot 'ui-html\webview2\settings\ime-settings'
-
-# All three are directories of this repository now, so a missing one is a broken checkout rather
-# than a neighbour nobody cloned. Skipping the build and packaging whatever binaries happen to be
-# lying around would produce an installer you then run on your own machine.
-foreach ($required in @($tsfCompile, $serverCompile, (Join-Path $settingsDir 'package.json'))) {
-    if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
-        throw "缺少组件构建入口：$required"
-    }
-}
-
-Push-Location (Join-Path $repoRoot 'windows')
-try { & $tsfCompile } finally { Pop-Location }
-
-Push-Location (Join-Path $repoRoot 'server')
-try { & $serverCompile } finally { Pop-Location }
-
-Push-Location $settingsDir
+# Every build step below uses its own Push-Location and absolute paths ($repoRoot / $PSScriptRoot),
+# so the script never relies on the process cwd. Push/pop it here too, inside try/finally, so the
+# caller's shell is left where it started instead of stranded in installer\ when the script exits.
+Push-Location $PSScriptRoot
 try {
-    pnpm run build
-    if ($LASTEXITCODE -ne 0) { throw "Settings page build failed ($LASTEXITCODE)" }
-} finally { Pop-Location }
+    $repoRoot = Split-Path -Parent $PSScriptRoot
+    $tsfCompile = Join-Path $repoRoot 'windows\scripts\lcompile-release-both.ps1'
+    $serverCompile = Join-Path $repoRoot 'server\scripts\lcompile-release.ps1'
+    $settingsDir = Join-Path $repoRoot 'ui-html\webview2\settings\ime-settings'
 
-& (Join-Path $PSScriptRoot 'Prepare-PackageFiles.ps1') -RepoRoot $repoRoot -TsfDirectory windows -ServerDirectory server -UiHtmlDirectory ui-html -NoticesDirectory .
-& (Join-Path $PSScriptRoot 'Sign-PackageBinaries-Local.ps1')
-& (Join-Path $PSScriptRoot 'Compile-Installer.ps1')
-& (Join-Path $PSScriptRoot 'Sign-Installer-Local.ps1')
-& (Join-Path $PSScriptRoot 'Install.ps1')
+    # All three are directories of this repository now, so a missing one is a broken checkout rather
+    # than a neighbour nobody cloned. Skipping the build and packaging whatever binaries happen to be
+    # lying around would produce an installer you then run on your own machine.
+    foreach ($required in @($tsfCompile, $serverCompile, (Join-Path $settingsDir 'package.json'))) {
+        if (-not (Test-Path -LiteralPath $required -PathType Leaf)) {
+            throw "缺少组件构建入口：$required"
+        }
+    }
+
+    Push-Location (Join-Path $repoRoot 'windows')
+    try { & $tsfCompile } finally { Pop-Location }
+
+    Push-Location (Join-Path $repoRoot 'server')
+    try { & $serverCompile } finally { Pop-Location }
+
+    Push-Location $settingsDir
+    try {
+        pnpm run build
+        if ($LASTEXITCODE -ne 0) { throw "Settings page build failed ($LASTEXITCODE)" }
+    } finally { Pop-Location }
+
+    & (Join-Path $PSScriptRoot 'Prepare-PackageFiles.ps1') -RepoRoot $repoRoot -TsfDirectory windows -ServerDirectory server -UiHtmlDirectory ui-html -NoticesDirectory .
+    & (Join-Path $PSScriptRoot 'Sign-PackageBinaries-Local.ps1')
+    & (Join-Path $PSScriptRoot 'Compile-Installer.ps1')
+    & (Join-Path $PSScriptRoot 'Sign-Installer-Local.ps1')
+    & (Join-Path $PSScriptRoot 'Install.ps1')
+} finally {
+    Pop-Location
+}
