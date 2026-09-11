@@ -1,6 +1,6 @@
 #include "tests/includes/test_framework.h"
 #include "tests/includes/test_utf8_path.h"
-#include "MetasequoiaImeEngine/user_dictionary/user_dictionary_journal.h"
+#include "engine/user_dictionary/user_dictionary_journal.h"
 
 #include <sqlite3.h>
 #include <cstdint>

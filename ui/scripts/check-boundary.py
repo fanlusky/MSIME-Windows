@@ -4,7 +4,9 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-forbidden = re.compile(r'MetasequoiaImeEngine|MSIME-Server|config/ime_config\.h|global/globals\.h|ipc/event_listener\.h|GlobalIme::|\bg_inputSession\b')
+# The engine is matched by its include prefix rather than by the bare word: since it was vendored
+# in-tree as engine/, "engine" on its own also matches every prose mention of one in a comment.
+forbidden = re.compile(r'engine/|MSIME-Server|config/ime_config\.h|global/globals\.h|ipc/event_listener\.h|GlobalIme::|\bg_inputSession\b')
 failures = []
 for directory in ('include', 'src'):
     for path in (ROOT / directory).rglob('*'):

@@ -1,6 +1,6 @@
 #include "tests/includes/test_framework.h"
 #include "tests/includes/test_utf8_path.h"
-#include "MetasequoiaImeEngine/english/english_dictionary.h"
+#include "engine/english/english_dictionary.h"
 
 #include <chrono>
 #include <filesystem>

@@ -24,9 +24,11 @@ endif()
 
 include(CTest)
 
-# The shared engine and the third-party sources are submodules of the monorepo, not of this
-# component, so they sit one level up in vendor/ next to server/, ui/ and windows/.
-set(MSIME_VENDOR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../vendor")
+# The engine is a first-party component of this repository, vendored in-tree at engine/ next to
+# server/, ui/ and windows/. The remaining third-party sources are still submodules under vendor/.
+set(MSIME_REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/..")
+set(MSIME_ENGINE_DIR "${MSIME_REPO_ROOT}/engine")
+set(MSIME_VENDOR_DIR "${MSIME_REPO_ROOT}/vendor")
 
 # Boost
 # An explicit -DBoost_ROOT wins, then BOOST_ROOT from the environment, and only then the scoop
@@ -60,14 +62,14 @@ find_package(ZLIB REQUIRED)
 # Which is also why BUILD_TESTING has to be off across that add_subdirectory: the engine registers
 # eleven add_test() entries behind that flag, and EXCLUDE_FROM_ALL then never builds the
 # executables they point at, so ctest reports eleven "Unable to find executable" failures. The
-# engine's own CI runs those tests on Ubuntu, macOS and Windows; running them from here as well
-# would be redundant even if they did build. Restored immediately afterwards so this repository's
+# engine's own suite is exercised through this repository's server/tests, which cover the same
+# surface against the shipped dictionaries. Restored immediately afterwards so this repository's
 # own tests/ still register.
 set(_metasequoia_saved_build_testing "${BUILD_TESTING}")
 set(BUILD_TESTING OFF)
 set(METASEQUOIA_IME_BUILD_VOICE ON CACHE BOOL "" FORCE)
 set(MSIME_VOICE_CAPTURE ON CACHE BOOL "" FORCE)
-add_subdirectory("${MSIME_VENDOR_DIR}/MetasequoiaImeEngine" "${CMAKE_BINARY_DIR}/MetasequoiaImeEngine" EXCLUDE_FROM_ALL)
+add_subdirectory("${MSIME_ENGINE_DIR}" "${CMAKE_BINARY_DIR}/engine" EXCLUDE_FROM_ALL)
 set(BUILD_TESTING "${_metasequoia_saved_build_testing}")
 unset(_metasequoia_saved_build_testing)
 
@@ -116,8 +118,11 @@ add_compile_options(/Zc:__cplusplus /FS /utf-8)
 
 include_directories("./")
 include_directories("./src/")
+# The repository root is on the include path so engine headers are reached as "engine/...", which
+# names the component the same way the source tree does.
+include_directories("${MSIME_REPO_ROOT}")
 include_directories("${MSIME_VENDOR_DIR}")
-include_directories("${MSIME_VENDOR_DIR}/MetasequoiaImeEngine/utfcpp/source/")
+include_directories("${MSIME_ENGINE_DIR}/utfcpp/source/")
 
 set(MY_EXECUTABLE_NAME "MetasequoiaImeServer")
 set(WATCHDOG_EXECUTABLE_NAME "MetasequoiaImeWatchdog")
@@ -238,7 +243,7 @@ target_include_directories(${PROJECT_NAME}
     PRIVATE
     "${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/include"
     "${CMAKE_SOURCE_DIR}/src/voice-input"
-    "${MSIME_VENDOR_DIR}/MetasequoiaImeEngine/voice/third_party/miniaudio"
+    "${MSIME_ENGINE_DIR}/voice/third_party/miniaudio"
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE MetasequoiaIme::Engine MetasequoiaIme::Voice MetasequoiaIme::VoiceCapture)

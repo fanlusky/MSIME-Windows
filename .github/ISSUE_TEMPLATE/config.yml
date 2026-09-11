@@ -7,9 +7,12 @@ contact_links:
   - name: 安全漏洞 / Security vulnerability
     url: https://github.com/metasequoiaime/MSIME-Windows/security/advisories/new
     about: 疑似漏洞请私下上报，不要提交公开 issue。Report privately; do not open a public issue.
-  - name: 组词引擎与词库问题 / Engine and dictionary
+  # The engine moved in-tree, so candidate-order bugs are now this repository's own bugs and belong
+  # in the normal bug form. The dictionary data is still built and released elsewhere, so a missing
+  # word is still someone else's to fix -- that is the only part this row still routes away.
+  - name: 词库缺词 / Missing dictionary words
     url: https://github.com/metasequoiaime/MSIME-Engine/issues
-    about: 选字顺序、词库缺词等属于共享引擎与词库，请到对应仓库反馈。Candidate order and missing words belong to the shared engine.
+    about: 词库数据在仓外构建发布，缺词、错词请到对应仓库反馈；选字顺序等引擎问题请直接在本仓提 bug。Dictionary data is built elsewhere; engine behaviour belongs here.
   - name: Telegram 群组 / Telegram Group
     url: https://t.me/msimegroup
     about: 使用问题、讨论与日常交流。Questions and discussions.

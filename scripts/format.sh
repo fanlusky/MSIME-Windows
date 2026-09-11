@@ -8,7 +8,9 @@ set -euo pipefail
 #
 # Ported from MSIME-Linux, which has run this in CI since before the
 # consolidation. Each component keeps its own .clang-format; --style=file picks
-# up the nearest one, so server/, windows/, ui/ and log/ stay independent.
+# up the nearest one, so server/, windows/, ui/, log/ and engine/ stay
+# independent -- engine/voice/.clang-format widens the column limit for that
+# subtree alone, and the nearest-file rule is what keeps it that way.
 clang_format_version=18.1.8
 
 project_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -37,11 +39,32 @@ cd "$project_root"
 #
 # vendor/ and experiments/ are excluded: the first is third-party, the second is
 # a scratch project that is not part of the shipped product.
+#
+# engine/ is covered here rather than by a script of its own. It used to be a
+# separate repository with its own formatting gate; now that it is a directory
+# of this one, a Windows-specific fix to it has to be held to the same standard
+# as the code that calls it, and one entry point is what makes that automatic.
+# The exclusions below are the ones that gate carried:
+#
+#   - googlepinyinime-rev keeps its AOSP formatting and utfcpp is an upstream
+#     copy, so neither is ours to reformat; same for */third_party/ (miniaudio).
+#   - The four generated headers are emitted from JSON by
+#     contracts/{assets,dictionary,punctuation,webview}/generate.py, and CI
+#     re-runs each generator with --check. Reformatting the checked-in copy
+#     would only make it disagree with what the generator produces.
 git ls-files --cached --others --exclude-standard \
         'server/*.cpp' 'server/*.h' \
         'windows/*.cpp' 'windows/*.h' \
         'ui/*.cpp' 'ui/*.h' \
         'log/*.cpp' 'log/*.h' \
+        'engine/*.cpp' 'engine/*.h' 'engine/*.hpp' \
     | grep -v '/vendor/' \
+    | grep -vE '^engine/(googlepinyinime-rev|utfcpp)/' \
+    | grep -v '/third_party/' \
+    | grep -vxF \
+        -e engine/contracts/assets/assets.h \
+        -e engine/contracts/dictionary/format.h \
+        -e engine/contracts/punctuation/policy.h \
+        -e engine/contracts/webview/schema.h \
     | sort -u \
     | xargs "$clang_format" "${clang_format_arguments[@]}" --style=file

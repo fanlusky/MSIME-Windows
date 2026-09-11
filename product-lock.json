@@ -1,11 +1,6 @@
 {
   "schema_version": 1,
-  "repositories": {
-    "engine": {
-      "repository": "metasequoiaime/MSIME-Engine",
-      "commit": "c810d201f549b337ae0c4a65a9d694103f1c1754"
-    }
-  },
+  "repositories": {},
   "dictionary": {
     "repository": "metasequoiaime/MSIME-Engine",
     "tag": "dict-v1.0.0",

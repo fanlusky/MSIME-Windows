@@ -4,7 +4,7 @@
 #include "custom_translation.h"
 #include "tencent_tmt.h"
 #include "translation_gloss.h"
-#include "MetasequoiaImeEngine/english/english_dictionary.h"
+#include "engine/english/english_dictionary.h"
 #include <curl/curl.h>
 #include <atomic>
 #include <chrono>

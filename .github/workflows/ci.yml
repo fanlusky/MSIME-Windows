@@ -24,30 +24,28 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      # The dictionary validator is compared against the engine's copy of it, so this job needs the
-      # submodule's contents and not just its gitlink.
+      # The engine is vendored in-tree, so a plain checkout already carries the contracts this job
+      # compares against. opencc and cpp-pinyin are still submodules but nothing here builds.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: true
       - name: Check the shared dictionary validator
         run: python3 scripts/check-dictionary-contract.py
       - name: Check product-lock contract
         run: python3 scripts/check-product-lock-contract.py
+      # The voice activity detector is committed rather than downloaded, and it is executed inside
+      # the IME process. The engine's own voice.yml used to re-check its digest; that workflow left
+      # with the submodule, so the check moves here rather than disappearing.
+      - name: Check the committed voice model against its recorded digest
+        run: |
+          echo '1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3  engine/voice/assets/models/silero_vad.onnx' | sha256sum --check --strict
       - name: Test rejection of changed or mismatched inputs
         run: python3 -m unittest discover -s tests -p 'test_product_lock.py'
       - name: Test local environment setup in a moved checkout
         run: python3 -m unittest discover -s tests -p 'test_prepare_env.py'
       - name: Test the automatic release CI gate
         run: python3 -m unittest discover -s tests -p 'test_release_pr_ci.py'
-      - name: Test the engine-bump auto-merge guards
-        run: |
-          python3 -m pip install --quiet pyyaml
-          python3 -m unittest discover -s tests -p 'test_engine_bump_triage.py'
       - name: Read the reviewed lock
         id: lock
-        run: |
-          python3 scripts/product_lock.py verify-contracts .
-          python3 scripts/product_lock.py outputs --github-output "$GITHUB_OUTPUT"
+        run: python3 scripts/product_lock.py outputs --github-output "$GITHUB_OUTPUT"
 
   windows:
     name: Windows ${{ matrix.name }}
@@ -231,12 +229,12 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          submodules: true
 
       # The pages ship a copy of the engine's web contract. Before the consolidation the product
-      # lock kept that copy honest by pinning UiHtml and the engine together; inside one repository
-      # the engine submodule is the pin, so the copy is checked against it directly.
-      - name: Check the bundled contract against the engine submodule
+      # lock kept that copy honest by pinning UiHtml and the engine together; now that the engine is
+      # a directory of this repository, the copy is checked against engine/contracts/webview
+      # directly and a plain checkout is enough to do it.
+      - name: Check the bundled contract against the engine
         run: python3 ui-html/scripts/sync-contracts.py --check
 
       - name: Set up pnpm

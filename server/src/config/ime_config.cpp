@@ -26,7 +26,7 @@
 #include "clipboard/clipboard_history.h"
 #include "defines/defines.h"
 #include "ipc/ipc.h"
-#include "MetasequoiaImeEngine/common/helpcode_utils.h"
+#include "engine/common/helpcode_utils.h"
 #include "voice-input/voice_providers.h"
 
 namespace

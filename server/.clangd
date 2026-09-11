@@ -8,7 +8,7 @@ CompileFlags:
       "-IC:/Users/sonnycalcr/EDisk/CppCodes/IMECodes/MetasequoiaImeServer/src",
       "-IC:/Users/sonnycalcr/EDisk/CppCodes/IMECodes/MetasequoiaImeServer/build/vcpkg_installed/x64-windows/include",
       # utfcpp includes
-      "-IC:/Users/sonnycalcr/EDisk/CppCodes/IMECodes/MetasequoiaImeServer/MetasequoiaImeEngine/utfcpp/source",
+      "-IC:/Users/sonnycalcr/EDisk/CppCodes/IMECodes/MetasequoiaImeServer/engine/utfcpp/source",
       # miniaudio includes
       "-IC:/Users/sonnycalcr/EDisk/CppCodes/IMECodes/MetasequoiaImeServer/src/voice-input/third_party/",
       # Boost includes

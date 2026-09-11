@@ -1,7 +1,7 @@
 #pragma once
 
-#include "MetasequoiaImeEngine/core/scheme_type.h"
-#include "MetasequoiaImeEngine/core/word_item.h"
+#include "engine/core/scheme_type.h"
+#include "engine/core/word_item.h"
 #include <cstdint>
 #include <functional>
 #include <string>

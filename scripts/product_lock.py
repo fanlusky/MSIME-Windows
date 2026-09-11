@@ -28,15 +28,17 @@ PRODUCT_MANIFEST = _product.MANIFEST_NAME
 LEGACY_DICTIONARY_TAG = "dict-2026.09.05"
 DICTIONARY_REPOSITORY = "metasequoiaime/MSIME-Engine"
 
-# The tip, the server, the GUI framework, the pages and the installer are components of this
-# repository now, so a commit of this repository already pins them and there is nothing left to
-# lock. The helpcodes moved into the engine, so the engine gitlink pins those too. What survives is
-# the engine itself and the dictionary release, which is fetched at build time.
-REPOSITORIES = {
-    "engine": "metasequoiaime/MSIME-Engine",
-}
+# The tip, the server, the GUI framework, the pages, the installer and now the engine are all
+# components of this repository, so a commit of this repository already pins them and there is
+# nothing left to lock. The helpcodes live in the engine, so they are pinned the same way. What
+# survives is the dictionary release alone, which is fetched at build time rather than built here.
+#
+# The engine's upstream provenance is recorded in engine/UPSTREAM.md, not here. A lock entry would
+# claim the tree still matches an upstream commit, and a Windows-specific fix to engine/ makes that
+# claim false the moment it lands -- with nothing in CI able to notice, because there is no longer a
+# gitlink to compare against.
+REPOSITORIES: dict[str, str] = {}
 ROOT_COMPONENTS = ()
-ENGINE_GITLINK = "vendor/MetasequoiaImeEngine"
 ASSETS = {
     "msime.db", "english.db", "others.db", "dict_japanese.dat",
     "mozc_dictionary_oss_README.txt", "SHA256SUMS.txt",
@@ -101,36 +103,16 @@ def verify_assets(directory: Path, data: dict) -> None:
                                           data["dictionary"]["repository"], data["dictionary"]["source_commit"])
 
 
-def git(directory: Path, *args: str) -> str:
-    return subprocess.check_output(["git", "-C", str(directory), *args], text=True).strip()
-
-
-def verify_checkout(component: str, directory: Path, data: dict) -> None:
-    expected = data["repositories"][component]["commit"]
-    if git(directory, "rev-parse", "HEAD") != expected:
-        raise ValueError(f"{component}: checkout does not match product lock")
-
-
-def engine_gitlink(directory: Path) -> str:
-    fields = git(directory, "ls-tree", "HEAD", ENGINE_GITLINK).split()
-    if len(fields) != 4 or fields[0] != "160000":
-        raise ValueError(f"{ENGINE_GITLINK} is not a submodule of this repository")
-    return fields[2]
-
-
-def verify_contracts(directory: Path, data: dict) -> None:
-    if engine_gitlink(directory) != data["repositories"]["engine"]["commit"]:
-        raise ValueError("The engine submodule and the product lock name different contract commits")
-
-
 def verify_published(data: dict) -> None:
     """Every locked commit has to be reachable from its own repository's default branch, the dictionary source commit included.
 
     This is a release gate rather than a validate rule, deliberately. A pull request legitimately locks branch commits while one change lands across several repositories at once, and enforcing this in pull request CI would deadlock the very landing it exists to protect. At release time the situation is the opposite: an input that never reached its default branch is an input nobody merged, and shipping it makes the lock attest to a review that did not happen.
     """
-    # The dictionary sits outside repositories but pins a commit exactly like they do, and the
+    # The dictionary sits outside repositories but pins a commit exactly like one would, and the
     # manifest check only proves the release agrees with the lock about it, which a branch commit
-    # does just as happily. So it goes through the same gate under its own name.
+    # does just as happily. So it goes through the same gate under its own name -- and since the
+    # engine was vendored in-tree it is the only entry left, which is why the loop still exists
+    # rather than being folded into a single call.
     dictionary = data["dictionary"]
     entries = {**data["repositories"],
                "dictionary": {"repository": dictionary["repository"], "commit": dictionary["source_commit"]}}
@@ -187,13 +169,10 @@ def api(endpoint: str) -> dict:
 def refresh(tag: str, refs: list[str]) -> dict:
     if not TAG.fullmatch(tag):
         raise ValueError("refresh requires an explicit dict-* release tag")
-    # Nothing is resolved from a floating ref any more. Every first-party source is either a
-    # directory of this repository or the engine submodule, so --ref has nothing left to override.
+    # Nothing is resolved from a floating ref any more. Every first-party source, the engine
+    # included, is a directory of this repository, so --ref has nothing left to override.
     if refs:
-        raise ValueError("--ref has no effect: the only locked source is the engine submodule")
-    # Bumping the submodule is the review; the lock only records which commit that review landed on,
-    # so that verify-published can still refuse a release built on a commit nobody merged.
-    repositories = {"engine": {"repository": REPOSITORIES["engine"], "commit": engine_gitlink(ROOT)}}
+        raise ValueError("--ref has no effect: the dictionary release is the only locked source")
     release = api(f"repos/{DICTIONARY_REPOSITORY}/releases/tags/{tag}")
     if release["draft"]:
         raise ValueError("Cannot lock an unpublished dictionary release")
@@ -205,7 +184,7 @@ def refresh(tag: str, refs: list[str]) -> dict:
                 raise ValueError(f"Release asset has no SHA256 digest: {asset['name']}")
             assets[asset["name"]] = digest.removeprefix("sha256:")
     source_commit = api(f"repos/{DICTIONARY_REPOSITORY}/commits/{tag}")["sha"]
-    return validate({"schema_version": 1, "repositories": repositories,
+    return validate({"schema_version": 1, "repositories": {},
                      "dictionary": {"repository": DICTIONARY_REPOSITORY, "tag": tag,
                                     "source_commit": source_commit, "assets": assets}})
 
@@ -217,11 +196,6 @@ def main() -> None:
     commands.add_parser("validate")
     output = commands.add_parser("outputs")
     output.add_argument("--github-output", type=Path)
-    checkout = commands.add_parser("verify-checkout")
-    checkout.add_argument("component", choices=REPOSITORIES)
-    checkout.add_argument("directory", type=Path)
-    contracts = commands.add_parser("verify-contracts")
-    contracts.add_argument("directory", type=Path)
     commands.add_parser("verify-published")
     fetch = commands.add_parser("fetch-dictionaries")
     fetch.add_argument("--staging-root", type=Path, required=True)
@@ -244,10 +218,6 @@ def main() -> None:
                 stream.write(github_outputs(data))
         else:
             print(github_outputs(data), end="")
-    elif args.command == "verify-checkout":
-        verify_checkout(args.component, args.directory, data)
-    elif args.command == "verify-contracts":
-        verify_contracts(args.directory, data)
     elif args.command == "verify-published":
         verify_published(data)
     elif args.command == "fetch-dictionaries":

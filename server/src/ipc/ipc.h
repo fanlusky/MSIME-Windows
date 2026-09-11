@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "MetasequoiaImeEngine/contracts/windows_ipc.h"
+#include "engine/contracts/windows_ipc.h"
 
 namespace FanyImeIpc
 {

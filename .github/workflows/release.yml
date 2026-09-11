@@ -146,7 +146,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python3 scripts/product_lock.py verify-contracts .
           python3 scripts/product_lock.py verify-published
           python3 scripts/product_lock.py outputs --github-output "$GITHUB_OUTPUT"
 
@@ -347,7 +346,6 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.target_sha }}
           persist-credentials: false
-          submodules: true
 
       - name: Verify the shipped pages carry the engine's contract
         run: python3 ui-html/scripts/sync-contracts.py --check
@@ -407,13 +405,12 @@ jobs:
       # outside, so it lands beside the components in the one checkout.
       STAGING_ROOT: .
     steps:
-      # The helpcodes are collected out of the engine submodule now, so this job needs its contents
-      # and not just the gitlink.
+      # The helpcodes are collected out of engine/helpcode, which is a directory of this repository,
+      # so a plain checkout of the release commit already carries them.
       - name: Check out the release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.prepare.outputs.target_sha }}
-          submodules: true
           persist-credentials: false
 
       # Some runner instances leave _work owned by SYSTEM while the job itself
@@ -489,7 +486,7 @@ jobs:
           pwsh -File ./Prepare-PackageFiles.ps1 -TargetVersion $env:TARGET_VERSION
           -RepoRoot (Resolve-Path '..').Path
           -TsfDirectory windows -ServerDirectory server -UiHtmlDirectory ui-html -NoticesDirectory .
-          -HelpCodeDirectory vendor/MetasequoiaImeEngine/helpcode
+          -HelpCodeDirectory engine/helpcode
 
       - name: Embed the exact product dependency manifest
         env:

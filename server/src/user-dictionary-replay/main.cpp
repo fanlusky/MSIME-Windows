@@ -1,5 +1,5 @@
-#include "MetasequoiaImeEngine/core/data_path.h"
-#include "MetasequoiaImeEngine/user_dictionary/user_dictionary_journal.h"
+#include "engine/core/data_path.h"
+#include "engine/user_dictionary/user_dictionary_journal.h"
 
 #include <exception>
 #include <filesystem>

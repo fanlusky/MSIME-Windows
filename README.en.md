@@ -13,7 +13,7 @@
 
 A free and open-source Chinese and Japanese input method for Windows 10 and 11, built on TSF with no legacy IMM32 path.
 
-This repository is the Windows product: the TSF text service DLL, the resident server, a self-written native GUI framework, the HTML surfaces and the installer. The conversion engine is shared with the macOS, iOS and Linux frontends and lives in [MSIME-Engine](https://github.com/metasequoiaime/MSIME-Engine).
+This repository is the whole Windows product: the TSF text service DLL, the resident server, the conversion engine, a self-written native GUI framework, the HTML surfaces and the installer. The engine was imported from [MSIME-Engine](https://github.com/metasequoiaime/MSIME-Engine) and specialized for Windows; it now lives in `engine/` as a first-party component, so a plain clone builds the product. See [`engine/UPSTREAM.md`](engine/UPSTREAM.md).
 
 **This is a public beta.** Expect rough edges and read the release notes before upgrading.
 

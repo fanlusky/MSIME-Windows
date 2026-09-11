@@ -12,25 +12,27 @@ Windows 端的全部一方源码在本仓。**合仓改变的是仓库数量，�
 |---|---|---|
 | `windows/` | TSF 文本服务 DLL：按键预判、焦点、edit session、管道客户端 | [windows/AGENTS.md](windows/AGENTS.md) |
 | `server/` | 常驻后端：候选状态、配置、词库、管道服务、窗口与 WebView2 宿主 | [server/AGENTS.md](server/AGENTS.md) |
+| `engine/` | 输入引擎：输入会话、候选查询、辅助码、跨进程契约、语音模块 | [engine/AGENTS.md](engine/AGENTS.md) |
 | `ui/` | 通用 Win32 / Direct2D / DirectWrite 控件库 `msimeui` | [ui/AGENTS.md](ui/AGENTS.md) |
 | `ui-html/` | 候选窗、工具栏、菜单、设置页的 HTML / CSS / JS | [ui-html/README.md](ui-html/README.md) |
 | `installer/` | 收集产物、自签名、Inno Setup 打包 | [installer/README.md](installer/README.md) |
 | `log/` | 日志采集库 | — |
 | `experiments/tsf-edit-control/` | TSF 编辑控件实验工程，不参与产品构建 | — |
-| `vendor/` | submodule：`MetasequoiaImeEngine`、`opencc`、`cpp-pinyin` | 上游仓库 |
+| `vendor/` | submodule：`opencc`、`cpp-pinyin` | 上游仓库 |
 | `scripts/`、`tests/`、`docs/` | 产品级构建与发布脚本、组合验证、产品文档 | 本文件 |
 
 改一个组件之前先确认它有没有自己的 AGENTS.md，那份比本文件更具体。
 
 ## 组件之间的边界
 
-- **协议的唯一来源是 Engine 的 `contracts/`**。IPC 线格式、opcode、语音分帧和 WebView 消息定义都在 `vendor/MetasequoiaImeEngine/contracts/`，`windows/` 和 `server/` 各自引用同一份头文件。不要在任何一侧重新定义或复制一份。
+- **协议的唯一来源是 `engine/contracts/`**。IPC 线格式、opcode、语音分帧和 WebView 消息定义都在那里，`windows/` 和 `server/` 各自引用同一份头文件。不要在任何一侧重新定义或复制一份。
 - **`ui/` 不许反向依赖产品**。它不读 Server 配置、IPC、引擎、词库或全局输入状态；业务通过数据和回调接入。`ui/scripts/check-boundary.py` 在 CI 里检查已知的反向依赖，新增依赖会红。
 - **窗口归 `server/`，页面归 `ui-html/`**。HWND、尺寸、位置、DPI、Z-order 和 WebView2 controller 的生命周期在 `server/src/window/` 与 `server/src/webview2/`；页面结构、样式和浏览器端交互在 `ui-html/webview2/`。改消息 `type`、JSON 字段或页面导出的 JS 函数时两侧要一起改。
 - **候选与输入状态的权威在 Server 和引擎**，页面只负责展示和发出用户动作，不要在网页侧复制状态机。
-- `ui-html/webview2/shared/` 是 Engine web 契约的副本，由 `ui-html/scripts/sync-contracts.py` 生成，CI 用 `--check` 验证它和 submodule 一致。手改这个目录会被 CI 拦下来，改契约要改 Engine。
+- `ui-html/webview2/shared/` 是引擎 web 契约的副本，由 `ui-html/scripts/sync-contracts.py` 生成，CI 用 `--check` 验证它和 `engine/contracts/webview/` 一致。手改这个目录会被 CI 拦下来，改契约要改 `engine/contracts/`，然后在同一个提交里重新生成。
+- **`engine/` 是本仓的一等代码，不是 vendored 第三方。** 需要为 Windows 改引擎就直接改，和改 `server/` 一样评审和测试，不用绕上游。唯一例外是 `engine/` 下的 `googlepinyinime-rev/`、`utfcpp/` 和 `voice/third_party/`，那三个是上游副本，保留原格式与许可。来源与裁剪清单见 [engine/UPSTREAM.md](engine/UPSTREAM.md)。
 
-Server 当前仍使用 Engine 的兼容 `InputSession`，尚未迁移公共 `Session` facade。
+Server 当前仍使用引擎的兼容 `InputSession`，尚未迁移公共 `Session` facade。
 辅助码筛选与候选提示都按会话配置，禁止用全局默认码表驱动活动会话。
 `RuntimePaths::legacy()` 在适配器创建时捕获现有安装布局；完整资源包和用户数据代际切换仍待接入。
 
@@ -44,16 +46,20 @@ cmake -S server  -B server/build-release -A x64 ... # Server
 cmake -S ui      -B ui/build -A x64                # GUI 框架
 ```
 
-没有顶层聚合的 `CMakeLists.txt`，这是有意的：Windows tip 用静态 CRT、Server 用动态 CRT，两者的 vcpkg manifest 和编译选项互不兼容，合成一个 build tree 会互相污染。`server/` 通过 `add_subdirectory(../ui ...)` 把 `msimeui` 拉进自己的构建，这是唯一的跨组件构建引用。
+没有顶层聚合的 `CMakeLists.txt`，这是有意的：Windows tip 用静态 CRT、Server 用动态 CRT，两者的 vcpkg manifest 和编译选项互不兼容，合成一个 build tree 会互相污染。`server/` 通过 `add_subdirectory` 把 `../ui` 的 `msimeui` 和 `../engine` 拉进自己的构建，这是仅有的跨组件构建引用。
 
-`vendor/` 是 submodule，先 `git submodule update --init --recursive`。
+引擎不需要任何初始化步骤，普通 clone 即可；`vendor/` 下的 opencc 和 cpp-pinyin 仍是 submodule，构建 `windows/` 或 `server/` 前先 `git submodule update --init --recursive`。
+
+引擎头文件一律按 `engine/...` 前缀引用（`#include "engine/core/input_session.h"`），因为构建把仓库根放进了 include path。不要用相对路径回跳，那会把调用方绑死在自己的目录深度上。
+
+`scripts/format.sh` 覆盖 `server/`、`windows/`、`ui/`、`log/` 和 `engine/`（排除引擎里的第三方副本和生成的头文件），CI 用 `--check` 卡格式。
 
 ## 产品输入清单
 
-`product-lock.json` 只记录仍来自仓外的东西：Engine（在本仓是 submodule）、词库 Release 的 tag、source commit 和每个产物的 SHA256。**Server、页面、GUI 框架和安装器不在清单里**——它们是本仓的目录，本仓的一个 commit 就已经把它们钉住了。辅助码也不在——它已经并入 Engine，钉住契约的那个 gitlink 同时钉住了辅助码表。
+`product-lock.json` 只记录仍来自仓外的东西，现在只剩一项：词库 Release 的 tag、source commit 和每个产物的 SHA256。**引擎、Server、页面、GUI 框架和安装器都不在清单里**——它们是本仓的目录，本仓的一个 commit 就已经把它们钉住了。辅助码在 `engine/helpcode/`，同理。
 
-- 引擎的权威是 `vendor/MetasequoiaImeEngine` 的 gitlink；`product-lock.json` 里的 `engine.commit` 只是把它记下来，供产物清单和发布门禁使用。两者必须一致，`product_lock.py verify-contracts` 会检查。bump submodule 时同一个 PR 里把 `engine.commit` 改过来。
-- `refresh` 不再解析任何浮动源码引用：引擎取自本地 gitlink，词库取自指定 tag。词库清单里记录了构建它的 commit 和当时工作树是否干净，`verify-assets` 一并校验——摘要只能证明字节是评审过的字节，证明不了它来自一个能重建的源。
+- 引擎没有 `repositories` 条目，这是有意的。它不再有 gitlink，锁里写一个上游 commit 就等于声称这棵树仍等于上游——第一个 Windows 专门化的改动落地时这句话就假了，而且没有任何 CI 能发现。来源改记在 [engine/UPSTREAM.md](engine/UPSTREAM.md)。
+- `refresh` 不解析任何浮动源码引用，词库取自指定 tag。词库清单里记录了构建它的 commit 和当时工作树是否干净，`verify-assets` 一并校验——摘要只能证明字节是评审过的字节，证明不了它来自一个能重建的源。
 - 发布门禁 `verify-published` 要求清单里每个提交都能从各自仓库默认分支到达，只在发布路径执行，不进 CI。理由见 [docs/product-release.md](docs/product-release.md)。
 
 ## 正式发布（CI）
@@ -114,12 +120,12 @@ release workflow 里的每一段 shell 都抽在 `scripts/ci/` 下，workflow �
 | `revalidate-draft-release.sh` | 发布前复查 draft 仍指向被构建的那个 commit |
 | `publish-release.sh` | 上传产物、追加说明、发布 |
 
-合仓之前 CI 要把五个仓 checkout 到历史目录名下，`Prepare-PackageFiles.ps1` 才能不改一行地跑。现在源目录名由 workflow 显式传参（`-TsfDirectory windows -ServerDirectory server -UiHtmlDirectory ui-html -NoticesDirectory . -HelpCodeDirectory vendor/MetasequoiaImeEngine/helpcode`），只有词库还落在仓根的 `MetasequoiaImeDict/`，用的是那个参数的默认值。改动这些脚本里的产物路径时，要连同 release workflow 一起核对。
+合仓之前 CI 要把五个仓 checkout 到历史目录名下，`Prepare-PackageFiles.ps1` 才能不改一行地跑。现在源目录名由 workflow 显式传参（`-TsfDirectory windows -ServerDirectory server -UiHtmlDirectory ui-html -NoticesDirectory . -HelpCodeDirectory engine/helpcode`），只有词库还落在仓根的 `MetasequoiaImeDict/`，用的是那个参数的默认值。改动这些脚本里的产物路径时，要连同 release workflow 一起核对。
 
-词库不在 CI 里现建，从产品锁指定仓库的 `dict-*` release 下载并校验 SHA256。词库源数据与构建入口已并入 MSIME-Engine，现有 MSIME-Dict release 作为不可变旧产物保留；换发布源要在 `product_lock.py` 里明确评审，不是改个 tag 就能悄悄完成的事。词库改了要先在 Engine 跑构建 workflow 并勾选 publish，再发 Windows 版本；通过 `scripts/product_lock.py refresh --dictionary-tag <tag>` 更新产品锁并评审摘要变更；发布构建不能临时覆盖词库版本。
+词库不在 CI 里现建，从产品锁指定仓库的 `dict-*` release 下载并校验 SHA256。**建库流水线不在本仓**——它随引擎的专门化一并裁掉了（见 [engine/UPSTREAM.md](engine/UPSTREAM.md)），现有 MSIME-Dict release 作为不可变旧产物保留；换发布源要在 `product_lock.py` 里明确评审，不是改个 tag 就能悄悄完成的事。词库改了要先在上游把新词库发布出来，再发 Windows 版本；通过 `scripts/product_lock.py refresh --dictionary-tag <tag>` 更新产品锁并评审摘要变更；发布构建不能临时覆盖词库版本。
 
 签名沿用「有证书就签、没有就发未签名版」的策略：配置了 `WINDOWS_SIGNING_CERTIFICATE_BASE64` 和 `WINDOWS_SIGNING_CERTIFICATE_PASSWORD` 两个 secret，或 runner 用户证书存储中配置的 thumbprint 可用时，用 `signtool` 签 uiAccess Server 和最终安装包；没配置时产物名带 `-unsigned` 后缀，并在 release 说明里写明 `uiAccess` 不会生效。Server 的 `uiAccess=true` manifest 必须在上传和签名之前由 `scripts/ci/embed-server-manifest.ps1` 注入并验证；`Sign-PackageBinaries-Local.ps1` 使用本机自签名证书，只用于本地验证，CI 不会调用它。
 
 ## 提交
 
-提交信息用 `type(scope): 摘要`，scope 用目录名（`windows`、`server`、`ui`、`ui-html`、`installer`）。不要添加 `Co-Authored-By`、`Generated with` 或其他 AI 生成标记。
+提交信息用 `type(scope): 摘要`，scope 用目录名（`windows`、`server`、`engine`、`ui`、`ui-html`、`installer`）。不要添加 `Co-Authored-By`、`Generated with` 或其他 AI 生成标记。
