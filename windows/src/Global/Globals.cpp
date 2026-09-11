@@ -298,6 +298,7 @@ extern const std::unordered_set<WCHAR> CommitWithHighlightedCandPunc = {
     L'[',  //
     L']',  //
     L'\\', //
+    L'/',  //
     L';',  //
     L':',  //
     L'\'', //
