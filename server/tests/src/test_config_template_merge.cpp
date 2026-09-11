@@ -2,6 +2,8 @@
 #include "config/ime_config.h"
 #include "tests/includes/test_framework.h"
 #include <type_traits>
+#include <fstream>
+#include <iterator>
 
 TEST_CASE(font_fallback_upgrade_preserves_legacy_fonts_and_order)
 {
@@ -154,4 +156,28 @@ TEST_CASE(configured_voice_input_is_handed_out_as_a_snapshot)
 
     const VoiceInputConfig snapshot = GetConfiguredVoiceInput();
     REQUIRE_EQ(snapshot.commit_mode, VoiceInputConfig().commit_mode);
+}
+
+// 读取安装器真正分发的模板，防止开发配置齐全、安装模板漏项导致升级后丢失设置。
+TEST_CASE(shipped_translation_settings_survive_template_upgrade)
+{
+    std::ifstream input(MSIME_DEFAULT_CONFIG_PATH, std::ios::binary);
+    REQUIRE(static_cast<bool>(input));
+    const std::string installed((std::istreambuf_iterator<char>(input)), {});
+    const std::string configured =
+        "[custom_translation]\nenabled = true\nendpoint = \"https://translation.example/translate\"\n"
+        "api_key = \"test-translation-key\"\n[tencent_tmt]\ntarget_language = \"ja\"\n";
+    const std::string legacy_template = "[tencent_tmt]\nenabled = true\n";
+
+    // 同时覆盖旧版本缺少这些字段，以及新版本已经包含这些字段的升级。
+    for (const auto &baseline : {legacy_template, installed})
+    {
+        const auto merged = toml::parse(MergeConfigIntoTemplate(installed, configured, baseline));
+        REQUIRE(merged["custom_translation"]["enabled"].value_or(false));
+        REQUIRE_EQ(merged["custom_translation"]["endpoint"].value_or(std::string()),
+                   std::string("https://translation.example/translate"));
+        REQUIRE_EQ(merged["custom_translation"]["api_key"].value_or(std::string()),
+                   std::string("test-translation-key"));
+        REQUIRE_EQ(merged["tencent_tmt"]["target_language"].value_or(std::string()), std::string("ja"));
+    }
 }
