@@ -1414,6 +1414,14 @@ void NotifyImeServerInputSchemeChanged()
     NotifyImeServer(WM_APPLY_IME_INPUT_SCHEME, L"InputSchemeChanged");
 }
 
+bool NotifyImeServerRestart()
+{
+    // No window message carries a restart, so there is no PostMessage fallback
+    // here: if the Aux pipe is unavailable the Server is not running anyway, and
+    // the caller reports that instead of silently doing nothing.
+    return SendAuxConfigNotification(L"RestartServer");
+}
+
 std::string MergeConfigIntoTemplate(const std::string &template_text, const std::string &user_text,
                                     const std::string &baseline_text)
 {

@@ -124,6 +124,8 @@ void InvalidateImeConfigWriteTime();
 void NotifyImeServerConfigChanged();
 void NotifyImeServerCandidateSkinRefresh();
 void NotifyImeServerInputSchemeChanged();
+// 请求输入法后台进程重启（由 Watchdog 拉起）。返回是否成功送达。
+bool NotifyImeServerRestart();
 // 升级用：以新版模板为骨架重建配置。用户改过的值（与 baseline 中的旧默认值不同）保留，
 // 其余跟随新默认值；模板里没有的旧键被丢弃。baseline 为空时一律保留用户值。
 std::string MergeConfigIntoTemplate(const std::string &template_text, const std::string &user_text,

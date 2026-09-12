@@ -34,6 +34,13 @@ bool IsKeyPressed(int vk)
     return (GetAsyncKeyState(vk) & 0x8000) != 0;
 }
 
+void RestartServerProcess()
+{
+    if (g_hHook)
+        UnhookWindowsHookEx(g_hHook);
+    ExitProcess(WatchdogProtocol::kRestartExitCode);
+}
+
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
     // When Alt is held, Windows normally reports the following non-system key
@@ -83,8 +90,7 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
         //
         if (ctrl && shift && alt && p->vkCode == 'R')
         {
-            UnhookWindowsHookEx(g_hHook);
-            ExitProcess(WatchdogProtocol::kRestartExitCode);
+            RestartServerProcess();
         }
 
         //

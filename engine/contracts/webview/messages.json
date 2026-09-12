@@ -21,6 +21,11 @@
         "settings"
       ]
     },
+    "restartServer": {
+      "surfaces": [
+        "settings"
+      ]
+    },
     "copyText": {
       "surfaces": [
         "settings"

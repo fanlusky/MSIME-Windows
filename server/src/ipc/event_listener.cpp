@@ -2986,6 +2986,13 @@ void AuxPipeEventListenerLoopThread()
                     // gating and never activates a suspended TIP for a menu click.
                     EnqueueTask(TaskType::LangbarRightClick, pipeData, 0);
                 }
+                else if (message == L"RestartServer")
+                {
+                    // Settings runs in its own process, so the restart it offers for
+                    // backend changes has to travel the same cross-integrity Aux path
+                    // the config notifications use. The Watchdog relaunches us.
+                    RestartServerProcess();
+                }
                 else if (message == L"ConfigChanged" || message == L"InputSchemeChanged" ||
                          message == L"CandidateSkinRefresh")
                 {

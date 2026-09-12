@@ -496,6 +496,25 @@ export function applyAppearanceConfig(
   applyCandidatePreviewPreedit();
 }
 
+// The Watchdog owns the relaunch, so the page never hears back about the new
+// Server. Disable the button for a moment instead, otherwise repeated clicks
+// queue several exits while the previous process is still tearing down.
+function setupRestartServerButton(): void {
+  const button = document.getElementById('restartServerBtn') as HTMLButtonElement | null;
+  if (!button) return;
+  const label = button.textContent ?? '重启';
+  button.addEventListener('click', () => {
+    if (button.disabled) return;
+    button.disabled = true;
+    button.textContent = '重启中…';
+    window.chrome?.webview?.postMessage(serializeHostMessage({ type: 'restartServer' }));
+    setTimeout(() => {
+      button.disabled = false;
+      button.textContent = label;
+    }, 3000);
+  });
+}
+
 export async function setupAppearance() {
   // 候选窗口预览
   const wnd_v = document.getElementById('candidate-wnd-v')!;
@@ -536,6 +555,7 @@ export async function setupAppearance() {
   setupDropdownMenu('voiceThemeBtn', 'voiceThemeMenu', 'changeVoiceTheme', false, 'appearance.theme_voice');
 
   setupDropdownMenu('uiBackendBtn', 'uiBackendMenu', '', true, 'appearance.ui_backend');
+  setupRestartServerButton();
 
   // 候选项排列方式
   setupDropdownMenu('arrangeBtn', 'arrangeMenu', 'changeCandidateArrange');

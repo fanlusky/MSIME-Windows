@@ -97,6 +97,8 @@ The server process includes a few built-in global shortcuts that are useful duri
   - terminate `MetasequoiaImeServer` immediately
 - `Ctrl + Shift + Alt + R`
   - restart `MetasequoiaImeServer`
+  - Settings exposes the same restart under 外观 → 重启输入法进程; it reaches the
+    server over the Aux pipe because Settings runs in its own process
 - `Ctrl + Shift + Alt + C`
   - clear IME engine cache
 - `Ctrl + Shift + Alt + 1` to `Ctrl + Shift + Alt + 8`

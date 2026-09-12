@@ -899,6 +899,14 @@ void HandleWebMessage(HWND hwnd, ICoreWebView2WebMessageReceivedEventArgs *args)
         {
             OpenHandwritingPanelApplication();
         }
+        else if (type == "restartServer")
+        {
+            if (!NotifyImeServerRestart())
+            {
+                MessageBoxW(g_settings_hwnd, L"未能重启输入法进程，请稍后重试。", L"水杉输入法",
+                            MB_OK | MB_ICONWARNING);
+            }
+        }
         else if (type == "openExternalUrl")
         {
             const std::string url = json::value_to<std::string>(value.at("data"));

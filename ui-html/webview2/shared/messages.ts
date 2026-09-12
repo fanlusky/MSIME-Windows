@@ -6,6 +6,7 @@ export type ClientMessage =
   | { "type": "skinCatalogRequest"; "protocolVersion"?: 1 }
   | { "type": "openSkinDirectory"; "protocolVersion"?: 1 }
   | { "type": "openHandwritingPanel"; "protocolVersion"?: 1 }
+  | { "type": "restartServer"; "protocolVersion"?: 1 }
   | { "type": "copyText"; "protocolVersion"?: 1; "data": string }
   | { "type": "openExternalUrl"; "protocolVersion"?: 1; "data": string }
   | { "type": "dragStart"; "protocolVersion"?: 1 }
@@ -54,6 +55,7 @@ export type SettingsMessage =
   | { "type": "skinCatalogRequest"; "protocolVersion"?: 1 }
   | { "type": "openSkinDirectory"; "protocolVersion"?: 1 }
   | { "type": "openHandwritingPanel"; "protocolVersion"?: 1 }
+  | { "type": "restartServer"; "protocolVersion"?: 1 }
   | { "type": "copyText"; "protocolVersion"?: 1; "data": string }
   | { "type": "openExternalUrl"; "protocolVersion"?: 1; "data": string }
   | { "type": "dragStart"; "protocolVersion"?: 1 }
