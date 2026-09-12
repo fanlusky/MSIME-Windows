@@ -193,6 +193,10 @@ function applyConfigData(data: Record<string, any>, target?: string): void {
     const checkbox = findElement('pagingPageUpDownCheckbox') as HTMLInputElement | null;
     if (checkbox) checkbox.checked = data.general.paging_page_up_down;
   }
+  if (typeof data?.general?.paging_mouse_wheel === 'boolean') {
+    const checkbox = findElement('pagingMouseWheelCheckbox') as HTMLInputElement | null;
+    if (checkbox) checkbox.checked = data.general.paging_mouse_wheel;
+  }
   if (typeof data?.general?.candidate_arrow_navigation === 'boolean') {
     const checkbox = findElement('candidateArrowNavigationCheckbox') as HTMLInputElement | null;
     if (checkbox) checkbox.checked = data.general.candidate_arrow_navigation;

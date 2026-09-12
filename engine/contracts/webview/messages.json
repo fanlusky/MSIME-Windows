@@ -292,6 +292,16 @@
         "maximum": 10
       }
     },
+    "candidateWheel": {
+      "surfaces": [
+        "candidate"
+      ],
+      "data": {
+        "type": "integer",
+        "minimum": -32768,
+        "maximum": 32767
+      }
+    },
     "fixPosition": {
       "surfaces": [
         "candidate"

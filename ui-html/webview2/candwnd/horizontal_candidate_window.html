@@ -133,6 +133,26 @@
           }}));
         }
       });
+
+      // Wheel paging. The page forwards a raw delta and nothing else: the notch
+      // accumulator, the enable/disable setting and the page moves themselves all
+      // live natively, shared with the D2D candidate window.
+      document.addEventListener('wheel', function (event) {
+        event.preventDefault();
+        const menu = document.getElementById('contextMenu');
+        if (menu && menu.style.display === 'block') {
+          // Same as the D2D window: scrolling dismisses the menu and stops there.
+          hideContextMenu();
+          return;
+        }
+        // Chromium always fills wheelDeltaY, already in WHEEL_DELTA units
+        // (±120 per notch), which is what the native accumulator expects.
+        // deltaY is the standards fallback at 100 CSS px per notch.
+        const raw = Number.isFinite(event.wheelDeltaY) ? event.wheelDeltaY : -event.deltaY * 1.2;
+        const delta = Math.trunc(Math.max(-32768, Math.min(32767, raw)));
+        if (delta === 0) return;
+        window.chrome.webview.postMessage(serializeHostMessage({ type: 'candidateWheel', data: delta }));
+      }, { passive: false });
     });
     function hideContextMenu() {
       const menu = document.getElementById('contextMenu');

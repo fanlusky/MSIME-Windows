@@ -9,6 +9,7 @@
 #include "utils/ime_utils.h"
 #include "utils/webview_utils.h"
 #include "window/candidate_presenter.h"
+#include "window/candidate_wheel_paging.h"
 #include "window/floating_toolbar_presenter.h"
 #include "window/tray_menu_presenter.h"
 #include "window/floating_toolbar_visibility_policy.h"
@@ -1767,6 +1768,11 @@ POINT g_candidate_hover_cursor{};
 bool g_candidate_hover_armed = false;
 ULONGLONG g_candidate_hover_disarm_tick = 0;
 
+// Leftover wheel travel below one notch, carried across `candidateWheel`
+// messages. The page reports deltas in WHEEL_DELTA units, so this is the same
+// accumulator the D2D presenter keeps for WM_MOUSEWHEEL.
+int g_candidate_wheel_accumulator = 0;
+
 // CSS :hover is applied by Chromium when the HWND sits under a still
 // cursor. That does not go through mousemove JS. Kill those paints until
 // the physical screen cursor actually moves after the card is up.
@@ -2944,6 +2950,32 @@ HRESULT OnControllerCreatedCandWnd(     //
                             int idx = json::value_to<int>(val.at("data"));
                             if (FanyImeIpc::IsValidCandidateUiOneBasedIndex(idx))
                                 PostMessage(::global_hwnd, WM_CLEAR_CANDIDATE_POSITION, idx, 0);
+                        }
+                        else if (type == "candidateWheel")
+                        {
+                            const int delta = json::value_to<int>(val.at("data"));
+                            if (!::is_global_wnd_cand_shown)
+                            {
+                                // The page can post a wheel message that was in
+                                // flight when the candidate window went away.
+                                g_candidate_wheel_accumulator = 0;
+                            }
+                            else
+                            {
+                                const CandidateWheel::PagingSteps steps = CandidateWheel::ConsumeWheelDelta(
+                                    g_candidate_wheel_accumulator, delta, WHEEL_DELTA);
+                                // Same WM_PAGE_CANDIDATE route as the D2D window,
+                                // which is also where the setting is checked.
+                                if (steps.page_up > 0)
+                                {
+                                    PostMessage(::global_hwnd, WM_PAGE_CANDIDATE, CANDIDATE_PAGE_PREVIOUS,
+                                                steps.page_up);
+                                }
+                                if (steps.page_down > 0)
+                                {
+                                    PostMessage(::global_hwnd, WM_PAGE_CANDIDATE, CANDIDATE_PAGE_NEXT, steps.page_down);
+                                }
+                            }
                         }
                         else if (type == "contextMenuResize")
                         {
@@ -4280,6 +4312,14 @@ HRESULT OnControllerCreatedSettingsWnd(            //
                                     PostSettingsConfig();
                                 }
                             }
+                            else if (path == "general.paging_mouse_wheel")
+                            {
+                                const bool value = json::value_to<bool>(data.at("value"));
+                                if (SetConfiguredPagingMouseWheelEnabled(value))
+                                {
+                                    PostSettingsConfig();
+                                }
+                            }
                             else if (path == "general.candidate_arrow_navigation")
                             {
                                 const bool value = json::value_to<bool>(data.at("value"));
@@ -4525,6 +4565,7 @@ void PostSettingsConfig()
             {"paging_brackets", GetConfiguredPagingBracketsEnabled()},
             {"paging_tab", GetConfiguredPagingTabEnabled()},
             {"paging_page_up_down", GetConfiguredPagingPageUpDownEnabled()},
+            {"paging_mouse_wheel", GetConfiguredPagingMouseWheelEnabled()},
             {"candidate_arrow_navigation", GetConfiguredCandidateArrowNavigationEnabled()}}},
           {"keybindings",
            {{"switch_language_shift", GetConfiguredSwitchLanguageShiftEnabled()},

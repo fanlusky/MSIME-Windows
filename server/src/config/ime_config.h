@@ -270,6 +270,11 @@ bool GetConfiguredPagingTabEnabled();
 bool SetConfiguredPagingTabEnabled(bool enabled);
 bool GetConfiguredPagingPageUpDownEnabled();
 bool SetConfiguredPagingPageUpDownEnabled(bool enabled);
+// Mouse wheel over the candidate window. Default off: the wheel only reaches a
+// never-focused NOACTIVATE host when Windows' "scroll inactive windows when I
+// hover over them" is enabled, so this cannot be promised unconditionally.
+bool GetConfiguredPagingMouseWheelEnabled();
+bool SetConfiguredPagingMouseWheelEnabled(bool enabled);
 bool GetConfiguredCandidateArrowNavigationEnabled();
 bool SetConfiguredCandidateArrowNavigationEnabled(bool enabled);
 bool GetConfiguredWordToCharacterEnabled();

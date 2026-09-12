@@ -103,6 +103,9 @@ bool g_paging_comma_period_enabled = false;
 bool g_paging_brackets_enabled = false;
 bool g_paging_tab_enabled = true;
 bool g_paging_page_up_down_enabled = true;
+// Off by default: the wheel only reaches the candidate host when Windows'
+// "scroll inactive windows on hover" is on, so the feature is opt-in.
+bool g_paging_mouse_wheel_enabled = false;
 bool g_candidate_arrow_navigation_enabled = true;
 bool g_word_to_character_enabled = false;
 std::string g_word_to_character_keys = "brackets";
@@ -932,6 +935,7 @@ bool LoadImeConfig()
         g_paging_tab_enabled =
             tbl["general"]["paging_tab"].value_or(legacy_paging_mode && *legacy_paging_mode == "Shift+Tab/Tab");
         g_paging_page_up_down_enabled = tbl["general"]["paging_page_up_down"].value_or(true);
+        g_paging_mouse_wheel_enabled = tbl["general"]["paging_mouse_wheel"].value_or(false);
         g_candidate_arrow_navigation_enabled = tbl["general"]["candidate_arrow_navigation"].value_or(true);
         g_word_to_character_enabled = tbl["input"]["word_to_character"].value_or(false);
         g_word_to_character_keys = tbl["input"]["word_to_character_keys"].value_or(std::string("brackets"));
@@ -2506,6 +2510,21 @@ bool SetConfiguredPagingPageUpDownEnabled(bool enabled)
         return false;
     }
     g_paging_page_up_down_enabled = enabled;
+    return true;
+}
+
+bool GetConfiguredPagingMouseWheelEnabled()
+{
+    return g_paging_mouse_wheel_enabled;
+}
+
+bool SetConfiguredPagingMouseWheelEnabled(bool enabled)
+{
+    if (!WriteConfiguredValue("general", "paging_mouse_wheel", enabled ? "true" : "false"))
+    {
+        return false;
+    }
+    g_paging_mouse_wheel_enabled = enabled;
     return true;
 }
 

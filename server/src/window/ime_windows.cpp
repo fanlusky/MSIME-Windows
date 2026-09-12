@@ -2852,6 +2852,13 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
         break;
 
     case WM_PAGE_CANDIDATE:
+        // Both candidate hosts funnel wheel paging through here — the D2D
+        // presenter and the WebView2 page's `candidateWheel` message — so this is
+        // the one place the setting has to be honoured.
+        if (!GetConfiguredPagingMouseWheelEnabled())
+        {
+            break;
+        }
         FanyNamedPipe::EnqueueCandidateUiPaging(wParam == CANDIDATE_PAGE_NEXT
                                                     ? FanyNamedPipe::CandidateUiAction::PageDown
                                                     : FanyNamedPipe::CandidateUiAction::PageUp,
