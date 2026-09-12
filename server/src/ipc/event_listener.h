@@ -29,6 +29,8 @@ enum class CandidateUiAction
     Delete,
     FixPosition,
     ClearPosition,
+    PageUp,
+    PageDown,
 };
 
 void WorkerThread();
@@ -54,6 +56,10 @@ void EnqueueCandidateTranslations(std::vector<EnglishIme::TranslationResult> res
 void EnqueueEmojiCandidates(std::vector<WordItem> candidates, const std::string &input, uint64_t generation);
 void EnqueueKaomojiCandidates(std::vector<WordItem> candidates, const std::string &input, uint64_t generation);
 void EnqueueCandidateUiAction(CandidateUiAction action, int one_based_index, int fixed_position = 0);
+// Paging carries a step count rather than a candidate index. Steps coalesce
+// into a page task already queued for the same client, so spinning the wheel
+// cannot outrun the worker with a long run of engine-backed page moves.
+void EnqueueCandidateUiPaging(CandidateUiAction action, int steps);
 void EnqueuePipeSessionInvalidatedTask(uint64_t client_id, uint64_t invalidation_epoch);
 void EnqueueReloadInputSessionTask();
 void EnqueueEnsureInputSessionMatchesConfigTask();

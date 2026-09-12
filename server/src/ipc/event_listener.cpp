@@ -1340,6 +1340,8 @@ enum class TaskType
     UiDeleteCandidate,
     UiFixCandidatePosition,
     UiClearCandidatePosition,
+    UiPageUp,
+    UiPageDown,
     ReloadInputSession,
     EnsureInputSessionMatchesConfig,
     ApplyCandidatePageSize,
@@ -1380,6 +1382,7 @@ struct Task
     bool session_pinyin_is_canonical = false;
     int candidate_one_based_index = 0;
     int fixed_position = 0;
+    int page_steps = 0;
 };
 
 struct ScopedServerKeyLatency
@@ -1428,6 +1431,69 @@ std::string EnglishRankingContextKey()
     std::transform(key.begin(), key.end(), key.begin(),
                    [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     return "english:" + key;
+}
+
+// Pulls the next batch of candidates out of the session without disturbing
+// where the user currently is: set_items resets the page and the selection, so
+// both are restored afterwards. Returns false when nothing more was loaded.
+bool ExpandCandidatesKeepingPagePosition()
+{
+    auto &ui = Global::candidate_ui;
+    if (IsSpecialModeCompositionActive(GlobalIme::composition.raw_input_with_cases) || !g_inputSession ||
+        !g_inputSession->expand_initial_candidates())
+    {
+        return false;
+    }
+    const int current_page = ui.page_index;
+    const int current_selection = ui.selected_index_in_page;
+    auto expanded = g_inputSession->get_candidates();
+    user_dictionary::apply_fixed_positions(
+        user_dictionary::default_user_db_path(), CurrentRankingContextKey(), expanded, true,
+        [](const std::string &key, const std::string &value) { return g_inputSession->find_candidate(key, value); },
+        g_inputSession->has_active_helpcode());
+    ui.set_items(std::move(expanded));
+    ui.page_index = current_page;
+    ui.selected_index_in_page = current_selection;
+    return true;
+}
+
+enum class PageMoveResult
+{
+    Unchanged,
+    // An expansion filled out the current page; the page index did not move.
+    CurrentPageRefilled,
+    Moved,
+};
+
+// Moves one page in `offset`'s direction, expanding the candidate list first
+// when the move would run off the end. Anything other than Unchanged needs a
+// UI refresh.
+PageMoveResult MoveCandidatePage(int offset)
+{
+    auto &ui = Global::candidate_ui;
+    if (offset > 0 && ui.is_next_page_partial_last_page())
+    {
+        // Populate the last partial page before entering it, so the first
+        // display of that page is already full.
+        ExpandCandidatesKeepingPagePosition();
+    }
+    else if (offset > 0 && !ui.has_next_page())
+    {
+        const bool current_page_was_full = ui.is_current_page_full();
+        if (ExpandCandidatesKeepingPagePosition() && !current_page_was_full)
+        {
+            // Newly loaded items first fill the unused slots on the current last
+            // page. Refresh that page instead of skipping those items by
+            // advancing immediately.
+            return PageMoveResult::CurrentPageRefilled;
+        }
+    }
+    if (offset < 0 ? ui.has_prev_page() : ui.has_next_page())
+    {
+        ui.page_index += offset;
+        return PageMoveResult::Moved;
+    }
+    return PageMoveResult::Unchanged;
 }
 
 std::string CandidateDatabaseKey(const WordItem &item, const std::string &context_key)
@@ -1522,7 +1588,8 @@ void WorkerThread()
         const bool candidateUiAction =
             task.type == TaskType::UiCommitCandidate || task.type == TaskType::UiPinCandidate ||
             task.type == TaskType::UiDeleteCandidate || task.type == TaskType::UiFixCandidatePosition ||
-            task.type == TaskType::UiClearCandidatePosition;
+            task.type == TaskType::UiClearCandidatePosition || task.type == TaskType::UiPageUp ||
+            task.type == TaskType::UiPageDown;
         if (candidateUiAction && !CandidateUiOwnerIsCurrent({task.client_id, task.activation_epoch}))
         {
             // The page was hidden or replaced after the click was posted.
@@ -1924,6 +1991,36 @@ void WorkerThread()
             break;
         }
 
+        case TaskType::UiPageUp:
+        case TaskType::UiPageDown: {
+            const int offset = (task.type == TaskType::UiPageDown) ? 1 : -1;
+            // A coalesced burst of wheel notches replays as several page moves
+            // and a single refresh at the end, so a fast scroll costs one redraw
+            // rather than one per notch.
+            bool refresh = false;
+            for (int step = 0; step < task.page_steps; ++step)
+            {
+                const PageMoveResult moved = MoveCandidatePage(offset);
+                if (moved == PageMoveResult::Unchanged)
+                {
+                    break;
+                }
+                refresh = true;
+                if (moved == PageMoveResult::Moved)
+                {
+                    // Mouse paging restarts the highlight at the top of the new
+                    // page; the pointer, unlike the arrow keys, carries no
+                    // notion of which row the user was on.
+                    Global::candidate_ui.selected_index_in_page = 0;
+                }
+            }
+            if (refresh)
+            {
+                RefreshCandidatePageUi(true);
+            }
+            break;
+        }
+
         case TaskType::ReloadInputSession: {
             ClearState();
             Global::candidate_ui.page_size = GetConfiguredCandidatePageSize();
@@ -2231,6 +2328,11 @@ void EnqueueCandidateUiAction(CandidateUiAction action, int one_based_index, int
     {
         type = TaskType::UiClearCandidatePosition;
     }
+    else if (action == CandidateUiAction::PageUp || action == CandidateUiAction::PageDown)
+    {
+        // Paging has no candidate index; it goes through EnqueueCandidateUiPaging.
+        return;
+    }
 
     {
         std::lock_guard lock(queueMutex);
@@ -2241,6 +2343,47 @@ void EnqueueCandidateUiAction(CandidateUiAction action, int one_based_index, int
         task.candidate_one_based_index = one_based_index;
         task.fixed_position = fixed_position;
         taskQueue.push(std::move(task));
+    }
+    pipe_queueCv.notify_one();
+}
+
+void EnqueueCandidateUiPaging(CandidateUiAction action, int steps)
+{
+    if (!pipe_running || steps <= 0)
+    {
+        return;
+    }
+    if (action != CandidateUiAction::PageUp && action != CandidateUiAction::PageDown)
+    {
+        return;
+    }
+
+    const FanyImeIpc::CandidateUiOwner owner = SnapshotCandidateUiOwner();
+    if (!owner)
+    {
+        return;
+    }
+
+    const TaskType type = action == CandidateUiAction::PageUp ? TaskType::UiPageUp : TaskType::UiPageDown;
+    {
+        std::lock_guard lock(queueMutex);
+        // One notch of the wheel is one step, and every step can hit the engine
+        // and the user dictionary. Folding a burst into the task already waiting
+        // for the same page keeps a fast scroll from queueing an unbounded run.
+        if (!taskQueue.empty() && taskQueue.back().type == type && taskQueue.back().client_id == owner.client_id &&
+            taskQueue.back().activation_epoch == owner.activation_epoch)
+        {
+            taskQueue.back().page_steps += steps;
+        }
+        else
+        {
+            Task task;
+            task.type = type;
+            task.client_id = owner.client_id;
+            task.activation_epoch = owner.activation_epoch;
+            task.page_steps = steps;
+            taskQueue.push(std::move(task));
+        }
     }
     pipe_queueCv.notify_one();
 }
@@ -3993,49 +4136,12 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
         UINT result = Global::DataFromServerMsgType::NavigationIgnored;
         bool refresh = false;
 
-        const auto expand_initial_candidates = [&] {
-            if (!IsSpecialModeCompositionActive(GlobalIme::composition.raw_input_with_cases) &&
-                g_inputSession->expand_initial_candidates())
-            {
-                const int current_page = ui.page_index;
-                const int current_selection = ui.selected_index_in_page;
-                auto expanded = g_inputSession->get_candidates();
-                user_dictionary::apply_fixed_positions(
-                    user_dictionary::default_user_db_path(), CurrentRankingContextKey(), expanded, true,
-                    [](const std::string &key, const std::string &value) {
-                        return g_inputSession->find_candidate(key, value);
-                    },
-                    g_inputSession->has_active_helpcode());
-                ui.set_items(std::move(expanded));
-                ui.page_index = current_page;
-                ui.selected_index_in_page = current_selection;
-                return true;
-            }
-            return false;
-        };
         const auto move_page = [&](int offset, UINT response_type) {
             result = response_type;
-            if (offset > 0 && ui.is_next_page_partial_last_page())
+            // Keyboard paging keeps the in-page selection where it is; the wheel
+            // path in WorkerThread is the one that restarts it at the top.
+            if (MoveCandidatePage(offset) != PageMoveResult::Unchanged)
             {
-                // Populate the last partial page before entering it, so the
-                // first display of that page is already full.
-                expand_initial_candidates();
-            }
-            else if (offset > 0 && !ui.has_next_page())
-            {
-                const bool current_page_was_full = ui.is_current_page_full();
-                if (expand_initial_candidates() && !current_page_was_full)
-                {
-                    // Newly loaded items first fill the unused slots on the
-                    // current last page. Refresh that page instead of skipping
-                    // those items by advancing immediately.
-                    refresh = true;
-                    return;
-                }
-            }
-            if (offset < 0 ? ui.has_prev_page() : ui.has_next_page())
-            {
-                ui.page_index += offset;
                 refresh = true;
             }
         };
@@ -4044,7 +4150,7 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
             if (offset > 0 && (ui.is_selection_at_last_candidate() ||
                                (ui.is_selection_at_current_page_end() && ui.is_next_page_partial_last_page())))
             {
-                expand_initial_candidates();
+                ExpandCandidatesKeepingPagePosition();
             }
             if (ui.move_selection(offset))
             {

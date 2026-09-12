@@ -56,4 +56,5 @@ class CandidatePresenter
     int lastHostHeightPx_ = 0;
     float lastLayoutWidthDip_ = 0.0f;
     float lastLayoutHeightDip_ = 0.0f;
+    int wheelDeltaAccumulator_ = 0;
 };

@@ -28,3 +28,8 @@ inline const UINT WM_APPLY_IME_CONFIG = WM_USER + 116;
 inline const UINT UPDATE_FTB_CAPS_LOCK = WM_USER + 117;
 inline const UINT WM_APPLY_IME_INPUT_SCHEME = WM_USER + 118;
 inline const UINT WM_REFRESH_CHARACTER_SET = WM_USER + 119;
+inline const UINT WM_PAGE_CANDIDATE = WM_USER + 120;
+
+// wParam of WM_PAGE_CANDIDATE; lParam carries how many pages to move.
+inline constexpr WPARAM CANDIDATE_PAGE_PREVIOUS = 0;
+inline constexpr WPARAM CANDIDATE_PAGE_NEXT = 1;

@@ -142,3 +142,55 @@ TEST_CASE(candidate_page_snapshot_survives_a_rebuild_of_the_live_state)
     Global::ClearCandidatePageSnapshot();
     REQUIRE(Global::LoadCandidatePageSnapshot()->page_views.empty());
 }
+
+TEST_CASE(candidate_ui_page_navigation_boundaries)
+{
+    auto state = MakeCandidateUiState(15, 5);
+    state.page_index = 0;
+    state.selected_index_in_page = 0;
+
+    REQUIRE(!state.has_prev_page());
+    REQUIRE(state.has_next_page());
+
+    state.page_index += 1;
+    REQUIRE(state.has_prev_page());
+    REQUIRE(state.has_next_page());
+
+    state.page_index += 1;
+    REQUIRE(state.has_prev_page());
+    REQUIRE(!state.has_next_page());
+    REQUIRE(state.current_page_count() == 5);
+}
+
+// Paging expands the candidate list ahead of the move when these predicates
+// fire. Which page they fire on is what keeps a half-empty last page from ever
+// being shown.
+TEST_CASE(candidate_ui_flags_only_the_page_before_a_partial_last_page)
+{
+    auto state = MakeCandidateUiState(13, 5);
+
+    state.page_index = 0;
+    REQUIRE(!state.is_next_page_partial_last_page());
+    REQUIRE(state.is_current_page_full());
+
+    state.page_index = 1;
+    REQUIRE(state.is_next_page_partial_last_page());
+    REQUIRE(state.is_current_page_full());
+
+    state.page_index = 2;
+    REQUIRE(!state.is_next_page_partial_last_page());
+    REQUIRE(!state.is_current_page_full());
+    REQUIRE(state.current_page_count() == 3);
+}
+
+TEST_CASE(candidate_ui_never_flags_a_partial_last_page_when_pages_divide_evenly)
+{
+    auto state = MakeCandidateUiState(15, 5);
+
+    for (int page = 0; page < 3; ++page)
+    {
+        state.page_index = page;
+        REQUIRE(!state.is_next_page_partial_last_page());
+        REQUIRE(state.is_current_page_full());
+    }
+}

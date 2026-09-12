@@ -10,6 +10,7 @@
 #include "utils/common_utils.h"
 #include "utils/ime_utils.h"
 #include "utils/window_utils.h"
+#include "window/candidate_wheel_paging.h"
 #include "window/ime_windows.h"
 
 #include "msimeui/Controls.h"
@@ -760,6 +761,19 @@ void CandidatePresenter::CloseContextMenu(bool restoreHost)
         return;
     }
 
+    // ShowFromGlobalState and Hide call this on every keystroke, so the hover
+    // teardown and the repaint below only run when a menu is actually up.
+    const bool hadPopup = impl_->contextMenu || impl_->contextSubmenu;
+    if (hadPopup)
+    {
+        // Window caches the hovered and focused Visual as raw pointers. They
+        // point into the popup destroyed a few lines below, so they have to be
+        // dropped first or the next mouse message dispatches through a dangling
+        // pointer.
+        impl_->window->DispatchImportedMessage(WM_MOUSELEAVE, 0, 0);
+        impl_->window->FocusVisual(nullptr);
+    }
+
     if (msimeui::Scene *scene = impl_->window->GetScene())
     {
         if (impl_->contextSubmenu)
@@ -783,6 +797,10 @@ void CandidatePresenter::CloseContextMenu(bool restoreHost)
     else
     {
         impl_->hostExpandedForMenu = false;
+    }
+    if (hadPopup)
+    {
+        Present();
     }
 }
 
@@ -812,11 +830,16 @@ void CandidatePresenter::CloseFixSubmenu()
     {
         return;
     }
+    // The submenu visual outlives this call (contextSubmenu keeps it alive for
+    // a later reopen), but it leaves the scene here, so the cached hover has to
+    // go with it. Focus stays where it is: the parent menu is still open.
+    impl_->window->DispatchImportedMessage(WM_MOUSELEAVE, 0, 0);
     if (msimeui::Scene *scene = impl_->window->GetScene())
     {
         scene->RemovePopup(impl_->contextSubmenu.get(), false);
     }
     impl_->contextSubmenuOpen = false;
+    Present();
 }
 
 void CandidatePresenter::ExpandHostForMenu(POINT clientPoint)
@@ -1050,6 +1073,7 @@ void CandidatePresenter::Hide()
     CloseContextMenu(false);
     ::is_global_wnd_cand_shown = false;
     hoverArmed_ = false;
+    wheelDeltaAccumulator_ = 0;
     if (impl_ && impl_->list)
     {
         impl_->list->SetHoverEnabled(false);
@@ -1168,6 +1192,35 @@ bool CandidatePresenter::HandleMessage(UINT message, WPARAM wParam, LPARAM lPara
         impl_->window->DispatchImportedMessage(message, wParam, lParam);
         Present();
         return true;
+    case WM_MOUSEWHEEL: {
+        if (!::is_global_wnd_cand_shown)
+        {
+            // Hide() only parks the host off-screen, so a wheel message posted
+            // just before the page went away can still arrive here.
+            wheelDeltaAccumulator_ = 0;
+            return true;
+        }
+        if (impl_->contextMenuOpen)
+        {
+            // Scrolling dismisses the open context menu and consumes the event.
+            wheelDeltaAccumulator_ = 0;
+            CloseContextMenu(true);
+            return true;
+        }
+        const CandidateWheel::PagingSteps steps =
+            CandidateWheel::ConsumeWheelDelta(wheelDeltaAccumulator_, GET_WHEEL_DELTA_WPARAM(wParam), WHEEL_DELTA);
+        // Route through the host WndProc like every other candidate UI action
+        // instead of reaching into the IPC layer from the window layer.
+        if (steps.page_up > 0)
+        {
+            PostMessageW(hwnd_, WM_PAGE_CANDIDATE, CANDIDATE_PAGE_PREVIOUS, steps.page_up);
+        }
+        if (steps.page_down > 0)
+        {
+            PostMessageW(hwnd_, WM_PAGE_CANDIDATE, CANDIDATE_PAGE_NEXT, steps.page_down);
+        }
+        return true;
+    }
     default:
         return false;
     }
