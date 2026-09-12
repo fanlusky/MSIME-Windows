@@ -29,6 +29,7 @@
 .skin-preview-list { padding: 9px 0; background: var(--skin-preview-stage-bg); }
 .skin-preview-row { min-width: 0; }
 .skin-preview-stage { display: flex; align-items: flex-start; justify-content: flex-start; min-width: 0; padding: 9px 24px; overflow: hidden; }
+.skin-preview-stage:has(> .candidate) { padding: 14px 36px 38px 24px; }
 .skin-preview-row .candidate { flex: 0 0 auto; align-items: flex-start; margin-top: 0; transform-origin: left center; }
 .skin-preview-horizontal .container {
   width: fit-content;
@@ -45,7 +46,7 @@
   --accent-strong: #07c160;
   --cand-bg: #151515;
   --cand-border: #292929;
-  --cand-shadow: 0 6px 18px rgba(0, 0, 0, .42);
+  --cand-shadow: 8px 10px 24px rgba(0, 0, 0, .34), 2px 3px 8px rgba(0, 0, 0, .22);
   --cand-text: #b7b7b7;
   --cand-num: #858585;
   --cand-hover: rgba(7, 193, 96, .32);
@@ -55,7 +56,7 @@
   --accent-strong: #07c160;
   --cand-bg: #f7f7f7;
   --cand-border: #dedede;
-  --cand-shadow: 0 5px 15px rgba(0, 0, 0, .14);
+  --cand-shadow: 8px 10px 24px rgba(0, 0, 0, .18), 2px 3px 8px rgba(0, 0, 0, .10);
   --cand-text: #333333;
   --cand-num: #757575;
   --cand-hover: rgba(7, 193, 96, .14);
@@ -92,7 +93,7 @@
 .candidate.skin-graphite.theme-dark {
   --cand-bg: #1c1f23;
   --cand-border: #30353b;
-  --cand-shadow: 0 2px 8px rgba(0, 0, 0, .28);
+  --cand-shadow: 8px 10px 24px rgba(0, 0, 0, .34), 2px 3px 8px rgba(0, 0, 0, .22);
   --cand-text: #aeb6c2;
   --cand-num: #707987;
   --cand-hover: rgba(255, 255, 255, .055);
@@ -102,7 +103,7 @@
 .candidate.skin-graphite.theme-light {
   --cand-bg: #fbfbfc;
   --cand-border: #e2e5e9;
-  --cand-shadow: 0 2px 8px rgba(17, 24, 39, .10);
+  --cand-shadow: 8px 10px 24px rgba(17, 24, 39, .18), 2px 3px 8px rgba(17, 24, 39, .10);
   --cand-text: #586476;
   --cand-num: #8993a1;
   --cand-hover: rgba(31, 41, 55, .055);
@@ -141,7 +142,7 @@
   --accent-strong: #65c98d;
   --cand-bg: #2d2f2e;
   --cand-border: transparent;
-  --cand-shadow: 0 7px 18px rgba(0, 0, 0, .34);
+  --cand-shadow: 8px 10px 24px rgba(0, 0, 0, .34), 2px 3px 8px rgba(0, 0, 0, .22);
   --cand-text: #d8dbd8;
   --cand-num: #a6aba7;
   --cand-hover: rgba(101, 201, 141, .22);
@@ -151,7 +152,7 @@
   --accent-strong: #58b980;
   --cand-bg: #f4f5f3;
   --cand-border: transparent;
-  --cand-shadow: 0 7px 18px rgba(42, 55, 47, .16);
+  --cand-shadow: 8px 10px 24px rgba(42, 55, 47, .18), 2px 3px 8px rgba(42, 55, 47, .10);
   --cand-text: #343936;
   --cand-num: #686f6a;
   --cand-hover: rgba(88, 185, 128, .16);

@@ -203,6 +203,14 @@ double GetCandidateDecorationWidthDip()
     return GetActiveCandidateSkinDecorationWidthDip();
 }
 
+int GetCandidatePackingMarginTopDip()
+{
+    // MarginTop includes the permanent transparent inset that lets Chromium
+    // rasterize the shadow above the card. Only the remainder is placement
+    // slack accumulated while clamping the stable host to a monitor edge.
+    return (std::max)(0, Global::MarginTop - ::CANDIDATE_SHADOW_PAD_TOP);
+}
+
 std::pair<double, double> AddCandidateDecorationToSize(const std::pair<double, double> &cardSize)
 {
     const double decorationTopDip = GetCandidateDecorationTopDip();
@@ -529,10 +537,12 @@ void PlaceCandidateHostNearCaret(HWND hwnd, std::pair<double, double> requestedC
     RememberCandidateFlip(properPos->second, caretPt.y);
 
     MonitorCoordinates coordinates = GetMonitorCoordinatesFromPoint(caretPt);
-    int hostX = properPos->first;
-    const int packingMarginTop = (std::max)(0, Global::MarginTop);
+    int hostX = properPos->first -
+                static_cast<int>(std::lround(::CANDIDATE_SHADOW_PAD_LEFT * static_cast<double>(layoutScale)));
+    const int packingMarginTop = GetCandidatePackingMarginTopDip();
     int desiredOuterTopPx = GetCandidateOuterTopPx(properPos->second, packingMarginTop, layoutScale);
-    int hostY = desiredOuterTopPx;
+    int hostY = desiredOuterTopPx -
+                static_cast<int>(std::lround(::CANDIDATE_SHADOW_PAD_TOP * static_cast<double>(layoutScale)));
     const int edgePadPx = static_cast<int>(std::lround(2.0 * static_cast<double>(layoutScale)));
     if (hostX + hostWidthPx > coordinates.right)
     {
@@ -946,20 +956,21 @@ void ClipCandidateWindowToContent(HWND hwnd, const std::pair<double, double> &co
     {
         extraTopDip = (std::max)(extraTopDip, 8.0);
     }
-    const int left = (std::max)(
-        static_cast<int>(client.left),
-        static_cast<int>(std::floor((Global::MarginLeft - ::SHADOW_WIDTH) * static_cast<double>(clipScale))));
-    const int top = (std::max)(static_cast<int>(client.top),
-                               static_cast<int>(std::floor((Global::MarginTop - extraTopDip - ::SHADOW_HEIGHT) *
-                                                           static_cast<double>(clipScale))));
-    const int right = (std::min)(
-        static_cast<int>(client.right),
-        static_cast<int>(std::ceil((Global::MarginLeft + containerSize.first + ::SHADOW_WIDTH + kRegionSafetyDip) *
-                                   static_cast<double>(clipScale))));
-    const int bottom = (std::min)(
-        static_cast<int>(client.bottom),
-        static_cast<int>(std::ceil((Global::MarginTop + containerSize.second + ::SHADOW_HEIGHT + kRegionSafetyDip) *
-                                   static_cast<double>(clipScale))));
+    const int left = (std::max)(static_cast<int>(client.left),
+                                static_cast<int>(std::floor((Global::MarginLeft - ::CANDIDATE_SHADOW_PAD_LEFT) *
+                                                            static_cast<double>(clipScale))));
+    const int top =
+        (std::max)(static_cast<int>(client.top),
+                   static_cast<int>(std::floor((Global::MarginTop - extraTopDip - ::CANDIDATE_SHADOW_PAD_TOP) *
+                                               static_cast<double>(clipScale))));
+    const int right = (std::min)(static_cast<int>(client.right),
+                                 static_cast<int>(std::ceil((Global::MarginLeft + containerSize.first +
+                                                             ::CANDIDATE_SHADOW_PAD_RIGHT + kRegionSafetyDip) *
+                                                            static_cast<double>(clipScale))));
+    const int bottom = (std::min)(static_cast<int>(client.bottom),
+                                  static_cast<int>(std::ceil((Global::MarginTop + containerSize.second +
+                                                              ::CANDIDATE_SHADOW_PAD_BOTTOM + kRegionSafetyDip) *
+                                                             static_cast<double>(clipScale))));
 
     if (right <= left || bottom <= top)
     {
@@ -3912,10 +3923,12 @@ int FineTuneWindow(HWND hwnd)
             int hostHeightPx = hostPx.second;
 
             MonitorCoordinates coordinates = GetMonitorCoordinatesFromPoint(pt);
-            int hostX = properPos->first;
-            const int packingMarginTop = (std::max)(0, Global::MarginTop);
+            int hostX = properPos->first -
+                        static_cast<int>(std::lround(::CANDIDATE_SHADOW_PAD_LEFT * static_cast<double>(layoutScale)));
+            const int packingMarginTop = GetCandidatePackingMarginTopDip();
             int desiredOuterTopPx = GetCandidateOuterTopPx(properPos->second, packingMarginTop, layoutScale);
-            int hostY = desiredOuterTopPx;
+            int hostY = desiredOuterTopPx -
+                        static_cast<int>(std::lround(::CANDIDATE_SHADOW_PAD_TOP * static_cast<double>(layoutScale)));
             const int edgePadPx =
                 static_cast<int>(std::lround(2.0 * static_cast<double>(layoutScale > 0 ? layoutScale : 1.0f)));
             // Right/bottom first, then re-clamp left/top so a host wider/taller than
@@ -4028,10 +4041,12 @@ int FineTuneWindow(HWND hwnd)
 
                 AdjustCandidateWindowPosition(&pt, containerSize, properPos, layoutScale, containerSize.first);
                 RememberCandidateFlip(properPos->second, caretY);
-                const int resyncPackingMarginTop = (std::max)(0, Global::MarginTop);
-                hostX = properPos->first;
+                const int resyncPackingMarginTop = GetCandidatePackingMarginTopDip();
+                hostX = properPos->first -
+                        static_cast<int>(std::lround(::CANDIDATE_SHADOW_PAD_LEFT * static_cast<double>(layoutScale)));
                 desiredOuterTopPx = GetCandidateOuterTopPx(properPos->second, resyncPackingMarginTop, layoutScale);
-                hostY = desiredOuterTopPx;
+                hostY = desiredOuterTopPx -
+                        static_cast<int>(std::lround(::CANDIDATE_SHADOW_PAD_TOP * static_cast<double>(layoutScale)));
                 const int resyncEdgePadPx =
                     static_cast<int>(std::lround(2.0 * static_cast<double>(layoutScale > 0 ? layoutScale : 1.0f)));
                 if (hostX + hostWidthPx > coordinates.right)
@@ -4196,7 +4211,7 @@ int FineTuneWindow(HWND hwnd)
                         auto properPos = std::make_shared<std::pair<int, int>>();
                         AdjustCandidateWindowPosition(&pt, paintedSize, properPos, pass2Scale);
                         RememberCandidateFlip(properPos->second, caretY);
-                        const int packingTop = (std::max)(0, Global::MarginTop);
+                        const int packingTop = GetCandidatePackingMarginTopDip();
                         const std::pair<double, double> decoratedPaintedSize =
                             AddCandidateDecorationToSize(paintedSize);
 
@@ -4205,9 +4220,12 @@ int FineTuneWindow(HWND hwnd)
                         const int hostHeightPx = pass2Host.second;
 
                         MonitorCoordinates coordinates = GetMonitorCoordinatesFromPoint(pt);
-                        int hostX = properPos->first;
+                        int hostX = properPos->first - static_cast<int>(std::lround(::CANDIDATE_SHADOW_PAD_LEFT *
+                                                                                    static_cast<double>(pass2Scale)));
                         const int desiredOuterTopPx = GetCandidateOuterTopPx(properPos->second, packingTop, pass2Scale);
-                        int hostY = desiredOuterTopPx;
+                        int hostY =
+                            desiredOuterTopPx -
+                            static_cast<int>(std::lround(::CANDIDATE_SHADOW_PAD_TOP * static_cast<double>(pass2Scale)));
                         const int edgePadPx = static_cast<int>(
                             std::lround(2.0 * static_cast<double>(pass2Scale > 0 ? pass2Scale : 1.0f)));
                         if (hostX + hostWidthPx > coordinates.right)

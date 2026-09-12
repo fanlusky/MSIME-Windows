@@ -6,8 +6,14 @@
 inline float SCALE = 1.0f;
 inline int POP_UP_WND_WIDTH = 43;
 inline int POP_UP_WND_HEIGHT = 55;
-inline int SHADOW_WIDTH = 15;
-inline int SHADOW_HEIGHT = 15;
+// WebView2 candidate shadow reserve in CSS DIPs. Keep these in sync with the
+// two-layer shadows in ui-html/webview2/candwnd/skins. The shadow is biased to
+// the lower right, so symmetric padding either clips its soft tail or reserves
+// too much transparent hit-test area on the upper-left side.
+inline constexpr int CANDIDATE_SHADOW_PAD_LEFT = 16;
+inline constexpr int CANDIDATE_SHADOW_PAD_TOP = 14;
+inline constexpr int CANDIDATE_SHADOW_PAD_RIGHT = 32;
+inline constexpr int CANDIDATE_SHADOW_PAD_BOTTOM = 34;
 
 //
 // 候选窗口

@@ -2210,8 +2210,10 @@ void PrepareCandidateWebViewBoundsForMeasure(HWND hwnd)
     {
         scale = 1.0f;
     }
-    const int extraRightDip = ::CANDIDATE_WINDOW_MAX_WIDTH_DIP + (2 * ::SHADOW_WIDTH) + ::POP_UP_WND_WIDTH;
-    const int extraBottomDip = ::CANDIDATE_WINDOW_HEIGHT + (2 * ::SHADOW_HEIGHT) + ::POP_UP_WND_HEIGHT;
+    const int extraRightDip = ::CANDIDATE_WINDOW_MAX_WIDTH_DIP + ::CANDIDATE_SHADOW_PAD_LEFT +
+                              ::CANDIDATE_SHADOW_PAD_RIGHT + ::POP_UP_WND_WIDTH;
+    const int extraBottomDip =
+        ::CANDIDATE_WINDOW_HEIGHT + ::CANDIDATE_SHADOW_PAD_TOP + ::CANDIDATE_SHADOW_PAD_BOTTOM + ::POP_UP_WND_HEIGHT;
     const int extraRightPx = (std::max)(candidateBoundExtraFloorPx, static_cast<int>(std::ceil(extraRightDip * scale)));
     const int extraBottomPx =
         (std::max)(candidateBoundExtraFloorPx, static_cast<int>(std::ceil(extraBottomDip * scale)));
