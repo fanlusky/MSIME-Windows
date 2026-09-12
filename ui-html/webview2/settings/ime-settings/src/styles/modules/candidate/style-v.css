@@ -102,7 +102,7 @@
 .candidate.theme-light {
   --cand-bg: #ffffff;
   --cand-border: rgba(0, 0, 0, 0.12);
-  --cand-shadow: 4px 4px 12px rgba(0, 0, 0, 0.12);
+  --cand-shadow: 8px 10px 24px rgba(0, 0, 0, 0.18), 2px 3px 8px rgba(0, 0, 0, 0.10);
   --cand-text: #1a1a1a;
   --cand-num: rgba(26, 26, 26, 0.55);
   --cand-hover: #ececec;
@@ -112,7 +112,7 @@
 .candidate.theme-dark {
   --cand-bg: #202020;
   --cand-border: #9b9b9b2e;
-  --cand-shadow: 5px 5px 10px rgba(0, 0, 0, 0.5);
+  --cand-shadow: 8px 10px 24px rgba(0, 0, 0, 0.34), 2px 3px 8px rgba(0, 0, 0, 0.22);
   --cand-text: #e9e8e8;
   --cand-num: #e9e8e89d;
   --cand-hover: #414141;
