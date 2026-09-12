@@ -4218,6 +4218,8 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             curWordItem.source == CandidateSource::QuickPhrase || curWordItem.source == CandidateSource::Emoji ||
             curWordItem.source == CandidateSource::Kaomoji || curWordItem.source == CandidateSource::Generated)
         {
+            Global::candidate_ui.selected_text =
+                string_to_wstring(CandidateTextForOutput(GlobalIme::composition.creating_word.word + curWord));
             if (curWordItem.source == CandidateSource::EnglishDictionary && isNeedUpdateWeight)
             {
                 const auto &frequency = GetConfiguredFrequencyAdjustment();
