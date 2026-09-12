@@ -102,6 +102,32 @@
 }
 
 /**/
+/* 重启输入法进程 */
+/**/
+.restart-server-button {
+  min-width: 100px;
+  padding: 5px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--dropdown-bg);
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.restart-server-button:hover {
+  background: var(--surface-raised);
+  border-color: var(--border-strong);
+}
+
+.restart-server-button:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
+/**/
 /* 主题模式 */
 /**/
 .theme .ftb-toggle {

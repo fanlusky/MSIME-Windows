@@ -326,6 +326,8 @@ Server 启动时会同时启动 Watchdog。服务意外退出后，Watchdog 会�
 - `Ctrl + Shift + Alt + R`：重启输入法服务。
 - `Ctrl + Shift + Alt + T`：立即退出输入法服务。
 
+设置界面「外观 → 重启输入法进程」提供同样的重启操作，方便在修改界面渲染方式后立即生效。
+
 ## 软件截图
 
 <img src="docs/images/candidate-window-1.png" width="750">
