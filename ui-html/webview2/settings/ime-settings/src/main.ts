@@ -124,6 +124,7 @@ function setupTitlebarButtons(): void {
   const closeBtn = document.getElementById('btn-close');
   const windowControls = document.querySelector<HTMLElement>('.window-controls');
   let minimizeMessageTimer: number | null = null;
+  let closeMessageTimer: number | null = null;
 
   const postWindowMessage = (value: 'minimize' | 'maximize' | 'restore' | 'close') => {
     if (window.chrome?.webview) {
@@ -215,7 +216,25 @@ function setupTitlebarButtons(): void {
   restoreBtn?.addEventListener('click', () => {
     postWindowMessage('restore');
   });
-  closeBtn?.addEventListener('click', () => postWindowMessage('close'));
+  // 关闭窗口只是隐藏，进程和这份文档都会留一段时间，所以关闭按钮的悬停/按下高亮必须先
+  // 清掉再隐藏——否则隐藏时保留的那一帧带着红色背景，下次打开会先闪一下它。
+  // 和 minimize 一样延迟发消息，给页面一次重绘的机会。
+  closeBtn?.addEventListener('click', () => {
+    windowControls?.classList.add('window-controls-click-reset');
+
+    if (closeBtn instanceof HTMLElement) {
+      closeBtn.blur();
+    }
+
+    if (closeMessageTimer !== null) {
+      window.clearTimeout(closeMessageTimer);
+    }
+
+    closeMessageTimer = window.setTimeout(() => {
+      postWindowMessage('close');
+      closeMessageTimer = null;
+    }, 100);
+  });
 
   postMaximizeButtonRect();
 
