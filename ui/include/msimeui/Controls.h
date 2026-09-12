@@ -599,6 +599,18 @@ class CandidateList : public Visual
         Microsoft::WRL::ComPtr<IDWriteTextLayout> translationLayout;
     };
 
+    // 均使用逻辑单位：bounds 相对列表，文字矩形相对候选项；测量、绘制与命中测试共用。
+    struct ItemGeometry
+    {
+        RectF bounds;
+        RectF label;
+        RectF text;
+        RectF annotation;
+        RectF translation;
+    };
+
+    float MeasureTextHeight(const std::wstring &text, float fontSize, float width) const;
+    ItemGeometry MeasureItem(size_t index, float width) const;
     void InvalidateLayoutCache();
     size_t HitTestItem(const PointF &point) const;
     float EstimateTextWidth(const std::wstring &text, float fontSize) const;
@@ -606,10 +618,10 @@ class CandidateList : public Visual
 
     std::vector<Item> items_;
     std::vector<ItemLayoutCache> layoutCache_;
-    std::vector<float> itemWidths_;
+    std::vector<ItemGeometry> itemGeometry_;
+    float layoutWidth_ = 0.0f;
     Appearance appearance_{};
     Orientation orientation_ = Orientation::Vertical;
-    float itemHeight_ = 40.0f;
     bool focused_ = false;
     bool pressed_ = false;
     bool hoverEnabled_ = true;
