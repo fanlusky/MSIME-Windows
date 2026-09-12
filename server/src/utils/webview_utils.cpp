@@ -7,8 +7,8 @@
 #include "utils/common_utils.h"
 #include <boost/json.hpp>
 
-#undef DIAG_LOGF
-#define DIAG_LOGF(...) ((void)0)
+// ui-measure tracing was compiled out, which hid whether the reported card width
+// matches what the DOM actually paints. Keep it on the global diagnostic switch.
 
 namespace json = boost::json;
 
@@ -89,9 +89,15 @@ void GetCandidateCardSize(ComPtr<ICoreWebView2> webview, const wchar_t *boxId, c
             if (box) {{
                 box.style.maxWidth = maxW + "px";
                 box.style.maxHeight = maxH + "px";
-                box.style.width = "fit-content";
+                // max-content + the maxWidth cap above is the skin's own clamp: the
+                // used width shrinks to the content but never exceeds maxW, and the
+                // content re-wraps inside it. These inline styles outlive the measure
+                // and become the painted layout, so they must wrap exactly where the
+                // skin wraps. Never pin white-space to nowrap here -- that is what let
+                // the card outgrow maxW and get sliced mid-candidate by overflow-x.
+                box.style.width = "max-content";
                 box.style.boxSizing = "border-box";
-                box.style.whiteSpace = "nowrap";
+                box.style.removeProperty("white-space");
                 box.style.overflowX = "hidden";
                 box.style.overflowY = "auto";
             }}
@@ -112,7 +118,13 @@ void GetCandidateCardSize(ComPtr<ICoreWebView2> webview, const wchar_t *boxId, c
             var height = Math.min(
                 maxH,
                 Math.max(rect.height, target.offsetHeight || 0) + 1);
-            return JSON.stringify({{width: width, height: height}});
+            // Diagnostic breakdown: if sw/cw exceed the reported width, the painted
+            // card is wider than what the native region will be built from.
+            return JSON.stringify({{width: width, height: height,
+                rw: rect.width, ow: target.offsetWidth || 0,
+                sw: target.scrollWidth || 0, cw: target.clientWidth || 0,
+                rh: rect.height, oh: target.offsetHeight || 0,
+                sh: target.scrollHeight || 0, mw: maxW}});
         }})();
     )",
                                       boxId, parentId, maxWidthDip, maxHeightDip);
@@ -127,10 +139,12 @@ void GetCandidateCardSize(ComPtr<ICoreWebView2> webview, const wchar_t *boxId, c
             {
                 size = ParseDivSize(result);
             }
+            // The payload is numbers only (no candidate text), so it is safe to log
+            // verbatim and it is the only view of measured-vs-painted width.
             DIAG_LOGF(L"ui-measure box={} parent={} max_dip=({:.1f},{:.1f}) callback_hr={:#x} "
-                      L"result_chars={} measured_dip=({:.2f},{:.2f})",
-                      boxId, parentId, maxWidthDip, maxHeightDip, static_cast<unsigned>(errorCode),
-                      result ? wcslen(result) : 0, size.first, size.second);
+                      L"measured_dip=({:.2f},{:.2f}) raw={}",
+                      boxId, parentId, maxWidthDip, maxHeightDip, static_cast<unsigned>(errorCode), size.first,
+                      size.second, result ? result : L"<null>");
             callback(size);
             return S_OK;
         }).Get());
