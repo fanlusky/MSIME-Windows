@@ -136,7 +136,8 @@
 }
 
 .font-combobox .arrow,
-.font-combobox .arrow img {
+.font-combobox .arrow img,
+.font-combobox > img {
   cursor: default;
 }
 
