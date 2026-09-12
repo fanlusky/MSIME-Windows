@@ -22,6 +22,12 @@
 #define MyAppPublisher "Metasequoia"
 #define MyAppExeName   "MetasequoiaImeServer.exe"
 #define MySettingsExeName "MetasequoiaImeSettings.exe"
+; 与 settings_app.cpp / settings_launcher.cpp 的 kQuitSettings 保持一致：WM_APP + 5。
+#define MySettingsWindowClass "MetasequoiaImeSettingsWindow"
+#define MySettingsQuitMessage 32773
+#define MyEmojiPanelExeName "MetasequoiaImeEmojiPanel.exe"
+#define MyKeyboardPanelExeName "MetasequoiaImeKeyboardPanel.exe"
+#define MyHandwritingPanelExeName "MetasequoiaImeHandwritingPanel.exe"
 #define MyWatchdogName "MetasequoiaImeWatchdog.exe"
 #define MyWatchdogTaskName "Metasequoia IME Watchdog"
 #define MyReplayName   "MetasequoiaImeDictionaryReplay.exe"
@@ -330,7 +336,6 @@ procedure StopProcess(const ImageName: String);
 var
   ResultCode: Integer;
 begin
-  { Watchdog 必须先停，否则它可能在卸载期间重新启动 Server。}
   Exec(
     ExpandConstant('{sys}\taskkill.exe'),
     '/F /T /IM "' + ImageName + '"',
@@ -339,6 +344,42 @@ begin
     ewWaitUntilTerminated,
     ResultCode
   );
+end;
+
+procedure StopSettingsProcess;
+var
+  SettingsWindow: HWND;
+  WaitedMs: Integer;
+begin
+  // 设置窗口关闭后只是隐藏，进程还要驻留十分钟保住已导航完的 WebView2。
+  // 覆盖安装要删掉整个 server 目录，所以这里必须把它请走：先投 kQuitSettings
+  // 让它自己收尾（Server 已被强杀，没人替我们发这条消息了），再强杀兜底。
+  SettingsWindow := FindWindowByClassName('{#MySettingsWindowClass}');
+  if SettingsWindow <> 0 then
+  begin
+    PostMessage(SettingsWindow, {#MySettingsQuitMessage}, 0, 0);
+    WaitedMs := 0;
+    while (WaitedMs < 3000) and
+          (FindWindowByClassName('{#MySettingsWindowClass}') <> 0) do
+    begin
+      Sleep(100);
+      WaitedMs := WaitedMs + 100;
+    end;
+  end;
+  StopProcess('{#MySettingsExeName}');
+end;
+
+procedure StopImeProcesses;
+begin
+  { Watchdog 先停，否则它会在我们删文件期间把 Server 拉起来。}
+  StopProcess('{#MyWatchdogName}');
+  StopProcess('{#MyAppExeName}');
+  StopSettingsProcess;
+  { 面板通常是 Server 的子进程、随 /T 一起走；Server 若已崩溃它们会变成孤儿，
+    同样占着 server 目录里的 exe，所以显式再收一遍。}
+  StopProcess('{#MyEmojiPanelExeName}');
+  StopProcess('{#MyKeyboardPanelExeName}');
+  StopProcess('{#MyHandwritingPanelExeName}');
 end;
 
 procedure DeleteWatchdogLogonTask;
@@ -607,8 +648,7 @@ var
 begin
   { 先锁定本次目录名，再清理能够释放的旧版本 DLL。}
   VersionDirName := GetVersionDir('');
-  StopProcess('{#MyWatchdogName}');
-  StopProcess('{#MyAppExeName}');
+  StopImeProcesses;
 #ifdef LightPackage
   { 轻量包不替换词库：只清 HTML 和 Server/TSF，保留本机 msime.db 等。}
   TryDeleteTree(ExpandConstant('{localappdata}\metasequoiaime\html'));
@@ -669,8 +709,7 @@ begin
       'Software\Microsoft\Windows\CurrentVersion\Run',
       'MetasequoiaImeWatchdog'
     );
-    StopProcess('{#MyWatchdogName}');
-    StopProcess('{#MyAppExeName}');
+    StopImeProcesses;
   end
   else if CurUninstallStep = usPostUninstall then
   begin
