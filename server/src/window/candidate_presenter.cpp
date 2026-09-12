@@ -4,13 +4,13 @@
 #include "defines/defines.h"
 #include "defines/globals.h"
 #include "global/globals.h"
-#include "ipc/event_listener.h"
 #include "ipc/ipc.h"
 #include "log/candidate_diag_log.h"
 #include "skin/candidate_skin_catalog.h"
 #include "utils/common_utils.h"
 #include "utils/ime_utils.h"
 #include "utils/window_utils.h"
+#include "window/candidate_wheel_paging.h"
 #include "window/ime_windows.h"
 
 #include "msimeui/Controls.h"
@@ -761,9 +761,18 @@ void CandidatePresenter::CloseContextMenu(bool restoreHost)
         return;
     }
 
-    // Ensure hovered visuals in Window drop cached raw pointers before popup destruction to prevent UAF.
-    impl_->window->DispatchImportedMessage(WM_MOUSELEAVE, 0, 0);
-    impl_->window->FocusVisual(nullptr);
+    // ShowFromGlobalState and Hide call this on every keystroke, so the hover
+    // teardown and the repaint below only run when a menu is actually up.
+    const bool hadPopup = impl_->contextMenu || impl_->contextSubmenu;
+    if (hadPopup)
+    {
+        // Window caches the hovered and focused Visual as raw pointers. They
+        // point into the popup destroyed a few lines below, so they have to be
+        // dropped first or the next mouse message dispatches through a dangling
+        // pointer.
+        impl_->window->DispatchImportedMessage(WM_MOUSELEAVE, 0, 0);
+        impl_->window->FocusVisual(nullptr);
+    }
 
     if (msimeui::Scene *scene = impl_->window->GetScene())
     {
@@ -789,7 +798,10 @@ void CandidatePresenter::CloseContextMenu(bool restoreHost)
     {
         impl_->hostExpandedForMenu = false;
     }
-    Present();
+    if (hadPopup)
+    {
+        Present();
+    }
 }
 
 void CandidatePresenter::OpenFixSubmenu()
@@ -818,6 +830,9 @@ void CandidatePresenter::CloseFixSubmenu()
     {
         return;
     }
+    // The submenu visual outlives this call (contextSubmenu keeps it alive for
+    // a later reopen), but it leaves the scene here, so the cached hover has to
+    // go with it. Focus stays where it is: the parent menu is still open.
     impl_->window->DispatchImportedMessage(WM_MOUSELEAVE, 0, 0);
     if (msimeui::Scene *scene = impl_->window->GetScene())
     {
@@ -1178,30 +1193,31 @@ bool CandidatePresenter::HandleMessage(UINT message, WPARAM wParam, LPARAM lPara
         Present();
         return true;
     case WM_MOUSEWHEEL: {
-        if (impl_ && impl_->contextMenuOpen)
+        if (!::is_global_wnd_cand_shown)
         {
-            // Scrolling dismisses active context menu and consumes the event.
+            // Hide() only parks the host off-screen, so a wheel message posted
+            // just before the page went away can still arrive here.
+            wheelDeltaAccumulator_ = 0;
+            return true;
+        }
+        if (impl_->contextMenuOpen)
+        {
+            // Scrolling dismisses the open context menu and consumes the event.
             wheelDeltaAccumulator_ = 0;
             CloseContextMenu(true);
             return true;
         }
-        const short delta = GET_WHEEL_DELTA_WPARAM(wParam);
-        // Reset accumulation if scrolling direction is reversed to prevent jitter.
-        if ((wheelDeltaAccumulator_ > 0 && delta < 0) || (wheelDeltaAccumulator_ < 0 && delta > 0))
+        const CandidateWheel::PagingSteps steps =
+            CandidateWheel::ConsumeWheelDelta(wheelDeltaAccumulator_, GET_WHEEL_DELTA_WPARAM(wParam), WHEEL_DELTA);
+        // Route through the host WndProc like every other candidate UI action
+        // instead of reaching into the IPC layer from the window layer.
+        if (steps.page_up > 0)
         {
-            wheelDeltaAccumulator_ = 0;
+            PostMessageW(hwnd_, WM_PAGE_CANDIDATE, CANDIDATE_PAGE_PREVIOUS, steps.page_up);
         }
-        wheelDeltaAccumulator_ += delta;
-        // Step in WHEEL_DELTA increments to support smooth trackpads and high-precision mice.
-        while (wheelDeltaAccumulator_ >= WHEEL_DELTA)
+        if (steps.page_down > 0)
         {
-            wheelDeltaAccumulator_ -= WHEEL_DELTA;
-            FanyNamedPipe::EnqueueCandidateUiAction(FanyNamedPipe::CandidateUiAction::PageUp, 0);
-        }
-        while (wheelDeltaAccumulator_ <= -WHEEL_DELTA)
-        {
-            wheelDeltaAccumulator_ += WHEEL_DELTA;
-            FanyNamedPipe::EnqueueCandidateUiAction(FanyNamedPipe::CandidateUiAction::PageDown, 0);
+            PostMessageW(hwnd_, WM_PAGE_CANDIDATE, CANDIDATE_PAGE_NEXT, steps.page_down);
         }
         return true;
     }

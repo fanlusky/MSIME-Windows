@@ -2840,6 +2840,13 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
                                                 static_cast<int>(wParam));
         break;
 
+    case WM_PAGE_CANDIDATE:
+        FanyNamedPipe::EnqueueCandidateUiPaging(wParam == CANDIDATE_PAGE_NEXT
+                                                    ? FanyNamedPipe::CandidateUiAction::PageDown
+                                                    : FanyNamedPipe::CandidateUiAction::PageUp,
+                                                static_cast<int>(lParam));
+        break;
+
     case WM_CLEAR_IME_ENGINE_CACHE: {
 #ifdef FANY_DEBUG
         (void)0;
