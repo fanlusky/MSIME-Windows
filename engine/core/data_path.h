@@ -2,6 +2,9 @@
 
 #include <cstdlib>
 #include <filesystem>
+#include <memory>
+#include <optional>
+#include <string>
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -10,6 +13,24 @@
 
 namespace metasequoia
 {
+#ifdef _WIN32
+namespace detail
+{
+inline std::optional<std::wstring> wide_environment_variable(const wchar_t *name)
+{
+    wchar_t *buffer = nullptr;
+    size_t size = 0;
+    if (_wdupenv_s(&buffer, &size, name) != 0 || buffer == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    const std::unique_ptr<wchar_t, decltype(&std::free)> owned_buffer(buffer, &std::free);
+    return std::wstring(owned_buffer.get());
+}
+} // namespace detail
+#endif
+
 inline std::filesystem::path path_from_utf8(const char *path)
 {
 #if defined(__cpp_lib_char8_t)
@@ -22,9 +43,9 @@ inline std::filesystem::path path_from_utf8(const char *path)
 inline std::filesystem::path data_directory()
 {
 #ifdef _WIN32
-    if (const wchar_t *override_path = _wgetenv(L"METASEQUOIA_IME_DATA_DIR"))
+    if (const auto override_path = detail::wide_environment_variable(L"METASEQUOIA_IME_DATA_DIR"))
     {
-        const std::filesystem::path path(override_path);
+        const std::filesystem::path path(*override_path);
         if (path.is_absolute())
         {
             return path;
@@ -42,9 +63,9 @@ inline std::filesystem::path data_directory()
 #endif
 
 #ifdef _WIN32
-    if (const wchar_t *local_app_data = _wgetenv(L"LOCALAPPDATA"))
+    if (const auto local_app_data = detail::wide_environment_variable(L"LOCALAPPDATA"))
     {
-        const std::filesystem::path root(local_app_data);
+        const std::filesystem::path root(*local_app_data);
         if (root.is_absolute())
         {
             return root / L"metasequoiaime";
