@@ -676,7 +676,7 @@ int ShuangpinDictionary::create_word_from_quanpin(string pinyin, string word)
     {
         return ERROR_CODE;
     }
-    if (check_data(quanpin_db_, build_quanpin_sql_for_checking_word(pinyin, jp, word)))
+    if (check_data(quanpin_db_, build_quanpin_sql_for_checking_word(pinyin, word)))
     {
         return OK;
     }
@@ -826,7 +826,7 @@ vector<ShuangpinDictionary::WordItem> ShuangpinDictionary::query_from_quanpin_da
             candidate_list.emplace_back(pinyin_sequence, item.value, item.weight, CandidateSource::Database, item.key);
         }
     }
-    catch (const std::exception &ex)
+    catch (const std::exception &)
     {
         (void)0;
     }
@@ -973,7 +973,7 @@ std::string ShuangpinDictionary::build_quanpin_sql_for_creating_word(const std::
     return sql;
 }
 
-std::string ShuangpinDictionary::build_quanpin_sql_for_checking_word(const std::string &key, const std::string &jp,
+std::string ShuangpinDictionary::build_quanpin_sql_for_checking_word(const std::string &key,
                                                                      const std::string &value) const
 {
     const auto cuts = quanpin::cut_pinyin_by_mode(key, "correction");

@@ -108,8 +108,7 @@ class ShuangpinDictionary
     std::string normalize_shuangpin_to_quanpin_segmentation(const std::string &pinyin) const;
     std::string normalize_shuangpin_to_quanpin_input(const std::string &pinyin) const;
     std::string build_quanpin_sql_for_creating_word(const std::string &pinyin) const;
-    std::string build_quanpin_sql_for_checking_word(const std::string &key, const std::string &jp,
-                                                    const std::string &value) const;
+    std::string build_quanpin_sql_for_checking_word(const std::string &key, const std::string &value) const;
     std::string build_quanpin_sql_for_inserting_word(const std::string &key, const std::string &jp,
                                                      const std::string &value) const;
     std::string build_quanpin_sql_for_updating_word(const std::string &word) const;
@@ -129,10 +128,10 @@ class ShuangpinDictionary
     // Whether in full help mode
     bool _is_full_help_mode = false;
     // Localtion of starting position
-    int _help_mode_raw_pos = 0;                 // Start from pos, e.g. 妮: ninv: 2
-    std::string _pinyin_helpcodes = "";         // Help codes
-    std::vector<ImeKeyCode> _kb_input_sequence; // Keyboard input sequence
-    std::string _pinyin_sequence = "";          // Pinyin extracted from from keyboard sequence
+    std::string::size_type _help_mode_raw_pos = 0; // Start from pos, e.g. 妮: ninv: 2
+    std::string _pinyin_helpcodes = "";            // Help codes
+    std::vector<ImeKeyCode> _kb_input_sequence;    // Keyboard input sequence
+    std::string _pinyin_sequence = "";             // Pinyin extracted from from keyboard sequence
     std::string _pinyin_sequence_with_cases =
         ""; // Pinyin extracted from from keyboard sequence, but with letters' original cases
     std::string _pure_pinyin_sequence = "";        // Pinyin without help code
@@ -160,11 +159,11 @@ class ShuangpinDictionary
         this->_is_full_help_mode = is_full_help_mode;
     }
 
-    int get_help_mode_raw_pos()
+    std::string::size_type get_help_mode_raw_pos()
     {
         return this->_help_mode_raw_pos;
     }
-    void set_help_mode_raw_pos(int raw_pos)
+    void set_help_mode_raw_pos(std::string::size_type raw_pos)
     {
         this->_help_mode_raw_pos = raw_pos;
     }

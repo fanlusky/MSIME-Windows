@@ -169,10 +169,10 @@ std::vector<WordItem> QuanpinDictionary::query_exact(const std::string &raw_inpu
 
     // Autocorrected results get their own cache slot so they never leak the
     // fallback tail into plain (correct) spellings sharing the same key.
-    if (auto cached = series_cache_.get(resolution.cache_key))
+    if (series_cache_.get(resolution.cache_key))
     {
         reset_cache_if_database_changed();
-        if (cached = series_cache_.get(resolution.cache_key))
+        if (const auto cached = series_cache_.get(resolution.cache_key))
         {
             current_candidate_list_ = cached.value();
             return current_candidate_list_;
@@ -487,7 +487,7 @@ std::vector<WordItem> QuanpinDictionary::query_database(const quanpin::Segments 
         }
         return result;
     }
-    catch (const std::exception &ex)
+    catch (const std::exception &)
     {
         (void)0;
         return {};
@@ -666,7 +666,7 @@ int QuanpinDictionary::create_word(std::string pinyin, std::string word)
         return ERROR_CODE;
     }
 
-    if (check_data(build_sql_for_checking_word(pinyin, jp, word)))
+    if (check_data(build_sql_for_checking_word(pinyin, word)))
     {
         return OK;
     }
@@ -699,7 +699,7 @@ int QuanpinDictionary::create_word_from_canonical_pinyin(std::string pinyin, std
     {
         return ERROR_CODE;
     }
-    if (check_data(build_sql_for_checking_word(pinyin, jp, word)))
+    if (check_data(build_sql_for_checking_word(pinyin, word)))
     {
         return OK;
     }
@@ -1012,8 +1012,7 @@ std::string QuanpinDictionary::build_sql_for_creating_word(const std::string &pi
     return sql;
 }
 
-std::string QuanpinDictionary::build_sql_for_checking_word(const std::string &key, const std::string &jp,
-                                                           const std::string &value)
+std::string QuanpinDictionary::build_sql_for_checking_word(const std::string &key, const std::string &value)
 {
     const auto cuts = quanpin::cut_pinyin_by_mode(key, "correction");
     if (cuts.empty())

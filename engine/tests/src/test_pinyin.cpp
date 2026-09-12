@@ -44,8 +44,8 @@ class ScopedLocalAppDataOverride
         {
             throw std::runtime_error("A data directory should be available for regression tests.");
         }
-        const wchar_t *current = _wgetenv(kDataDirectoryVariable);
-        original_ = current == nullptr ? L"" : current;
+        const auto current = metasequoia::detail::wide_environment_variable(kDataDirectoryVariable);
+        original_ = current.value_or(L"");
 
         root_ = fs::temp_directory_path() / "msime-regression" / suffix;
         app_dir_ = root_ / "metasequoiaime";
