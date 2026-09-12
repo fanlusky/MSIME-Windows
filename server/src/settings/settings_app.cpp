@@ -51,7 +51,11 @@ constexpr UINT kActivateExistingWindow = WM_APP + 1;
 constexpr UINT kOpenAboutSection = WM_APP + 2;
 constexpr UINT kScanSkinCatalog = WM_APP + 3;
 constexpr UINT kWorkerCompleted = WM_APP + 4;
+constexpr UINT kQuitSettings = WM_APP + 5;
 constexpr UINT_PTR kConfigReloadTimer = 1;
+constexpr UINT_PTR kLingerTimer = 2;
+// 关闭窗口先只隐藏，进程留着已导航完成的 WebView2；这段时间内重新打开就不用再冷启动一次。
+constexpr UINT kLingerTimeoutMs = 10 * 60 * 1000;
 
 ComPtr<ICoreWebView2Controller> g_controller;
 ComPtr<ICoreWebView2CompositionController> g_composition_controller;
@@ -73,11 +77,13 @@ std::optional<CandidateSkinCatalog::ScanResult> g_candidate_skin_catalog;
 uint64_t g_candidate_skin_catalog_revision = 0;
 std::unique_ptr<SerialTaskQueue> g_worker;
 bool g_closing = false;
+bool g_lingering = false;
 bool g_reload_pending = false;
 bool g_settings_light = false;
 std::wstring g_last_config_message;
 bool g_worker_com_initialized = false; // worker-only
 void CloseSettings(HWND hwnd);
+void HideSettings(HWND hwnd);
 
 nlohmann::json CandidateColorsToJson(const CandidateSkinCatalog::CandidateColors &colors)
 {
@@ -835,7 +841,7 @@ void HandleWebMessage(HWND hwnd, ICoreWebView2WebMessageReceivedEventArgs *args)
             else if (command == "restore")
                 ShowWindow(hwnd, SW_RESTORE);
             else if (command == "close")
-                CloseSettings(hwnd);
+                HideSettings(hwnd);
         }
         else if (type == "maximizeButtonRect")
         {
@@ -1225,10 +1231,31 @@ int TopNonClientInset(HWND hwnd)
            GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi);
 }
 
+// 首帧之前隐藏 WebView2 会卡住 raster 初始化，预热阶段不要碰可见性。
+void SetWebViewVisible(bool visible)
+{
+    if (g_controller && g_webview_content_started)
+        g_controller->put_IsVisible(visible ? TRUE : FALSE);
+}
+
+// 重新露面：取消延迟退出，恢复渲染与配置轮询。
+void CancelLinger(HWND hwnd)
+{
+    if (!g_lingering)
+        return;
+    g_lingering = false;
+    KillTimer(hwnd, kLingerTimer);
+    SetWebViewVisible(true);
+    if (g_webview3)
+        g_webview3->Resume();
+    SetTimer(hwnd, kConfigReloadTimer, 300, nullptr);
+}
+
 void ActivateWindow(HWND hwnd)
 {
     if (g_closing)
         return;
+    CancelLinger(hwnd);
     if (IsIconic(hwnd))
         ShowWindow(hwnd, SW_RESTORE);
     else
@@ -1237,11 +1264,44 @@ void ActivateWindow(HWND hwnd)
     SetFocus(hwnd);
 }
 
+// 用户关闭窗口时走这里：只隐藏，进程继续持有导航完成的 WebView2，kLingerTimeoutMs
+// 之后才真正退出。隐藏期间停掉配置轮询并让 controller 不可见，避免白拿 CPU。
+// 首帧还没出来就被关掉，说明用户不想等这次冷启动，直接退出，别留一个半初始化的进程。
+void HideSettings(HWND hwnd)
+{
+    if (g_closing)
+        return;
+    if (!g_webview_content_started)
+    {
+        CloseSettings(hwnd);
+        return;
+    }
+    if (g_lingering)
+    {
+        ShowWindow(hwnd, SW_HIDE);
+        return;
+    }
+    g_lingering = true;
+    // 窗口隐藏时保留的那一帧会在下次打开时先显示出来，带着高亮的标题栏按钮就会闪一下。
+    // 页面自己的关闭按钮已经在点击时清过，这里覆盖 Alt+F4、启动图的关闭按钮等不经过页面的路径。
+    ResetTitlebarHoverAfterVisibilityChange();
+    // 隐藏的窗口收不到 WM_NCMOUSELEAVE，本地这份悬停状态要手动清掉，
+    // 否则下次真的移进去时不会再发 enter。
+    g_maximize_button_hover = false;
+    KillTimer(hwnd, kConfigReloadTimer);
+    SettingsSplash::Dismiss();
+    ShowWindow(hwnd, SW_HIDE);
+    SetWebViewVisible(false);
+    SetTimer(hwnd, kLingerTimer, kLingerTimeoutMs, nullptr);
+}
+
 void CloseSettings(HWND hwnd)
 {
     if (g_closing)
         return;
     g_closing = true;
+    g_lingering = false;
+    KillTimer(hwnd, kLingerTimer);
     KillTimer(hwnd, kConfigReloadTimer);
     SettingsSplash::Dismiss();
     ShowWindow(hwnd, SW_HIDE);
@@ -1400,6 +1460,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
         break;
     }
     case WM_TIMER:
+        if (w_param == kLingerTimer)
+        {
+            CloseSettings(hwnd);
+            return 0;
+        }
         if (w_param == kConfigReloadTimer && g_worker && !g_closing && !g_reload_pending)
         {
             g_reload_pending = true;
@@ -1430,12 +1495,17 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w_param, LPARAM l_pa
         }
         return 0;
     case WM_CLOSE:
+        HideSettings(hwnd);
+        return 0;
+    case kQuitSettings:
         CloseSettings(hwnd);
         return 0;
     case WM_DESTROY:
         g_closing = true;
+        g_lingering = false;
         if (g_worker)
             g_worker->Stop();
+        KillTimer(hwnd, kLingerTimer);
         KillTimer(hwnd, kConfigReloadTimer);
         SettingsSplash::Dismiss();
         g_webview.Reset();
