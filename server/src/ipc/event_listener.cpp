@@ -4240,8 +4240,9 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             // append_canonical_pinyin 累积，lattice 候选的 canonical_pinyin 是整句 key），
             // 直接按 '\'' 拼接即可；音节数与汉字数是否匹配由
             // create_word_from_canonical_pinyin 自行校验，不匹配时安全地拒绝入库。
-            if (curWordItem.source == CandidateSource::Generated && GlobalIme::composition.creating_word.active &&
-                !GlobalIme::composition.creating_word.pinyin.empty() && !curWordItem.canonical_pinyin.empty())
+            if (FanyImeIpc::ShouldStoreEarlyReturnPhrase(
+                    curWordItem.source, GlobalIme::composition.creating_word.active,
+                    GlobalIme::composition.creating_word.pinyin, curWordItem.canonical_pinyin))
             {
                 // 这里异步处理，不然有可能会阻塞住 TSF 端读取 pipe 导致超时
                 EnqueueStoreUserPhraseTask(GlobalIme::composition.creating_word.pinyin + "'" +

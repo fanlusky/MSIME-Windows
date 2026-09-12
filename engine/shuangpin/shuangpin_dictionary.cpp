@@ -160,7 +160,9 @@ vector<ShuangpinDictionary::WordItem> ShuangpinDictionary::generateSeries( //
                 string res = search_sentence_from_ime_engine(quanpin_str);
                 if (res.size() > 0)
                 {
-                    candidate_list.emplace_back(_pinyin_sequence, res, 1, CandidateSource::Fallback);
+                    // 整句 fallback 必须带上 canonical quanpin，否则以它结尾的造词无法落库：
+                    // update_creating_word_progress 依赖 canonical_pinyin 才能拼出完整读音。
+                    candidate_list.emplace_back(_pinyin_sequence, res, 1, CandidateSource::Fallback, quanpin_str);
                 }
             }
         }
@@ -197,8 +199,10 @@ vector<ShuangpinDictionary::WordItem> ShuangpinDictionary::generateSeries( //
             const bool duplicate = std::any_of(candidate_list.begin(), candidate_list.end(),
                                                [&](const WordItem &item) { return item.word == google_sentence; });
             if (!google_sentence.empty() && !duplicate)
-                candidate_list.insert(candidate_list.begin(),
-                                      WordItem(_pinyin_sequence, google_sentence, 1, CandidateSource::Fallback));
+                // 同上：这条候选会被提到首位、成为空格默认提交的那个，必须可落库。
+                candidate_list.insert(
+                    candidate_list.begin(),
+                    WordItem(_pinyin_sequence, google_sentence, 1, CandidateSource::Fallback, quanpin_segmentation));
         }
         quanpin::WordLatticeOptions lattice_options;
         lattice_options.nbest = 1;
