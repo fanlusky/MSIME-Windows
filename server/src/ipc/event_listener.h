@@ -29,6 +29,8 @@ enum class CandidateUiAction
     Delete,
     FixPosition,
     ClearPosition,
+    PageUp,
+    PageDown,
 };
 
 void WorkerThread();

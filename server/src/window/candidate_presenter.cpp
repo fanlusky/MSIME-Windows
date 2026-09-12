@@ -4,6 +4,7 @@
 #include "defines/defines.h"
 #include "defines/globals.h"
 #include "global/globals.h"
+#include "ipc/event_listener.h"
 #include "ipc/ipc.h"
 #include "log/candidate_diag_log.h"
 #include "skin/candidate_skin_catalog.h"
@@ -760,6 +761,10 @@ void CandidatePresenter::CloseContextMenu(bool restoreHost)
         return;
     }
 
+    // Ensure hovered visuals in Window drop cached raw pointers before popup destruction to prevent UAF.
+    impl_->window->DispatchImportedMessage(WM_MOUSELEAVE, 0, 0);
+    impl_->window->FocusVisual(nullptr);
+
     if (msimeui::Scene *scene = impl_->window->GetScene())
     {
         if (impl_->contextSubmenu)
@@ -784,6 +789,7 @@ void CandidatePresenter::CloseContextMenu(bool restoreHost)
     {
         impl_->hostExpandedForMenu = false;
     }
+    Present();
 }
 
 void CandidatePresenter::OpenFixSubmenu()
@@ -812,11 +818,13 @@ void CandidatePresenter::CloseFixSubmenu()
     {
         return;
     }
+    impl_->window->DispatchImportedMessage(WM_MOUSELEAVE, 0, 0);
     if (msimeui::Scene *scene = impl_->window->GetScene())
     {
         scene->RemovePopup(impl_->contextSubmenu.get(), false);
     }
     impl_->contextSubmenuOpen = false;
+    Present();
 }
 
 void CandidatePresenter::ExpandHostForMenu(POINT clientPoint)
@@ -1050,6 +1058,7 @@ void CandidatePresenter::Hide()
     CloseContextMenu(false);
     ::is_global_wnd_cand_shown = false;
     hoverArmed_ = false;
+    wheelDeltaAccumulator_ = 0;
     if (impl_ && impl_->list)
     {
         impl_->list->SetHoverEnabled(false);
@@ -1168,6 +1177,34 @@ bool CandidatePresenter::HandleMessage(UINT message, WPARAM wParam, LPARAM lPara
         impl_->window->DispatchImportedMessage(message, wParam, lParam);
         Present();
         return true;
+    case WM_MOUSEWHEEL: {
+        if (impl_ && impl_->contextMenuOpen)
+        {
+            // Scrolling dismisses active context menu and consumes the event.
+            wheelDeltaAccumulator_ = 0;
+            CloseContextMenu(true);
+            return true;
+        }
+        const short delta = GET_WHEEL_DELTA_WPARAM(wParam);
+        // Reset accumulation if scrolling direction is reversed to prevent jitter.
+        if ((wheelDeltaAccumulator_ > 0 && delta < 0) || (wheelDeltaAccumulator_ < 0 && delta > 0))
+        {
+            wheelDeltaAccumulator_ = 0;
+        }
+        wheelDeltaAccumulator_ += delta;
+        // Step in WHEEL_DELTA increments to support smooth trackpads and high-precision mice.
+        while (wheelDeltaAccumulator_ >= WHEEL_DELTA)
+        {
+            wheelDeltaAccumulator_ -= WHEEL_DELTA;
+            FanyNamedPipe::EnqueueCandidateUiAction(FanyNamedPipe::CandidateUiAction::PageUp, 0);
+        }
+        while (wheelDeltaAccumulator_ <= -WHEEL_DELTA)
+        {
+            wheelDeltaAccumulator_ += WHEEL_DELTA;
+            FanyNamedPipe::EnqueueCandidateUiAction(FanyNamedPipe::CandidateUiAction::PageDown, 0);
+        }
+        return true;
+    }
     default:
         return false;
     }

@@ -142,3 +142,22 @@ TEST_CASE(candidate_page_snapshot_survives_a_rebuild_of_the_live_state)
     Global::ClearCandidatePageSnapshot();
     REQUIRE(Global::LoadCandidatePageSnapshot()->page_views.empty());
 }
+
+TEST_CASE(candidate_ui_page_navigation_boundaries)
+{
+    auto state = MakeCandidateUiState(15, 5);
+    state.page_index = 0;
+    state.selected_index_in_page = 0;
+
+    REQUIRE(!state.has_prev_page());
+    REQUIRE(state.has_next_page());
+
+    state.page_index += 1;
+    REQUIRE(state.has_prev_page());
+    REQUIRE(state.has_next_page());
+
+    state.page_index += 1;
+    REQUIRE(state.has_prev_page());
+    REQUIRE(!state.has_next_page());
+    REQUIRE(state.current_page_count() == 5);
+}

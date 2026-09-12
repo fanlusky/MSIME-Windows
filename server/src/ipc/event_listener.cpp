@@ -1340,6 +1340,8 @@ enum class TaskType
     UiDeleteCandidate,
     UiFixCandidatePosition,
     UiClearCandidatePosition,
+    UiPageUp,
+    UiPageDown,
     ReloadInputSession,
     EnsureInputSessionMatchesConfig,
     ApplyCandidatePageSize,
@@ -1522,7 +1524,8 @@ void WorkerThread()
         const bool candidateUiAction =
             task.type == TaskType::UiCommitCandidate || task.type == TaskType::UiPinCandidate ||
             task.type == TaskType::UiDeleteCandidate || task.type == TaskType::UiFixCandidatePosition ||
-            task.type == TaskType::UiClearCandidatePosition;
+            task.type == TaskType::UiClearCandidatePosition || task.type == TaskType::UiPageUp ||
+            task.type == TaskType::UiPageDown;
         if (candidateUiAction && !CandidateUiOwnerIsCurrent({task.client_id, task.activation_epoch}))
         {
             // The page was hidden or replaced after the click was posted.
@@ -1924,6 +1927,67 @@ void WorkerThread()
             break;
         }
 
+        case TaskType::UiPageUp:
+        case TaskType::UiPageDown: {
+            // Align with keyboard paging logic: dispatch page navigation,
+            // dynamically expand candidates on demand, and reset selected index.
+            auto &ui = Global::candidate_ui;
+            const int offset = (task.type == TaskType::UiPageDown) ? 1 : -1;
+            const auto expand_initial_candidates = [&] {
+                if (!IsSpecialModeCompositionActive(GlobalIme::composition.raw_input_with_cases) && g_inputSession &&
+                    g_inputSession->expand_initial_candidates())
+                {
+                    const int current_page = ui.page_index;
+                    const int current_selection = ui.selected_index_in_page;
+                    auto expanded = g_inputSession->get_candidates();
+                    user_dictionary::apply_fixed_positions(
+                        user_dictionary::default_user_db_path(), CurrentRankingContextKey(), expanded, true,
+                        [](const std::string &key, const std::string &value) {
+                            return g_inputSession->find_candidate(key, value);
+                        },
+                        g_inputSession->has_active_helpcode());
+                    ui.set_items(std::move(expanded));
+                    ui.page_index = current_page;
+                    ui.selected_index_in_page = current_selection;
+                    return true;
+                }
+                return false;
+            };
+
+            bool refresh = false;
+            if (offset > 0 && ui.is_next_page_partial_last_page())
+            {
+                // Populate the last partial page before entering it, so the
+                // first display of that page is already full.
+                expand_initial_candidates();
+            }
+            else if (offset > 0 && !ui.has_next_page())
+            {
+                const bool current_page_was_full = ui.is_current_page_full();
+                if (expand_initial_candidates() && !current_page_was_full)
+                {
+                    // Newly loaded items first fill the unused slots on the
+                    // current last page. Refresh that page instead of skipping
+                    // those items by advancing immediately.
+                    RefreshCandidatePageUi(true);
+                    break;
+                }
+            }
+
+            if (offset < 0 ? ui.has_prev_page() : ui.has_next_page())
+            {
+                ui.page_index += offset;
+                ui.selected_index_in_page = 0;
+                refresh = true;
+            }
+
+            if (refresh)
+            {
+                RefreshCandidatePageUi(true);
+            }
+            break;
+        }
+
         case TaskType::ReloadInputSession: {
             ClearState();
             Global::candidate_ui.page_size = GetConfiguredCandidatePageSize();
@@ -2201,9 +2265,17 @@ void EnqueuePipeSessionInvalidatedTask(uint64_t client_id, uint64_t invalidation
 
 void EnqueueCandidateUiAction(CandidateUiAction action, int one_based_index, int fixed_position)
 {
-    if (!pipe_running || one_based_index <= 0 || one_based_index > 10)
+    if (!pipe_running)
     {
         return;
+    }
+
+    if (action != CandidateUiAction::PageUp && action != CandidateUiAction::PageDown)
+    {
+        if (one_based_index <= 0 || one_based_index > 10)
+        {
+            return;
+        }
     }
 
     const FanyImeIpc::CandidateUiOwner owner = SnapshotCandidateUiOwner();
@@ -2230,6 +2302,14 @@ void EnqueueCandidateUiAction(CandidateUiAction action, int one_based_index, int
     else if (action == CandidateUiAction::ClearPosition)
     {
         type = TaskType::UiClearCandidatePosition;
+    }
+    else if (action == CandidateUiAction::PageUp)
+    {
+        type = TaskType::UiPageUp;
+    }
+    else if (action == CandidateUiAction::PageDown)
+    {
+        type = TaskType::UiPageDown;
     }
 
     {
