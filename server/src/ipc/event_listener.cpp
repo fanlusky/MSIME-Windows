@@ -672,6 +672,20 @@ std::string CandidateTextForOutput(const std::string &text)
     return GetConfiguredCharacterSet() == "traditional" ? ChineseConverter::ToTraditional(text) : text;
 }
 
+// 每次提交都把上屏文本追加进 AI 联想的上下文，并按 UTF-8 边界裁剪到 1024 字节。
+// 造词过程中每选中一段都会各自调用一次，因此这里只追加本次提交的那一段。
+void AppendAiContext(const std::string &committed_word)
+{
+    g_ai_context += CandidateTextForOutput(committed_word);
+    if (g_ai_context.size() > 1024)
+    {
+        size_t cut = g_ai_context.size() - 1024;
+        while (cut < g_ai_context.size() && (static_cast<unsigned char>(g_ai_context[cut]) & 0xC0) == 0x80)
+            ++cut;
+        g_ai_context.erase(0, cut);
+    }
+}
+
 std::wstring BuildCreateWordPipePayload(const std::string &remaining_raw_input_with_cases,
                                         const std::string &current_word)
 {
@@ -4220,6 +4234,25 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
         {
             Global::candidate_ui.selected_text =
                 string_to_wstring(CandidateTextForOutput(GlobalIme::composition.creating_word.word + curWord));
+            // 整句候选走的是这条提前返回的捷径，到不了下面 creating_word 的收尾逻辑，
+            // 因此造好的词必须在这里落库，否则前缀 + 整句只上屏、学不到。
+            // 拼音两段都是 canonical quanpin（creating_word.pinyin 由
+            // append_canonical_pinyin 累积，lattice 候选的 canonical_pinyin 是整句 key），
+            // 直接按 '\'' 拼接即可；音节数与汉字数是否匹配由
+            // create_word_from_canonical_pinyin 自行校验，不匹配时安全地拒绝入库。
+            if (FanyImeIpc::ShouldStoreEarlyReturnPhrase(
+                    curWordItem.source, GlobalIme::composition.creating_word.active,
+                    GlobalIme::composition.creating_word.pinyin, curWordItem.canonical_pinyin))
+            {
+                // 这里异步处理，不然有可能会阻塞住 TSF 端读取 pipe 导致超时
+                EnqueueStoreUserPhraseTask(GlobalIme::composition.creating_word.pinyin + "'" +
+                                               curWordItem.canonical_pinyin,
+                                           GlobalIme::composition.creating_word.word + curWord,
+                                           /*pinyin_is_canonical=*/true);
+            }
+            // 同理，这条捷径也到不了下面的 AI 上下文累积。造词前缀在它自己被选中的那次
+            // ProcessSelectionKey 里已经追加过了，这里只补本次提交的这一段。
+            AppendAiContext(curWord);
             if (curWordItem.source == CandidateSource::EnglishDictionary && isNeedUpdateWeight)
             {
                 const auto &frequency = GetConfiguredFrequencyAdjustment();
@@ -4333,14 +4366,7 @@ void ProcessSelectionKey(UINT keycode, uint64_t client_id, uint64_t activation_e
             Global::ai_candidate = {};
         }
 
-        g_ai_context += CandidateTextForOutput(curWord);
-        if (g_ai_context.size() > 1024)
-        {
-            size_t cut = g_ai_context.size() - 1024;
-            while (cut < g_ai_context.size() && (static_cast<unsigned char>(g_ai_context[cut]) & 0xC0) == 0x80)
-                ++cut;
-            g_ai_context.erase(0, cut);
-        }
+        AppendAiContext(curWord);
 
         if (!isNeedCreateWord)
         {

@@ -75,6 +75,22 @@ TEST_CASE(CloudCandidateNeverEntersCreatingWordMode)
     REQUIRE(!FanyImeIpc::ShouldEnterCreatingWord(CandidateSource::Database, false));
 }
 
+TEST_CASE(OnlyGeneratedSentencesWithBothCanonicalHalvesStoreAtTheEarlyReturn)
+{
+    // Generated is the only special source that can end a creating-word session
+    // with a real reading; the other early-return sources are self-contained.
+    REQUIRE(FanyImeIpc::ShouldStoreEarlyReturnPhrase(CandidateSource::Generated, true, "xi", "ni'hao'zhong'guo"));
+    REQUIRE(!FanyImeIpc::ShouldStoreEarlyReturnPhrase(CandidateSource::Emoji, true, "xi", "ni'hao'zhong'guo"));
+    REQUIRE(!FanyImeIpc::ShouldStoreEarlyReturnPhrase(CandidateSource::QuickPhrase, true, "xi", "ni'hao'zhong'guo"));
+    // Fallback whole-sentence candidates take the normal path, where the
+    // creating-word completion block persists them.
+    REQUIRE(!FanyImeIpc::ShouldStoreEarlyReturnPhrase(CandidateSource::Fallback, true, "xi", "ni'hao'zhong'guo"));
+    // No creating-word session, or a half without a canonical reading, must not store.
+    REQUIRE(!FanyImeIpc::ShouldStoreEarlyReturnPhrase(CandidateSource::Generated, false, "xi", "ni'hao'zhong'guo"));
+    REQUIRE(!FanyImeIpc::ShouldStoreEarlyReturnPhrase(CandidateSource::Generated, true, "", "ni'hao'zhong'guo"));
+    REQUIRE(!FanyImeIpc::ShouldStoreEarlyReturnPhrase(CandidateSource::Generated, true, "xi", ""));
+}
+
 TEST_CASE(MixedAsyncCandidatesKeepReservedSlotsForEveryArrivalOrder)
 {
     const auto local = [](std::string word) { return WordItem("ni", std::move(word), 100); };
@@ -496,6 +512,82 @@ TEST_CASE(EngineShuangpinIncompleteManualSegmentsContinueCreatingWord)
     REQUIRE(completed.can_store);
     REQUIRE_EQ(completed.pinyin, std::string("zhong'xi'ren'min"));
     REQUIRE_EQ(completed.word, std::string("中西人民"));
+}
+
+TEST_CASE(EngineShuangpinWholeSentenceCandidateCompletesCreatingWordWithCanonicalPinyin)
+{
+    // 小鹤双拼 xi'ni'hc'vs'go：先选「西」，再用整句候选「你好中国」收尾。
+    // 整句候选（Google 整句 fallback / lattice 整句）只有带上 canonical quanpin，
+    // 造词才能拼出完整读音并落库。
+    EngineInputSession session(SchemeType::Shuangpin);
+    InputSequence(session, "xi'ni'hc'vs'go");
+
+    const auto first = session.advance_composition_after_selection("xi", "西", "xi");
+    REQUIRE(first.continues_composition);
+    const auto first_progress = session.update_creating_word_progress("", "", "西", first);
+    REQUIRE_EQ(first_progress.pinyin, std::string("xi"));
+    REQUIRE_EQ(first_progress.word, std::string("西"));
+
+    // 整句候选提交的是剩余的全部编码。
+    const std::string remaining = session.get_pinyin_sequence();
+    const auto second = session.advance_composition_after_selection(remaining, "你好中国", "ni'hao'zhong'guo");
+    REQUIRE(!second.continues_composition);
+
+    const auto completed =
+        session.update_creating_word_progress(first_progress.pinyin, first_progress.word, "你好中国", second);
+    REQUIRE(completed.completed);
+    REQUIRE(completed.can_store);
+    REQUIRE_EQ(completed.pinyin, std::string("xi'ni'hao'zhong'guo"));
+    REQUIRE_EQ(completed.word, std::string("西你好中国"));
+}
+
+TEST_CASE(EngineShuangpinWholeSentenceCandidateWithoutCanonicalPinyinCannotBeStored)
+{
+    // 这条记录的是修复前的行为：整句 fallback 候选的 canonical_pinyin 为空时，
+    // 前缀 + 整句只能上屏，永远学不到词库里。
+    EngineInputSession session(SchemeType::Shuangpin);
+    InputSequence(session, "xi'ni'hc'vs'go");
+
+    const auto first = session.advance_composition_after_selection("xi", "西", "xi");
+    const auto first_progress = session.update_creating_word_progress("", "", "西", first);
+
+    const std::string remaining = session.get_pinyin_sequence();
+    const auto second = session.advance_composition_after_selection(remaining, "你好中国", "");
+    const auto completed =
+        session.update_creating_word_progress(first_progress.pinyin, first_progress.word, "你好中国", second);
+    REQUIRE(completed.completed);
+    REQUIRE(!completed.can_store);
+    REQUIRE(completed.pinyin.empty());
+    REQUIRE_EQ(completed.word, std::string("西你好中国"));
+}
+
+TEST_CASE(WholeSentenceCandidatesAlwaysCarryAStoreableCanonicalPinyin)
+{
+    // 整句候选（lattice 的 Generated、Google 整句的 Fallback）是造词最后一段
+    // 最常选中的东西，必须带上完整的 canonical quanpin，否则 update_creating_word_progress
+    // 拼不出读音，前缀 + 整句只上屏、学不到词库里。
+    // 整句是否产出取决于装了哪套词库/模型，所以这里只校验产出的那些；
+    // 「双拼编码能转出完整 quanpin 读音」这一前提则无条件断言，
+    // 那正是修复里挂到整句候选上的那个字符串。
+    const auto check = [](EngineInputSession &session) {
+        for (const auto &item : session.get_candidates())
+        {
+            if (item.source != CandidateSource::Generated && item.source != CandidateSource::Fallback)
+                continue;
+            REQUIRE(!item.canonical_pinyin.empty());
+            REQUIRE_EQ(quanpin::split_segments(item.canonical_pinyin).size(),
+                       HelpcodeUtils::count_han_chars(item.word));
+        }
+    };
+
+    EngineInputSession shuangpin(SchemeType::Shuangpin);
+    InputSequence(shuangpin, "ni'hc'vs'go");
+    REQUIRE_EQ(shuangpin.get_quanpin(), std::string("nihaozhongguo"));
+    check(shuangpin);
+
+    EngineInputSession quanpin(SchemeType::Quanpin);
+    InputSequence(quanpin, "ni'hao'zhong'guo");
+    check(quanpin);
 }
 
 TEST_CASE(EngineQuanpinIncompleteUppercaseSuffixIsNotConsumedAsHelpcode)

@@ -338,8 +338,11 @@ std::vector<WordItem> QuanpinDictionary::query_series(const std::string &raw_inp
             const auto duplicate = std::find_if(result.begin(), result.end(),
                                                 [&](const WordItem &item) { return item.word == google_sentence; });
             if (duplicate == result.end())
+                // 整句 fallback 必须带上 canonical quanpin，否则以它结尾的造词无法落库：
+                // update_creating_word_progress 依赖 canonical_pinyin 才能拼出完整读音。
+                // segmentation 为空时保持为空，交由既有逻辑判定为不可落库。
                 result.insert(result.begin(), WordItem(segmentation.empty() ? raw_input : segmentation, google_sentence,
-                                                       1, CandidateSource::Fallback));
+                                                       1, CandidateSource::Fallback, segmentation));
         }
 
         quanpin::WordLatticeOptions lattice_options;
@@ -580,7 +583,9 @@ std::vector<WordItem> QuanpinDictionary::append_ime_fallback(const std::string &
         std::find_if(result.begin(), result.end(), [&](const WordItem &item) { return item.word == sentence; });
     if (exists == result.end())
     {
-        result.emplace_back(segmentation.empty() ? raw_input : segmentation, sentence, 1, CandidateSource::Fallback);
+        // 同上，整句 fallback 需要 canonical quanpin 才能参与造词落库。
+        result.emplace_back(segmentation.empty() ? raw_input : segmentation, sentence, 1, CandidateSource::Fallback,
+                            segmentation);
     }
     return result;
 }

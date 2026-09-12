@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -14,6 +15,19 @@ namespace FanyImeIpc
 constexpr bool ShouldEnterCreatingWord(CandidateSource source, bool continues_composition) noexcept
 {
     return continues_composition && source != CandidateSource::CloudSuggestion;
+}
+
+// Special candidates commit through an early return in ProcessSelectionKey,
+// before the creating-word completion block that normally persists a composed
+// phrase.  A lattice whole-sentence candidate that finishes a creating-word
+// session must therefore be stored at that early return instead, and only when
+// both halves carry a canonical quanpin reading to join.
+inline bool ShouldStoreEarlyReturnPhrase(CandidateSource source, bool creating_word_active,
+                                         const std::string &prefix_canonical_pinyin,
+                                         const std::string &candidate_canonical_pinyin) noexcept
+{
+    return source == CandidateSource::Generated && creating_word_active && !prefix_canonical_pinyin.empty() &&
+           !candidate_canonical_pinyin.empty();
 }
 
 // Keep asynchronous mixed-input candidates in stable priority slots regardless
