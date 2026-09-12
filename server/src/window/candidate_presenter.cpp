@@ -1193,6 +1193,14 @@ bool CandidatePresenter::HandleMessage(UINT message, WPARAM wParam, LPARAM lPara
         Present();
         return true;
     case WM_MOUSEWHEEL: {
+        if (!GetConfiguredPagingMouseWheelEnabled())
+        {
+            // Leave the message to DefWindowProc, exactly as before the feature
+            // existed. WM_PAGE_CANDIDATE checks the same setting for both hosts;
+            // this early-out only keeps a disabled wheel from being swallowed.
+            wheelDeltaAccumulator_ = 0;
+            return false;
+        }
         if (!::is_global_wnd_cand_shown)
         {
             // Hide() only parks the host off-screen, so a wheel message posted

@@ -351,6 +351,7 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
             {"paging_brackets", GetConfiguredPagingBracketsEnabled()},
             {"paging_tab", GetConfiguredPagingTabEnabled()},
             {"paging_page_up_down", GetConfiguredPagingPageUpDownEnabled()},
+            {"paging_mouse_wheel", GetConfiguredPagingMouseWheelEnabled()},
             {"candidate_arrow_navigation", GetConfiguredCandidateArrowNavigationEnabled()}}},
           {"keybindings",
            {{"switch_language_shift", GetConfiguredSwitchLanguageShiftEnabled()},
@@ -665,6 +666,8 @@ bool ApplyConfigUpdate(const json::object &data)
         return SetConfiguredPagingBracketsEnabled(json::value_to<bool>(data.at("value")));
     if (path == "general.paging_page_up_down")
         return SetConfiguredPagingPageUpDownEnabled(json::value_to<bool>(data.at("value")));
+    if (path == "general.paging_mouse_wheel")
+        return SetConfiguredPagingMouseWheelEnabled(json::value_to<bool>(data.at("value")));
     if (path == "general.candidate_arrow_navigation")
         return SetConfiguredCandidateArrowNavigationEnabled(json::value_to<bool>(data.at("value")));
     if (path == "keybindings.switch_language_shift")

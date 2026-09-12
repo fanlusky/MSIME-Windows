@@ -137,6 +137,46 @@
     "direction": "client"
   },
   {
+    "name": "candidate wheel one notch down",
+    "message": {
+      "type": "candidateWheel",
+      "data": -120
+    },
+    "valid": true,
+    "surface": "candidate",
+    "direction": "client"
+  },
+  {
+    "name": "candidate wheel high precision remainder",
+    "message": {
+      "type": "candidateWheel",
+      "data": 24
+    },
+    "valid": true,
+    "surface": "candidate",
+    "direction": "client"
+  },
+  {
+    "name": "invalid candidate wheel fractional",
+    "message": {
+      "type": "candidateWheel",
+      "data": 1.5
+    },
+    "valid": false,
+    "surface": "candidate",
+    "direction": "client"
+  },
+  {
+    "name": "invalid candidate wheel from settings",
+    "message": {
+      "type": "candidateWheel",
+      "data": -120
+    },
+    "valid": false,
+    "surface": "settings",
+    "direction": "client"
+  },
+  {
     "name": "resize corner",
     "message": {
       "type": "resizeStart",

@@ -301,7 +301,8 @@ function setupPageOptions(): void {
         brackets: 'general.paging_brackets',
         tab: 'general.paging_tab',
         page: 'general.paging_page_up_down',
-        arrow: 'general.candidate_arrow_navigation'
+        arrow: 'general.candidate_arrow_navigation',
+        wheel: 'general.paging_mouse_wheel'
       };
       const path = configPaths[checkbox.value];
       if (path) updateConfig(path, checkbox.checked);
