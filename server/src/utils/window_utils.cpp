@@ -320,7 +320,10 @@ int AdjustCandidateWindowPosition(                  //
         properPos->second = coordinates.top + edgePadPx;
     }
 
-    if (properPos->second + decisionHeightPx > coordinates.bottom)
+    // Decide against the same lower limit every downstream clamp uses. Testing
+    // against the bare work-area bottom declared a card "fits below" that the
+    // edge pad then pushed back up — straight onto the caret's own text line.
+    if (properPos->second + decisionHeightPx > coordinates.bottom - edgePadPx)
     {
         // Point[1] is GetTextExt.bottom (the line's bottom). Sit the opaque card
         // so its bottom meets the line's top — same for short and fully expanded

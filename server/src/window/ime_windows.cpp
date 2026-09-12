@@ -329,6 +329,55 @@ void ClearCandidateClipState()
     g_last_candidate_card_size = {};
 }
 
+// Re-anchor an already-placed card after its painted size changed.
+//
+// A content-only update changes the card's width *and* its height, so the
+// position placement asked for moves with it. Clamping alone cannot follow:
+// MarginLeft only ever shrinks, so a card parked flush against the right screen
+// edge kept its old left edge while narrowing; and a card that grew past the
+// work-area bottom was pushed straight up by KeepCandidateCardInsideHostAndMonitor
+// — onto the very text line it should have flipped above. The old incremental
+// "MarginTop -= height delta" bookkeeping could not fix that either: it kept the
+// bottom glued to wherever the card already was, accumulating every earlier
+// clamp instead of re-deriving the anchor.
+//
+// So ask AdjustCandidateWindowPosition for the whole decision again, using the
+// size that was actually painted — the only height the flip test may trust.
+void ReanchorCandidateHostToPaintedCard(const POINT &layoutCaret, const std::pair<double, double> &cardSize,
+                                        const MonitorCoordinates &coordinates, int hostHeightPx, FLOAT scale,
+                                        int &hostX, int &hostY)
+{
+    if (scale <= 0.0f)
+    {
+        scale = 1.0f;
+    }
+    auto anchorPos = std::make_shared<std::pair<int, int>>();
+    AdjustCandidateWindowPosition(&layoutCaret, cardSize, anchorPos, scale, cardSize.first);
+    RememberCandidateFlip(anchorPos->second, layoutCaret.y);
+
+    const int desiredOuterTopPx = GetCandidateOuterTopPx(anchorPos->second, GetCandidatePackingMarginTopDip(), scale);
+    const int shadowTopPx = static_cast<int>(std::lround(::CANDIDATE_SHADOW_PAD_TOP * static_cast<double>(scale)));
+    const int edgePadPx = static_cast<int>(std::lround(2.0 * static_cast<double>(scale)));
+    // The stable host stays put while its margin can still carry the card to the
+    // anchor. Only a card that wants to sit above the host — a flip, typically —
+    // needs the host itself to move.
+    if (desiredOuterTopPx < hostY + shadowTopPx)
+    {
+        hostY = desiredOuterTopPx - shadowTopPx;
+        if (hostY + hostHeightPx > coordinates.bottom)
+        {
+            hostY = coordinates.bottom - hostHeightPx - edgePadPx;
+        }
+        if (hostY < coordinates.top)
+        {
+            hostY = coordinates.top + edgePadPx;
+        }
+    }
+    Global::MarginLeft =
+        (std::max)(0, static_cast<int>(std::lround((anchorPos->first - hostX) / static_cast<double>(scale))));
+    Global::MarginTop = GetCandidateOuterMarginDip(desiredOuterTopPx, hostY, scale);
+}
+
 void RefreshCandidateClipAfterPaint(HWND hwnd, uint64_t contentGeneration, ULONGLONG updateStartedTick)
 {
     if (!hwnd || !::is_global_wnd_cand_shown || !webviewCandWnd ||
@@ -377,12 +426,9 @@ void RefreshCandidateClipAfterPaint(HWND hwnd, uint64_t contentGeneration, ULONG
 
             // Content-only updates used to only refresh SetWindowRgn. When the
             // painted card grows wider near the right edge, that left the
-            // opaque box hanging past the monitor. Re-clamp margins/host to the
-            // caret monitor without a full FineTune (avoids the show-time jump).
-            //
-            // When the card is above the caret, also keep its bottom glued as
-            // height shrinks/grows — otherwise a short list floats above the
-            // line while a full page sits flush.
+            // opaque box hanging past the monitor. Re-anchor to the painted card
+            // and re-clamp margins/host to the caret monitor, without a full
+            // FineTune (which would reintroduce the show-time jump).
             RECT hostRect{};
             if (GetWindowRect(hwnd, &hostRect))
             {
@@ -395,15 +441,8 @@ void RefreshCandidateClipAfterPaint(HWND hwnd, uint64_t contentGeneration, ULONG
                 const int marginLeftBefore = Global::MarginLeft;
                 const int marginTopBefore = Global::MarginTop;
 
-                if (g_candidate_placed_above_caret && g_last_candidate_card_size.second > 1.0)
-                {
-                    const int deltaDip =
-                        static_cast<int>(std::lround(paintedSize.second - g_last_candidate_card_size.second));
-                    if (deltaDip != 0)
-                    {
-                        Global::MarginTop = (std::max)(0, Global::MarginTop - deltaDip);
-                    }
-                }
+                ReanchorCandidateHostToPaintedCard(layoutCaret, paintedSize, coordinates, hostHeightPx, scale, hostX,
+                                                   hostY);
 
                 KeepCandidateCardInsideHostAndMonitor(hostX, hostY, hostWidthPx, hostHeightPx, decoratedSize.first,
                                                       decoratedSize.second, scale, coordinates, decoratedSize.first);
@@ -640,12 +679,44 @@ void MaybeExpandCandidateClipFromSlotMeasure(HWND hwnd)
         return;
     }
 
-    if (g_candidate_placed_above_caret && g_last_candidate_card_size.second > 1.0)
+    FLOAT slotScale = GetWebViewRasterizationScale(hwnd);
+    if (slotScale <= 0.0f)
     {
-        const int deltaDip = static_cast<int>(std::lround(paintedSize.second - g_last_candidate_card_size.second));
-        if (deltaDip != 0)
+        slotScale = clipLimits.scale > 0.0f ? clipLimits.scale : 1.0f;
+    }
+    // A slot measure reports a new painted height, which can change the flip
+    // decision — re-derive the anchor from it instead of nudging MarginTop by
+    // the height delta. See ReanchorCandidateHostToPaintedCard.
+    RECT slotHostRect{};
+    if (GetWindowRect(hwnd, &slotHostRect))
+    {
+        int hostX = slotHostRect.left;
+        int hostY = slotHostRect.top;
+        const int hostWidthPx = slotHostRect.right - slotHostRect.left;
+        const int hostHeightPx = slotHostRect.bottom - slotHostRect.top;
+        const POINT layoutCaret = GetCandidateLayoutCaret();
+        const MonitorCoordinates coordinates = GetMonitorCoordinatesFromPoint(layoutCaret);
+        const int marginLeftBefore = Global::MarginLeft;
+        const int marginTopBefore = Global::MarginTop;
+        const std::pair<double, double> slotDecoratedSize = AddCandidateDecorationToSize(paintedSize);
+
+        ReanchorCandidateHostToPaintedCard(layoutCaret, paintedSize, coordinates, hostHeightPx, slotScale, hostX,
+                                           hostY);
+        KeepCandidateCardInsideHostAndMonitor(hostX, hostY, hostWidthPx, hostHeightPx, slotDecoratedSize.first,
+                                              slotDecoratedSize.second, slotScale, coordinates,
+                                              slotDecoratedSize.first);
+        if (hostX != slotHostRect.left || hostY != slotHostRect.top)
         {
-            Global::MarginTop = (std::max)(0, Global::MarginTop - deltaDip);
+            SuppressCandidateDpiChange suppressDpi;
+            SetWindowPos(hwnd, nullptr, hostX, hostY, 0, 0,
+                         SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            if (webviewControllerCandWnd)
+            {
+                webviewControllerCandWnd->NotifyParentWindowPositionChanged();
+            }
+        }
+        if (Global::MarginLeft != marginLeftBefore || Global::MarginTop != marginTopBefore)
+        {
             MoveContainerBottom(webviewCandWnd, Global::MarginTop);
         }
     }
@@ -664,11 +735,7 @@ void MaybeExpandCandidateClipFromSlotMeasure(HWND hwnd)
     {
         return;
     }
-    FLOAT scale = GetWebViewRasterizationScale(hwnd);
-    if (scale <= 0.0f)
-    {
-        scale = clipLimits.scale > 0.0f ? clipLimits.scale : 1.0f;
-    }
+    const FLOAT scale = slotScale;
     double extraTopDip = 0.0;
     if (g_candidate_placed_above_caret)
     {
@@ -1077,7 +1144,21 @@ void KeepCandidateCardInsideHostAndMonitor( //
         const double maxMarginLeft = maxMarginLeftDip();
         if (Global::MarginLeft > maxMarginLeft)
         {
+            // Margin alone cannot carry the card to its anchor. Truncating it here
+            // silently snapped the card back to the host's right end — a sideways
+            // jump with no relation to the caret. Slide the stable host right by the
+            // shortfall instead so the card keeps the position placement asked for.
+            const int shortfallPx = static_cast<int>(std::lround((Global::MarginLeft - maxMarginLeft) * scale));
             Global::MarginLeft = static_cast<int>(std::floor(maxMarginLeft));
+            hostX += shortfallPx;
+            if (hostX + hostWidthPx > coordinates.right - edgePadPx)
+            {
+                hostX = coordinates.right - hostWidthPx - edgePadPx;
+            }
+            if (hostX < coordinates.left + edgePadPx)
+            {
+                hostX = coordinates.left + edgePadPx;
+            }
         }
     }
     else
@@ -1100,7 +1181,21 @@ void KeepCandidateCardInsideHostAndMonitor( //
         const double maxMarginTop = maxMarginTopDip();
         if (Global::MarginTop > maxMarginTop)
         {
+            // Same rule as MarginLeft above: margin alone cannot carry the card
+            // down to its anchor, so slide the stable host instead of truncating
+            // — truncation would snap the card up to the host's lower end, a
+            // vertical jump with no relation to the caret.
+            const int shortfallPx = static_cast<int>(std::lround((Global::MarginTop - maxMarginTop) * scale));
             Global::MarginTop = static_cast<int>(std::floor(maxMarginTop));
+            hostY += shortfallPx;
+            if (hostY + hostHeightPx > coordinates.bottom - edgePadPx)
+            {
+                hostY = coordinates.bottom - hostHeightPx - edgePadPx;
+            }
+            if (hostY < coordinates.top + edgePadPx)
+            {
+                hostY = coordinates.top + edgePadPx;
+            }
         }
     }
     else
