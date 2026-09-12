@@ -1932,17 +1932,20 @@ window.ApplyCandidateFrame = function (payload) {
     }
     void container.offsetWidth;
     const rect = container.getBoundingClientRect();
+    // scrollWidth must be part of this: rect/offsetWidth report the clipped box
+    // once .container{overflow-x:hidden} bites, so without it the native region
+    // is built from a width narrower than what is actually painted.
     return {
-      width: Math.max(rect.width, container.offsetWidth || 0) + 1,
-      height: Math.max(rect.height, container.offsetHeight || 0) + 1
+      width: Math.max(rect.width, container.offsetWidth || 0, container.scrollWidth || 0) + 1,
+      height: Math.max(rect.height, container.offsetHeight || 0) + 1,
+      rw: rect.width, ow: container.offsetWidth || 0,
+      sw: container.scrollWidth || 0, cw: container.clientWidth || 0
     };
 };
-if (!document.getElementById('msime-fast-layout')) {
-  const style = document.createElement('style');
-  style.id = 'msime-fast-layout';
-  style.textContent = '.container,.container .text,.row-wrapper,.cand .text{overflow-wrap:normal!important;word-break:keep-all!important;white-space:nowrap!important;}';
-  document.documentElement.appendChild(style);
-}
+// Do NOT force white-space:nowrap on .container/.row-wrapper here. The skin CSS
+// wraps the inline-block candidates at --msime-max-width-dip; pinning them to a
+// single line makes the card outgrow that cap, and .container's overflow-x:hidden
+// then slices the last candidate mid-glyph instead of flowing it onto a new row.
 )";
 
 std::pair<double, double> g_last_candidate_slot_measured_size{};
@@ -2005,6 +2008,10 @@ void SubmitCandidateSlotScript(ComPtr<ICoreWebView2> webview, const std::wstring
             else if (result)
             {
                 g_last_candidate_slot_measured_size = ParseDivSize(result);
+                // Numbers only (no candidate text): shows painted vs reported width.
+                CAND_WEBVIEW_TRACE_LOGF(L"candidate-slot measured_dip=({:.2f},{:.2f}) raw={}",
+                                        g_last_candidate_slot_measured_size.first,
+                                        g_last_candidate_slot_measured_size.second, result);
             }
             g_candidate_slot_update_inflight = false;
             if (!g_candidate_slot_update_pending.empty())
@@ -2513,11 +2520,10 @@ bool ApplyConfiguredCandidateAppearance()
         L"root.style.removeProperty('--cand-text');"
         L"root.style.removeProperty('--cand-num');"
         L"}"
-        L"if(!document.getElementById('msime-fast-layout')){"
-        L"const s=document.createElement('style');s.id='msime-fast-layout';"
-        L"s.textContent='.container,.container .text,.row-wrapper,.cand "
-        L".text{overflow-wrap:normal!important;word-break:keep-all!important;white-space:nowrap!important;}';"
-        L"root.appendChild(s);}"
+        // Drop any stale nowrap fast-layout sheet so the skin's wrap-at-max-width
+        // rules apply; forcing a single line makes the card overflow the cap and
+        // get clipped by .container{overflow-x:hidden}.
+        L"document.getElementById('msime-fast-layout')?.remove();"
         L"})(" +
         string_to_wstring(cfg.dump()) + L");";
     return SUCCEEDED(webviewCandWnd->ExecuteScript(script.c_str(), nullptr));

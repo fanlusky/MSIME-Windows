@@ -326,6 +326,13 @@ void RefreshCandidateClipAfterPaint(HWND hwnd, uint64_t contentGeneration, ULONG
     if (!hwnd || !::is_global_wnd_cand_shown || !webviewCandWnd ||
         contentGeneration != g_candidate_content_generation.load())
     {
+        // This return used to be silent, which is why a region frozen across every
+        // content-only update never showed up in the trace: clip-measure-drop only
+        // covers the post-measure guard, so the whole refresh vanished without a
+        // line. Never let the clip path fail quietly again.
+        CAND_DIAG_LOGF(L"candidate-frame clip-refresh-skip content_gen={} current_gen={} shown={} webview={} hwnd={}",
+                       contentGeneration, g_candidate_content_generation.load(), ::is_global_wnd_cand_shown,
+                       webviewCandWnd != nullptr, hwnd != nullptr);
         return;
     }
     const HalfScreenDipLimits limits = QueryWebViewHalfScreenDipLimitsForHwnd(hwnd);
@@ -2258,7 +2265,21 @@ LRESULT CALLBACK WndProcCandWindow(HWND hwnd, UINT message, WPARAM wParam, LPARA
             frameSignature == g_last_rendered_candidate_signature &&
             updateStartedTick - g_last_rendered_candidate_tick < kCandidateShowDedupWindowMs)
         {
-            CAND_DIAG_LOGF(L"candidate-frame path=dedup content_gen={}", contentGeneration);
+            // A deduped show paints nothing: the DOM still holds exactly the frame
+            // the in-flight measurement was started for. The unconditional bump at
+            // the top of this handler would nevertheless make that measurement look
+            // stale, and both guards below drop it — so every content-only update
+            // lost its SetWindowRgn refresh and the region stayed frozen at the last
+            // full FineTune's width while the DOM kept changing. That is the
+            // right-edge truncation: a wider later page painted past a stale region.
+            // Hand the generation back (only if nobody bumped it since) so the
+            // pending clip still lands. path=superseded above returns before the
+            // bump for the same reason.
+            uint64_t expectedGeneration = contentGeneration;
+            const bool generationRestored =
+                g_candidate_content_generation.compare_exchange_strong(expectedGeneration, contentGeneration - 1);
+            CAND_DIAG_LOGF(L"candidate-frame path=dedup content_gen={} generation_restored={}", contentGeneration,
+                           generationRestored);
             return 0;
         }
         g_last_rendered_candidate_signature = frameSignature;
