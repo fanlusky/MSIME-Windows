@@ -940,13 +940,21 @@ void CandidatePresenter::PlaceAndShow(POINT caret, float widthDip, float heightD
     int x = properPos->first - cardLeftPx;
     int y = properPos->second - cardTopPx;
     const MonitorCoordinates monitor = GetMonitorCoordinatesFromPoint(caret);
-    if (x + widthPx > monitor.right)
+    // Clamp the opaque card, not the host window — same rule the vertical branch
+    // below already follows. The host carries transparent shadow padding, is
+    // rounded up to a 64px bucket and only ever grows while typing, so clamping
+    // *its* right edge shoved the card left by all of that slack. AdjustCandidate-
+    // WindowPosition had already parked the card flush against the screen edge;
+    // deleting a character kept the stale (larger) host width, so the card's left
+    // edge froze and its right edge drifted further from the edge on every delete.
+    const int cardWidthPx = (std::max)(1, static_cast<int>(std::ceil(cardWidthDip * scale)));
+    if (x + cardLeftPx + cardWidthPx > monitor.right)
     {
-        x = monitor.right - widthPx - 2;
+        x = monitor.right - cardLeftPx - cardWidthPx - 2;
     }
-    if (x < monitor.left)
+    if (x + cardLeftPx < monitor.left)
     {
-        x = monitor.left + 2;
+        x = monitor.left + 2 - cardLeftPx;
     }
     const int cardBottom = y + cardTopPx + cardHeightPx;
     if (cardBottom > monitor.bottom)
