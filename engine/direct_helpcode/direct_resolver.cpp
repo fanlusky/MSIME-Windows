@@ -114,9 +114,31 @@ Resolver::Resolver(const ShuangpinProfile &profile) : profile_(profile)
 
 void Resolver::reset_cache()
 {
-    aux_index_.clear();
     span_cache_.clear();
+    word_memo_.clear();
     resolution_cache_.clear();
+    last_sentence_ = nullptr;
+}
+
+void Resolver::build_aux_index(const ResolveContext &context)
+{
+    aux_index_built_ = true;
+    if (!context.single_char_rows || context.keymap == nullptr)
+        return;
+    // 一次扫完词库的单字行，对应万象词库里为每个字派生的 拼音;辅码 拼写。比按音节逐个查（每个音节一条
+    // 4096 行的查询）便宜得多，也不会把第一次碰到某个音节的那一键拖慢。
+    for (const auto &[quanpin, hanzi] : context.single_char_rows())
+    {
+        const auto code = context.keymap->find(hanzi);
+        if (code == context.keymap->end() || code->second.empty())
+            continue;
+        auto &aux = aux_index_[quanpin];
+        const char lead = code->second[0];
+        if (lead >= 'a' && lead <= 'z')
+            aux.first[static_cast<std::size_t>(lead - 'a')] = true;
+        if (code->second.size() > 1)
+            aux.pairs.insert(code->second.substr(0, 2));
+    }
 }
 
 const std::vector<quanpin::LatticeLexeme> &Resolver::span_rows(const quanpin::Segments &span, bool constrained,
@@ -138,10 +160,13 @@ bool Resolver::has_aux(const std::string &quanpin, char first, char second, cons
 {
     if (context.keymap == nullptr || first < 'a' || first > 'z')
         return false;
+    if (!aux_index_built_)
+        build_aux_index(context);
     auto found = aux_index_.find(quanpin);
     if (found == aux_index_.end())
     {
-        // 这个读音下所有单字的辅码，一次建好：对应万象词库里为每个字派生的 拼音;辅码 拼写。
+        // 全量扫描里没有这个读音（没有全量扫描，或词库键的写法不同，如 ü）：退回按音节查一次，结果同样
+        // 记下，之后不再查。
         SyllableAux aux;
         for (const auto &row : span_rows({quanpin}, true, context))
         {
@@ -168,9 +193,12 @@ bool Resolver::resolve(QueryRequest &request, const ResolveContext &context)
     const std::string typed = request.raw_input_with_cases.empty() ? request.raw_input : request.raw_input_with_cases;
     if (typed.empty())
         return false;
+    last_sentence_ = nullptr;
     if (context.keymap != indexed_keymap_)
     {
         reset_cache();
+        aux_index_.clear();
+        aux_index_built_ = false;
         indexed_keymap_ = context.keymap;
     }
 
@@ -181,8 +209,9 @@ bool Resolver::resolve(QueryRequest &request, const ResolveContext &context)
             build_spelling_graph(typed, profile_, [&](const std::string &quanpin, char first, char second) {
                 return has_aux(quanpin, first, second, context);
             });
-        std::vector<SyllableSpelling> spellings;
-        if (!graph.empty())
+        Resolution resolution;
+        // 只有一条完整切分时没有可比的切法，跳过整句解码；整句留给词典层自己的词格去解。
+        if (!graph.empty() && !single_path(graph, resolution.spellings))
         {
             const SpanLookup lookup = [&](const quanpin::Segments &span, bool constrained) {
                 return span_rows(span, constrained, context);
@@ -190,16 +219,24 @@ bool Resolver::resolve(QueryRequest &request, const ResolveContext &context)
             const CharAccept accept = [&](const std::string &hanzi, char first, char second) {
                 return accepts_char(context.keymap, hanzi, first, second);
             };
-            if (auto path = decode_best_path(graph, lookup, accept, context.options))
-                spellings = std::move(path->syllables);
+            if (word_memo_.size() >= kSpanCacheLimit)
+                word_memo_.clear();
+            if (auto path = decode_best_path(graph, lookup, accept, context.options, &word_memo_))
+            {
+                resolution.spellings = path->syllables;
+                if (path->complete && !path->sentence.empty())
+                    resolution.sentence = std::move(path);
+            }
         }
         if (resolution_cache_.size() >= kResolutionCacheLimit)
             resolution_cache_.clear();
-        cached = resolution_cache_.emplace(typed, std::move(spellings)).first;
+        cached = resolution_cache_.emplace(typed, std::move(resolution)).first;
     }
-    const auto &spellings = cached->second;
+    const auto &spellings = cached->second.spellings;
     if (spellings.empty())
         return false;
+    if (cached->second.sentence)
+        last_sentence_ = &*cached->second.sentence;
 
     // 没有辅码、也没有吃掉分隔符以外的字符时，选中的切分就是普通双拼的切分：请求原样放行，
     // 不带辅码的输入和关着开关时走完全一样的路。

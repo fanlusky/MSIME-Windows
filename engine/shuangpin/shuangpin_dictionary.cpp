@@ -273,6 +273,12 @@ vector<ShuangpinDictionary::WordItem> ShuangpinDictionary::generateSeries( //
                                                             return accepts_syllable_char(helpcode, hanzi);
                                                         }});
         }
+        // 直接辅助码的解析器选切分时已经按同一套打分解出了这串输入的最优整句：只要一条首选（没有重排器要
+        // n-best），就直接用它，不再把同一张词格解第二遍。
+        if (lattice_options.nbest == 1 && direct_sentence_ && direct_sentence_->first == effective_cache_key)
+        {
+            lattice_options.precomputed_paths = {direct_sentence_->second};
+        }
         if (!lattice_options.char_constraints.empty())
         {
             constexpr int kConstrainedSpanLimit = 4096;
@@ -1200,6 +1206,7 @@ bool ShuangpinDictionary::resolve_direct_helpcode(QueryRequest &request)
     context.lookup = [lookup, constrained_lookup](const quanpin::Segments &span, bool constrained) {
         return constrained ? constrained_lookup(span) : lookup(span);
     };
+    context.single_char_rows = [this]() { return query_single_char_rows(); };
     context.keymap = helpcodes_ ? helpcodes_.get() : &HelpcodeUtils::helpcode_keymap();
     context.options.language_model = language_model_;
     if (collocation_db_ != nullptr && collocation_db_->valid() && sentence_association_.collocation_weight != 0.0)
@@ -1210,7 +1217,51 @@ bool ShuangpinDictionary::resolve_direct_helpcode(QueryRequest &request)
         };
         context.options.collocation_weight = sentence_association_.collocation_weight;
     }
-    return direct_resolver_->resolve(request, context);
+    const bool rewritten = direct_resolver_->resolve(request, context);
+    // 记下解出的整句，键与 generateSeries 的缓存键同义（请求最终的 raw_input + 约束签名），见那边的词格块。
+    direct_sentence_.reset();
+    if (const auto *sentence = direct_resolver_->resolved_sentence())
+    {
+        quanpin::LatticePath path;
+        path.sentence = sentence->sentence;
+        path.key = sentence->key;
+        path.log_prob = sentence->log_prob;
+        path.words = sentence->words;
+        direct_sentence_.emplace(request.raw_input + syllable_helpcodes_signature(request.syllable_helpcodes),
+                                 std::move(path));
+    }
+    return rewritten;
+}
+
+std::vector<std::pair<std::string, std::string>> ShuangpinDictionary::query_single_char_rows()
+{
+    // 单字都在 tbl_1_<首字母> 里（表名规则见 contracts/dictionary/format.json），逐表全扫一遍。
+    std::vector<std::pair<std::string, std::string>> rows;
+    if (quanpin_db_ == nullptr)
+    {
+        return rows;
+    }
+    for (char letter = 'a'; letter <= 'z'; ++letter)
+    {
+        const std::string sql = "SELECT key, value FROM " + quanpin::build_table_name({std::string(1, letter)});
+        sqlite3_stmt *statement = nullptr;
+        if (sqlite3_prepare_v2(quanpin_db_, sql.c_str(), -1, &statement, nullptr) != SQLITE_OK)
+        {
+            sqlite3_finalize(statement);
+            continue;
+        }
+        while (sqlite3_step(statement) == SQLITE_ROW)
+        {
+            const auto *key = reinterpret_cast<const char *>(sqlite3_column_text(statement, 0));
+            const auto *value = reinterpret_cast<const char *>(sqlite3_column_text(statement, 1));
+            if (key != nullptr && value != nullptr)
+            {
+                rows.emplace_back(key, value);
+            }
+        }
+        sqlite3_finalize(statement);
+    }
+    return rows;
 }
 
 void ShuangpinDictionary::reset_sentence_cache()

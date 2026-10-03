@@ -195,6 +195,21 @@ void run_spelling_graph_tests()
     }
 
     {
+        // 只有一条完整切分时不必整句解码：uiauiq 只能切成 uia|uiq。
+        std::vector<direct_helpcode::SyllableSpelling> path;
+        const auto graph = direct_helpcode::build_spelling_graph("uiauiq", profile, has_aux);
+        require(direct_helpcode::single_path(graph, path) && path.size() == 2 && path[0].end == 3 && path[1].end == 6,
+                "uiauiq was not recognised as a single segmentation.");
+        // uiu 能切成 ui|u（声母缩写）或 uiu（三码），剪枝后只剩三码，同样唯一。
+        const auto three = direct_helpcode::build_spelling_graph("uiu", profile, has_aux);
+        require(direct_helpcode::single_path(three, path) && path.size() == 1 && path[0].kind == SpellingKind::Aux1,
+                "uiu did not reduce to its three-key spelling.");
+        // 走不通的图没有唯一切分。
+        require(!direct_helpcode::single_path(direct_helpcode::SpellingGraph{}, path) && path.empty(),
+                "An empty graph was reported as a single segmentation.");
+    }
+
+    {
         // 没有辅码可用时（码表里没有）三码不成立。
         const direct_helpcode::AuxPredicate none = [](const std::string &, char, char) { return false; };
         const auto graph = direct_helpcode::build_spelling_graph("uia", profile, none);

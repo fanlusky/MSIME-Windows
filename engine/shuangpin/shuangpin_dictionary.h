@@ -125,6 +125,10 @@ class ShuangpinDictionary
     std::unordered_map<std::string, sqlite3_stmt *> quanpin_statement_cache_;
     // 直接辅助码开着时才建。
     std::unique_ptr<direct_helpcode::Resolver> direct_resolver_;
+    // 解析器上一次解出的最优整句及它对应的 generateSeries 缓存键，词格合并时直接用它而不重解。
+    std::optional<std::pair<std::string, quanpin::LatticePath>> direct_sentence_;
+    // 词库里全部单字行（全拼读音、单字），直接辅助码建辅码索引用。
+    std::vector<std::pair<std::string, std::string>> query_single_char_rows();
     void reset_cache_if_database_changed();
     // 这个字能不能落在 helpcode 约束的音节上。
     bool accepts_syllable_char(const SyllableHelpcode &helpcode, const std::string &hanzi) const;

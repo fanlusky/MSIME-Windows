@@ -96,6 +96,7 @@ struct WordEdge
 {
     std::size_t end = 0;
     std::string word;
+    std::string key;
     double base_score = 0;
     ngram::WordIndex index = 0;
     // 占位边：缩写声母或查不到字的音节，只为让切分走得通，不进语言模型。
@@ -107,8 +108,8 @@ class WordGraphBuilder
 {
   public:
     WordGraphBuilder(const SpellingGraph &graph, const SpanLookup &lookup, const CharAccept &accept,
-                     const DecodeOptions &options)
-        : graph_(graph), lookup_(lookup), accept_(accept), options_(options), model_(active_model(options))
+                     const DecodeOptions &options, WordEdgeMemo *memo)
+        : graph_(graph), lookup_(lookup), accept_(accept), options_(options), model_(active_model(options)), memo_(memo)
     {
     }
 
@@ -175,7 +176,63 @@ class WordGraphBuilder
         return found->second;
     }
 
+    // 这条拼写序列铺出来的词只取决于各音节的读音与辅码，跨按键记在 memo 里。
+    static std::string memo_key(const std::vector<const SyllableSpelling *> &sequence)
+    {
+        std::string key;
+        for (const auto *spelling : sequence)
+        {
+            key += spelling->quanpin;
+            key.push_back(spelling->first ? spelling->first : '-');
+            key.push_back(spelling->second ? spelling->second : '-');
+            key.push_back('|');
+        }
+        return key;
+    }
+
     void emit(const std::vector<const SyllableSpelling *> &sequence, std::vector<WordEdge> &out)
+    {
+        const std::vector<CachedWord> *words = nullptr;
+        std::vector<CachedWord> local;
+        if (memo_)
+        {
+            std::string key = memo_key(sequence);
+            auto found = memo_->find(key);
+            if (found == memo_->end())
+                found = memo_->emplace(std::move(key), lookup_words(sequence)).first;
+            words = &found->second;
+        }
+        else
+        {
+            local = lookup_words(sequence);
+            words = &local;
+        }
+
+        if (words->empty())
+        {
+            // 单个音节查不到字时也留一条占位边，免得整条切分断掉；分数比声母缩写还低。
+            if (sequence.size() == 1)
+            {
+                WordEdge edge = placeholder(*sequence.front());
+                edge.base_score = options_.initial_penalty * 2;
+                out.push_back(std::move(edge));
+            }
+            return;
+        }
+        for (const auto &word : *words)
+        {
+            WordEdge edge;
+            edge.end = sequence.back()->end;
+            edge.word = word.word;
+            edge.key = word.key;
+            edge.base_score = word.base_score;
+            edge.index = word.index;
+            edge.spellings = sequence;
+            out.push_back(std::move(edge));
+        }
+    }
+
+    std::vector<CachedWord> lookup_words(const std::vector<const SyllableSpelling *> &sequence)
     {
         quanpin::Segments span;
         bool constrained = false;
@@ -206,39 +263,29 @@ class WordGraphBuilder
                 accepted.push_back(&row);
         }
 
-        if (accepted.empty())
-        {
-            // 单个音节查不到字时也留一条占位边，免得整条切分断掉；分数比声母缩写还低。
-            if (sequence.size() == 1)
-            {
-                WordEdge edge = placeholder(*sequence.front());
-                edge.base_score = options_.initial_penalty * 2;
-                out.push_back(std::move(edge));
-            }
-            return;
-        }
-
+        std::vector<CachedWord> words;
         std::int64_t span_total = 0;
         for (const auto *row : accepted)
             span_total += row->weight > 0 ? row->weight : 0;
+        const std::string span_key = quanpin::join_segments(span);
         for (const auto *row : accepted)
         {
-            WordEdge edge;
-            edge.end = sequence.back()->end;
-            edge.word = row->value;
-            edge.spellings = sequence;
+            CachedWord word;
+            word.word = row->value;
+            word.key = row->key.empty() ? span_key : row->key;
             if (model_)
             {
-                edge.index = model_->index(edge.word);
-                edge.base_score =
+                word.index = model_->index(word.word);
+                word.base_score =
                     dictionary_tiebreak(row->weight, options_) + reading_prior(row->weight, span_total, options_);
             }
             else
             {
-                edge.base_score = heuristic_log_prob(row->weight, sequence.size(), options_);
+                word.base_score = heuristic_log_prob(row->weight, sequence.size(), options_);
             }
-            out.push_back(std::move(edge));
+            words.push_back(std::move(word));
         }
+        return words;
     }
 
     const SpellingGraph &graph_;
@@ -246,6 +293,7 @@ class WordGraphBuilder
     const CharAccept &accept_;
     const DecodeOptions &options_;
     const ngram::LanguageModel *model_;
+    WordEdgeMemo *memo_;
     std::unordered_map<std::string, std::vector<quanpin::LatticeLexeme>> cache_;
     int sequences_ = 0;
 };
@@ -272,14 +320,15 @@ void keep_beam(std::vector<Hyp> &column, int beam)
 } // namespace
 
 std::optional<DecodedPath> decode_best_path(const SpellingGraph &graph, const SpanLookup &lookup,
-                                            const CharAccept &accept, const DecodeOptions &options)
+                                            const CharAccept &accept, const DecodeOptions &options, WordEdgeMemo *memo)
 {
     if (graph.empty() || graph.size == 0)
         return std::nullopt;
 
     const std::size_t n = graph.size;
     const ngram::LanguageModel *model = active_model(options);
-    const auto words = WordGraphBuilder(graph, lookup, accept, options).build();
+    const bool collocation = options.collocation_scorer && options.collocation_weight > 0.0;
+    const auto words = WordGraphBuilder(graph, lookup, accept, options, memo).build();
 
     std::vector<std::vector<Hyp>> columns(n + 1);
     Hyp start;
@@ -309,13 +358,16 @@ std::optional<DecodedPath> decode_best_path(const SpellingGraph &graph, const Sp
             {
                 Hyp next;
                 next.score = hyp.score + edge.base_score;
-                next.state = hyp.state;
-                next.collocation_tail = hyp.collocation_tail;
+                if (edge.placeholder || !model)
+                    next.state = hyp.state;
+                // 关闭搭配项时尾窗始终为空，不为每个假设白拷一次字符串。
+                if (collocation)
+                    next.collocation_tail = hyp.collocation_tail;
                 if (!edge.placeholder)
                 {
                     if (model)
                         next.score += model->score(hyp.state, edge.index, next.state);
-                    if (options.collocation_scorer && options.collocation_weight > 0.0)
+                    if (collocation)
                     {
                         const bool is_rear = next_spelling_position(graph, edge.end) == n;
                         next.score += options.collocation_weight *
@@ -354,7 +406,15 @@ std::optional<DecodedPath> decode_best_path(const SpellingGraph &graph, const Sp
     std::reverse(edges.begin(), edges.end());
     for (const auto *edge : edges)
     {
+        path.complete = path.complete && !edge->placeholder;
         path.sentence += edge->word;
+        if (!edge->placeholder)
+        {
+            if (!path.key.empty())
+                path.key.push_back('\'');
+            path.key += edge->key;
+            path.words.push_back(edge->word);
+        }
         for (const auto *spelling : edge->spellings)
             path.syllables.push_back(*spelling);
     }

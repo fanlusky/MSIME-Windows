@@ -6,7 +6,10 @@
 #include "../core/query_request.h"
 
 #include <array>
+#include <functional>
+#include <optional>
 #include <string>
+#include <utility>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -17,9 +20,14 @@
 namespace direct_helpcode
 {
 
+// 全拼读音 + 单字，词库里所有单字行，建辅码索引用。
+using SingleCharRows = std::vector<std::pair<std::string, std::string>>;
+
 struct ResolveContext
 {
     SpanLookup lookup;
+    // 一次取出词库里全部单字行。为空时退回按音节逐个查。
+    std::function<SingleCharRows()> single_char_rows;
     // 当前辅助码方案的码表；为空时没有辅码边，整串按普通双拼解。
     const HelpcodeUtils::Keymap *keymap = nullptr;
     DecodeOptions options;
@@ -32,7 +40,13 @@ class Resolver
 
     // 改写了请求返回 true。选中的切分里没有辅码、和普通双拼切得一样时不改写，那时请求本来就对。
     bool resolve(QueryRequest &request, const ResolveContext &context);
-    // 词库、码表或整句打分选项变了，索引和解码结果都要作废。
+    // 上一次 resolve 顺带解出的最优整句；只有一条切分（没解码）或路径不完整时为空。下一次 resolve 前有效。
+    const DecodedPath *resolved_sentence() const
+    {
+        return last_sentence_;
+    }
+    // 词库或整句打分选项变了，查词与解码结果作废。辅码索引只随码表变：它只依赖单字读音和码表，
+    // 用户造词几乎不会新增单字，选词调频时不必重建。
     void reset_cache();
 
   private:
@@ -41,17 +55,27 @@ class Resolver
         std::array<bool, 26> first{};
         std::unordered_set<std::string> pairs;
     };
+    struct Resolution
+    {
+        std::vector<SyllableSpelling> spellings;
+        std::optional<DecodedPath> sentence;
+    };
 
+    void build_aux_index(const ResolveContext &context);
     bool has_aux(const std::string &quanpin, char first, char second, const ResolveContext &context);
     const std::vector<quanpin::LatticeLexeme> &span_rows(const quanpin::Segments &span, bool constrained,
                                                          const ResolveContext &context);
 
     const ShuangpinProfile profile_;
     const HelpcodeUtils::Keymap *indexed_keymap_ = nullptr;
+    bool aux_index_built_ = false;
     std::unordered_map<std::string, SyllableAux> aux_index_;
     // 跨按键复用的跨度查询：每敲一个键整串重新解码，前面那些跨度的行没有变。
     std::unordered_map<std::string, std::vector<quanpin::LatticeLexeme>> span_cache_;
-    std::unordered_map<std::string, std::vector<SyllableSpelling>> resolution_cache_;
+    // 跨按键复用的词边：见 WordEdgeMemo。
+    WordEdgeMemo word_memo_;
+    std::unordered_map<std::string, Resolution> resolution_cache_;
+    const DecodedPath *last_sentence_ = nullptr;
 };
 
 // 按选中的切分改写请求，纯函数，单测直接用。typed 是原串（保留大小写）。

@@ -7,6 +7,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // 直接辅助码的整句解码：在按键位置上的拼写图里铺词，一次 Viterbi 同时决定切分与用字。
@@ -49,10 +50,27 @@ struct DecodedPath
 {
     std::vector<SyllableSpelling> syllables;
     std::string sentence;
+    // 全拼键（' 分隔）与逐词文本，和 quanpin::LatticePath 同义，供词格合并直接复用。
+    std::string key;
+    std::vector<std::string> words;
     double log_prob = 0;
+    // 路径上有占位边（声母缩写、查不到字的音节）时整句不完整，不能当整句候选。
+    bool complete = true;
 };
 
+// 一条拼写序列（音节 + 辅码）铺出来的词，跨按键复用：多敲一个键时前面那些序列的查词、辅码筛选
+// 和打分都不变。只和词库、码表、打分选项有关，三者变了由调用方清空。
+struct CachedWord
+{
+    std::string word;
+    std::string key;
+    double base_score = 0;
+    ngram::WordIndex index = 0;
+};
+using WordEdgeMemo = std::unordered_map<std::string, std::vector<CachedWord>>;
+
 std::optional<DecodedPath> decode_best_path(const SpellingGraph &graph, const SpanLookup &lookup,
-                                            const CharAccept &accept, const DecodeOptions &options = {});
+                                            const CharAccept &accept, const DecodeOptions &options = {},
+                                            WordEdgeMemo *memo = nullptr);
 
 } // namespace direct_helpcode

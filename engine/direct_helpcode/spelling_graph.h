@@ -87,4 +87,7 @@ SpellingGraph build_spelling_graph(const std::string &typed, const ShuangpinProf
 // 下一个出字的位置：跳过 pos 起连续的分隔符。
 std::size_t next_spelling_position(const SpellingGraph &graph, std::size_t pos);
 
+// 图里只有一条完整切分时返回它：没有可比的切法，不必整句解码。有零条或多条时返回 false。
+bool single_path(const SpellingGraph &graph, std::vector<SyllableSpelling> &path);
+
 } // namespace direct_helpcode

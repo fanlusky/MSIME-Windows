@@ -169,4 +169,39 @@ std::size_t next_spelling_position(const SpellingGraph &graph, std::size_t pos)
     return pos;
 }
 
+bool single_path(const SpellingGraph &graph, std::vector<SyllableSpelling> &path)
+{
+    path.clear();
+    if (graph.empty())
+        return false;
+    // 从每个位置走到末尾有几条路，数到 2 就够了。
+    const std::size_t n = graph.size;
+    std::vector<int> ways(n + 1, 0);
+    ways[n] = 1;
+    for (std::size_t pos = n; pos-- > 0;)
+    {
+        int count = graph.skip[pos] ? ways[pos + 1] : 0;
+        for (const auto &spelling : graph.edges[pos])
+            count += ways[spelling.end];
+        ways[pos] = (std::min)(count, 2);
+    }
+    if (ways[0] != 1)
+        return false;
+    for (std::size_t pos = 0; pos < n;)
+    {
+        if (graph.skip[pos])
+        {
+            ++pos;
+            continue;
+        }
+        const auto next = std::find_if(graph.edges[pos].begin(), graph.edges[pos].end(),
+                                       [&](const SyllableSpelling &spelling) { return ways[spelling.end] > 0; });
+        if (next == graph.edges[pos].end())
+            return false;
+        path.push_back(*next);
+        pos = next->end;
+    }
+    return true;
+}
+
 } // namespace direct_helpcode
