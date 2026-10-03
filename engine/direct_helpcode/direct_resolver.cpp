@@ -1,0 +1,226 @@
+#include "direct_resolver.h"
+
+#include "../quanpin/quanpin_query.h"
+#include "../shuangpin/shuangpin_query.h"
+
+#include <algorithm>
+#include <cctype>
+
+namespace direct_helpcode
+{
+namespace
+{
+// 缓存条目上限：超过就整体清掉，免得一次长时间输入把内存撑大。
+constexpr std::size_t kSpanCacheLimit = 8192;
+constexpr std::size_t kResolutionCacheLimit = 256;
+
+std::string lowercase(std::string text)
+{
+    for (char &ch : text)
+        ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    return text;
+}
+
+bool is_single_utf8_char(const std::string &text)
+{
+    if (text.empty())
+        return false;
+    const auto lead = static_cast<unsigned char>(text[0]);
+    const std::size_t len = lead < 0x80 ? 1 : (lead >> 5) == 0x6 ? 2 : (lead >> 4) == 0xE ? 3 : 4;
+    return text.size() == len;
+}
+
+bool accepts_char(const HelpcodeUtils::Keymap *keymap, const std::string &hanzi, char first, char second)
+{
+    if (keymap == nullptr)
+        return false;
+    const auto found = keymap->find(hanzi);
+    if (found == keymap->end())
+        return false;
+    SyllableHelpcode helpcode;
+    helpcode.first = first;
+    helpcode.second = second;
+    return syllable_helpcode_matches(helpcode, found->second);
+}
+
+// 两个相邻音节之间要不要放一个手动分隔符：前一个音节后面挂着辅码、任一个是单键声母、或原串里
+// 两者之间本来就隔着别的字符时都要放。其余情况是连续的两键音节，贪心切分自己就切得出来，不放
+// 分隔符正是为了让它们和普通双拼走完全相同的路径。
+bool needs_delimiter(const SyllableSpelling &previous, const SyllableSpelling &current)
+{
+    return previous.end != previous.begin + previous.code.size() || previous.kind == SpellingKind::Initial ||
+           current.kind == SpellingKind::Initial || current.begin != previous.end;
+}
+} // namespace
+
+void apply_spellings(QueryRequest &request, const std::string &typed, const std::vector<SyllableSpelling> &spellings,
+                     const ShuangpinProfile &profile)
+{
+    std::string clean;
+    std::vector<std::size_t> source_index;
+    std::vector<std::pair<std::size_t, std::string>> decorations;
+    SyllableHelpcodes helpcodes;
+    for (std::size_t i = 0; i < spellings.size(); ++i)
+    {
+        const auto &spelling = spellings[i];
+        if (i > 0 && needs_delimiter(spellings[i - 1], spelling))
+        {
+            const auto &previous = spellings[i - 1];
+            clean.push_back('\'');
+            // 和句中辅助码一致：分隔符对应前一个音节辅码段的起点。
+            source_index.push_back(previous.begin + previous.code.size());
+        }
+        for (std::size_t j = 0; j < spelling.code.size(); ++j)
+        {
+            clean.push_back(spelling.code[j]);
+            source_index.push_back(spelling.begin + j);
+        }
+        const std::size_t code_end = spelling.begin + spelling.code.size();
+        if (spelling.end > code_end)
+            decorations.emplace_back(i, typed.substr(code_end, spelling.end - code_end));
+        if (spelling.has_aux())
+        {
+            SyllableHelpcode helpcode;
+            helpcode.syllable = i;
+            helpcode.first = spelling.first;
+            helpcode.second = spelling.second;
+            helpcodes.push_back(helpcode);
+        }
+    }
+    source_index.push_back(typed.size());
+
+    request.raw_input_with_syllable_helpcodes = typed;
+    request.raw_input = clean;
+    request.raw_input_with_cases = clean;
+    request.syllable_helpcodes = std::move(helpcodes);
+    request.enable_mid_sentence_helpcode = true;
+    request.enable_shuangpin_helpcode = false;
+    request.direct_helpcode = true;
+    request.direct_helpcode_source_index = std::move(source_index);
+    request.direct_helpcode_decorations = std::move(decorations);
+    request.valid = !clean.empty();
+    if (!request.valid)
+        return;
+    const std::string raw_segmentation = shuangpin::segment_input(clean, profile);
+    request.raw_segmentation = raw_segmentation;
+    request.normalized_segmentation = shuangpin::to_quanpin_segmentation(raw_segmentation, profile);
+    request.segmentation = request.normalized_segmentation;
+    request.normalized_input = shuangpin::normalize_input(clean, profile);
+}
+
+Resolver::Resolver(const ShuangpinProfile &profile) : profile_(profile)
+{
+}
+
+void Resolver::reset_cache()
+{
+    aux_index_.clear();
+    span_cache_.clear();
+    resolution_cache_.clear();
+}
+
+const std::vector<quanpin::LatticeLexeme> &Resolver::span_rows(const quanpin::Segments &span, bool constrained,
+                                                               const ResolveContext &context)
+{
+    std::string key = quanpin::join_segments(span);
+    if (constrained)
+        key.push_back('#');
+    auto found = span_cache_.find(key);
+    if (found != span_cache_.end())
+        return found->second;
+    if (span_cache_.size() >= kSpanCacheLimit)
+        span_cache_.clear();
+    auto rows = context.lookup ? context.lookup(span, constrained) : std::vector<quanpin::LatticeLexeme>{};
+    return span_cache_.emplace(std::move(key), std::move(rows)).first->second;
+}
+
+bool Resolver::has_aux(const std::string &quanpin, char first, char second, const ResolveContext &context)
+{
+    if (context.keymap == nullptr || first < 'a' || first > 'z')
+        return false;
+    auto found = aux_index_.find(quanpin);
+    if (found == aux_index_.end())
+    {
+        // 这个读音下所有单字的辅码，一次建好：对应万象词库里为每个字派生的 拼音;辅码 拼写。
+        SyllableAux aux;
+        for (const auto &row : span_rows({quanpin}, true, context))
+        {
+            if (!is_single_utf8_char(row.value))
+                continue;
+            const auto code = context.keymap->find(row.value);
+            if (code == context.keymap->end() || code->second.empty())
+                continue;
+            const char lead = code->second[0];
+            if (lead >= 'a' && lead <= 'z')
+                aux.first[static_cast<std::size_t>(lead - 'a')] = true;
+            if (code->second.size() > 1)
+                aux.pairs.insert(code->second.substr(0, 2));
+        }
+        found = aux_index_.emplace(quanpin, std::move(aux)).first;
+    }
+    if (second == 0)
+        return found->second.first[static_cast<std::size_t>(first - 'a')];
+    return found->second.pairs.count(std::string{first, second}) > 0;
+}
+
+bool Resolver::resolve(QueryRequest &request, const ResolveContext &context)
+{
+    const std::string typed = request.raw_input_with_cases.empty() ? request.raw_input : request.raw_input_with_cases;
+    if (typed.empty())
+        return false;
+    if (context.keymap != indexed_keymap_)
+    {
+        reset_cache();
+        indexed_keymap_ = context.keymap;
+    }
+
+    auto cached = resolution_cache_.find(typed);
+    if (cached == resolution_cache_.end())
+    {
+        const auto graph =
+            build_spelling_graph(typed, profile_, [&](const std::string &quanpin, char first, char second) {
+                return has_aux(quanpin, first, second, context);
+            });
+        std::vector<SyllableSpelling> spellings;
+        if (!graph.empty())
+        {
+            const SpanLookup lookup = [&](const quanpin::Segments &span, bool constrained) {
+                return span_rows(span, constrained, context);
+            };
+            const CharAccept accept = [&](const std::string &hanzi, char first, char second) {
+                return accepts_char(context.keymap, hanzi, first, second);
+            };
+            if (auto path = decode_best_path(graph, lookup, accept, context.options))
+                spellings = std::move(path->syllables);
+        }
+        if (resolution_cache_.size() >= kResolutionCacheLimit)
+            resolution_cache_.clear();
+        cached = resolution_cache_.emplace(typed, std::move(spellings)).first;
+    }
+    const auto &spellings = cached->second;
+    if (spellings.empty())
+        return false;
+
+    // 没有辅码、也没有吃掉分隔符以外的字符时，选中的切分就是普通双拼的切分：请求原样放行，
+    // 不带辅码的输入和关着开关时走完全一样的路。
+    const bool plain = std::none_of(spellings.begin(), spellings.end(), [](const SyllableSpelling &spelling) {
+        return spelling.end != spelling.begin + spelling.code.size();
+    });
+    if (plain)
+    {
+        std::string joined;
+        for (std::size_t i = 0; i < spellings.size(); ++i)
+        {
+            if (i > 0)
+                joined.push_back('\'');
+            joined += spellings[i].code;
+        }
+        if (joined == shuangpin::segment_input(lowercase(typed), profile_))
+            return false;
+    }
+
+    apply_spellings(request, typed, spellings, profile_);
+    return true;
+}
+
+} // namespace direct_helpcode

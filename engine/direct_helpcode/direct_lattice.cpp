@@ -1,0 +1,364 @@
+#include "direct_lattice.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+#include <limits>
+#include <unordered_map>
+
+namespace direct_helpcode
+{
+namespace
+{
+constexpr double kNegInf = -std::numeric_limits<double>::infinity();
+// 搭配打分的上下文窗口，与 word_lattice.cpp 一致：.gram 的查询键最多编入 8 个码点。
+constexpr std::size_t kCollocationTailCodepoints = 8;
+
+std::vector<std::string> split_utf8_chars(const std::string &text)
+{
+    std::vector<std::string> chars;
+    for (std::size_t i = 0; i < text.size();)
+    {
+        const auto lead = static_cast<unsigned char>(text[i]);
+        const std::size_t len = lead < 0x80 ? 1 : (lead >> 5) == 0x6 ? 2 : (lead >> 4) == 0xE ? 3 : 4;
+        chars.push_back(text.substr(i, len));
+        i += len;
+    }
+    return chars;
+}
+
+std::size_t utf8_codepoints(const std::string &text)
+{
+    std::size_t n = 0;
+    for (unsigned char c : text)
+    {
+        if ((c & 0xC0) != 0x80)
+            ++n;
+    }
+    return n;
+}
+
+std::string tail_codepoints(const std::string &text, std::size_t n)
+{
+    const std::size_t total = utf8_codepoints(text);
+    if (total <= n)
+        return text;
+    std::size_t skip = total - n;
+    std::size_t i = 0;
+    while (i < text.size() && skip > 0)
+    {
+        ++i;
+        --skip;
+        while (i < text.size() && (static_cast<unsigned char>(text[i]) & 0xC0) == 0x80)
+            ++i;
+    }
+    return text.substr(i);
+}
+
+// 以下三个打分函数与 word_lattice.cpp 同义，见那边的注释。
+double heuristic_log_prob(std::int64_t weight, std::size_t syllables, const DecodeOptions &options)
+{
+    const double w = weight > 0 ? static_cast<double>(weight) : 1.0;
+    const double z = options.unigram_z > 1.0 ? options.unigram_z : 1e6;
+    const double lp = std::log(w);
+    if (syllables <= 1)
+        return lp - std::log(z);
+    return lp + options.phrase_length_bonus * static_cast<double>(syllables);
+}
+
+double dictionary_tiebreak(std::int64_t weight, const DecodeOptions &options)
+{
+    const double w = weight > 0 ? static_cast<double>(weight) : 1.0;
+    return options.dictionary_tiebreak * std::log10(w);
+}
+
+double reading_prior(std::int64_t weight, std::int64_t span_total, const DecodeOptions &options)
+{
+    if (options.reading_prior <= 0 || span_total <= 0)
+        return 0;
+    const double w = weight > 0 ? static_cast<double>(weight) : 0.0;
+    const double share = (w + 1.0) / (static_cast<double>(span_total) + 1.0);
+    const double threshold = options.reading_prior_share > 0 ? options.reading_prior_share : 1.0;
+    if (share >= threshold)
+        return 0;
+    const double floor = options.reading_prior_floor > 0 ? -options.reading_prior_floor : kNegInf;
+    return options.reading_prior * (std::max)(std::log10(share / threshold), floor);
+}
+
+const ngram::LanguageModel *active_model(const DecodeOptions &options)
+{
+    if (options.language_model && options.language_model->valid())
+        return options.language_model;
+    return nullptr;
+}
+
+struct WordEdge
+{
+    std::size_t end = 0;
+    std::string word;
+    double base_score = 0;
+    ngram::WordIndex index = 0;
+    // 占位边：缩写声母或查不到字的音节，只为让切分走得通，不进语言模型。
+    bool placeholder = false;
+    std::vector<const SyllableSpelling *> spellings;
+};
+
+class WordGraphBuilder
+{
+  public:
+    WordGraphBuilder(const SpellingGraph &graph, const SpanLookup &lookup, const CharAccept &accept,
+                     const DecodeOptions &options)
+        : graph_(graph), lookup_(lookup), accept_(accept), options_(options), model_(active_model(options))
+    {
+    }
+
+    std::vector<std::vector<WordEdge>> build()
+    {
+        std::vector<std::vector<WordEdge>> words(graph_.size);
+        for (std::size_t start = 0; start < graph_.size; ++start)
+        {
+            if (graph_.edges[start].empty())
+                continue;
+            sequences_ = 0;
+            std::vector<const SyllableSpelling *> sequence;
+            extend(start, sequence, words[start]);
+        }
+        return words;
+    }
+
+  private:
+    void extend(std::size_t pos, std::vector<const SyllableSpelling *> &sequence, std::vector<WordEdge> &out)
+    {
+        if (pos >= graph_.size)
+            return;
+        for (const auto &spelling : graph_.edges[pos])
+        {
+            if (sequences_ >= options_.max_sequences_per_start)
+                return;
+            if (spelling.kind == SpellingKind::Initial)
+            {
+                // 声母缩写只单独成边，不拼进多字词：词格查的是完整读音。
+                if (sequence.empty())
+                    out.push_back(placeholder(spelling));
+                continue;
+            }
+            ++sequences_;
+            sequence.push_back(&spelling);
+            emit(sequence, out);
+            if (static_cast<int>(sequence.size()) < options_.max_phrase_syllables)
+                extend(next_spelling_position(graph_, spelling.end), sequence, out);
+            sequence.pop_back();
+        }
+    }
+
+    WordEdge placeholder(const SyllableSpelling &spelling) const
+    {
+        WordEdge edge;
+        edge.end = spelling.end;
+        edge.placeholder = true;
+        edge.base_score = options_.initial_penalty;
+        edge.spellings.push_back(&spelling);
+        return edge;
+    }
+
+    const std::vector<quanpin::LatticeLexeme> &rows_for(const quanpin::Segments &span, bool constrained)
+    {
+        std::string key = quanpin::join_segments(span);
+        if (constrained)
+            key.push_back('#');
+        auto found = cache_.find(key);
+        if (found == cache_.end())
+            found = cache_
+                        .emplace(std::move(key),
+                                 lookup_ ? lookup_(span, constrained) : std::vector<quanpin::LatticeLexeme>{})
+                        .first;
+        return found->second;
+    }
+
+    void emit(const std::vector<const SyllableSpelling *> &sequence, std::vector<WordEdge> &out)
+    {
+        quanpin::Segments span;
+        bool constrained = false;
+        for (const auto *spelling : sequence)
+        {
+            span.push_back(spelling->quanpin);
+            constrained = constrained || spelling->has_aux();
+        }
+        const auto &rows = rows_for(span, constrained);
+
+        std::vector<const quanpin::LatticeLexeme *> accepted;
+        for (const auto &row : rows)
+        {
+            if (static_cast<int>(accepted.size()) >= options_.span_limit)
+                break;
+            if (row.value.empty())
+                continue;
+            const auto chars = split_utf8_chars(row.value);
+            if (chars.size() != sequence.size())
+                continue;
+            bool ok = true;
+            for (std::size_t i = 0; ok && i < sequence.size(); ++i)
+            {
+                if (sequence[i]->has_aux())
+                    ok = accept_ && accept_(chars[i], sequence[i]->first, sequence[i]->second);
+            }
+            if (ok)
+                accepted.push_back(&row);
+        }
+
+        if (accepted.empty())
+        {
+            // 单个音节查不到字时也留一条占位边，免得整条切分断掉；分数比声母缩写还低。
+            if (sequence.size() == 1)
+            {
+                WordEdge edge = placeholder(*sequence.front());
+                edge.base_score = options_.initial_penalty * 2;
+                out.push_back(std::move(edge));
+            }
+            return;
+        }
+
+        std::int64_t span_total = 0;
+        for (const auto *row : accepted)
+            span_total += row->weight > 0 ? row->weight : 0;
+        for (const auto *row : accepted)
+        {
+            WordEdge edge;
+            edge.end = sequence.back()->end;
+            edge.word = row->value;
+            edge.spellings = sequence;
+            if (model_)
+            {
+                edge.index = model_->index(edge.word);
+                edge.base_score =
+                    dictionary_tiebreak(row->weight, options_) + reading_prior(row->weight, span_total, options_);
+            }
+            else
+            {
+                edge.base_score = heuristic_log_prob(row->weight, sequence.size(), options_);
+            }
+            out.push_back(std::move(edge));
+        }
+    }
+
+    const SpellingGraph &graph_;
+    const SpanLookup &lookup_;
+    const CharAccept &accept_;
+    const DecodeOptions &options_;
+    const ngram::LanguageModel *model_;
+    std::unordered_map<std::string, std::vector<quanpin::LatticeLexeme>> cache_;
+    int sequences_ = 0;
+};
+
+struct Hyp
+{
+    double score = kNegInf;
+    int prev_pos = -1;
+    int prev_idx = -1;
+    // 走到这个假设的那条边；分隔符直通时为空。
+    const WordEdge *edge = nullptr;
+    ngram::State state;
+    std::string collocation_tail;
+};
+
+void keep_beam(std::vector<Hyp> &column, int beam)
+{
+    if (static_cast<int>(column.size()) <= beam)
+        return;
+    std::partial_sort(column.begin(), column.begin() + beam, column.end(),
+                      [](const Hyp &a, const Hyp &b) { return a.score > b.score; });
+    column.resize(static_cast<std::size_t>(beam));
+}
+} // namespace
+
+std::optional<DecodedPath> decode_best_path(const SpellingGraph &graph, const SpanLookup &lookup,
+                                            const CharAccept &accept, const DecodeOptions &options)
+{
+    if (graph.empty() || graph.size == 0)
+        return std::nullopt;
+
+    const std::size_t n = graph.size;
+    const ngram::LanguageModel *model = active_model(options);
+    const auto words = WordGraphBuilder(graph, lookup, accept, options).build();
+
+    std::vector<std::vector<Hyp>> columns(n + 1);
+    Hyp start;
+    start.score = 0.0;
+    // 与 decode_word_lattice 一样从空上下文起步，见那边的注释。
+    if (model)
+        start.state = model->null_state();
+    columns[0].push_back(std::move(start));
+
+    for (std::size_t pos = 0; pos < n; ++pos)
+    {
+        keep_beam(columns[pos], options.beam);
+        if (columns[pos].empty())
+            continue;
+        for (int hi = 0; hi < static_cast<int>(columns[pos].size()); ++hi)
+        {
+            const Hyp &hyp = columns[pos][static_cast<std::size_t>(hi)];
+            if (graph.skip[pos])
+            {
+                Hyp next = hyp;
+                next.prev_pos = static_cast<int>(pos);
+                next.prev_idx = hi;
+                next.edge = nullptr;
+                columns[pos + 1].push_back(std::move(next));
+            }
+            for (const auto &edge : words[pos])
+            {
+                Hyp next;
+                next.score = hyp.score + edge.base_score;
+                next.state = hyp.state;
+                next.collocation_tail = hyp.collocation_tail;
+                if (!edge.placeholder)
+                {
+                    if (model)
+                        next.score += model->score(hyp.state, edge.index, next.state);
+                    if (options.collocation_scorer && options.collocation_weight > 0.0)
+                    {
+                        const bool is_rear = next_spelling_position(graph, edge.end) == n;
+                        next.score += options.collocation_weight *
+                                      options.collocation_scorer(hyp.collocation_tail, edge.word, is_rear);
+                        next.collocation_tail =
+                            tail_codepoints(hyp.collocation_tail + edge.word, kCollocationTailCodepoints);
+                    }
+                }
+                next.prev_pos = static_cast<int>(pos);
+                next.prev_idx = hi;
+                next.edge = &edge;
+                columns[edge.end].push_back(std::move(next));
+            }
+        }
+    }
+
+    const auto &final_col = columns[n];
+    if (final_col.empty())
+        return std::nullopt;
+    const auto best = std::max_element(final_col.begin(), final_col.end(),
+                                       [](const Hyp &a, const Hyp &b) { return a.score < b.score; });
+
+    DecodedPath path;
+    path.log_prob = best->score;
+    std::vector<const WordEdge *> edges;
+    int pos = static_cast<int>(n);
+    int idx = static_cast<int>(std::distance(final_col.begin(), best));
+    while (pos > 0 && idx >= 0)
+    {
+        const Hyp &hyp = columns[static_cast<std::size_t>(pos)][static_cast<std::size_t>(idx)];
+        if (hyp.edge)
+            edges.push_back(hyp.edge);
+        pos = hyp.prev_pos;
+        idx = hyp.prev_idx;
+    }
+    std::reverse(edges.begin(), edges.end());
+    for (const auto *edge : edges)
+    {
+        path.sentence += edge->word;
+        for (const auto *spelling : edge->spellings)
+            path.syllables.push_back(*spelling);
+    }
+    return path;
+}
+
+} // namespace direct_helpcode

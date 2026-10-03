@@ -25,6 +25,12 @@
 #include <optional>
 #include <boost/algorithm/string.hpp>
 
+struct QueryRequest;
+namespace direct_helpcode
+{
+class Resolver;
+}
+
 class ShuangpinDictionary
 {
   public:
@@ -82,6 +88,9 @@ class ShuangpinDictionary
     // 候选覆盖到受约束的音节时，那个位置上的字必须满足约束，不满足的去掉。
     void filter_by_syllable_helpcodes(std::vector<WordItem> &candidates) const;
 
+    // 直接辅助码：整句解码选出切分，把请求改写成句中辅助码的形状，见 direct_helpcode/direct_resolver.h。
+    bool resolve_direct_helpcode(QueryRequest &request);
+
     explicit ShuangpinDictionary(const ShuangpinProfile &profile = GetXiaoheShuangpinProfile(),
                                  metasequoia::RuntimePaths paths = metasequoia::RuntimePaths::legacy());
     ~ShuangpinDictionary();
@@ -114,6 +123,8 @@ class ShuangpinDictionary
     SyllableHelpcodes syllable_helpcodes_;
     std::string syllable_helpcodes_signature_;
     std::unordered_map<std::string, sqlite3_stmt *> quanpin_statement_cache_;
+    // 直接辅助码开着时才建。
+    std::unique_ptr<direct_helpcode::Resolver> direct_resolver_;
     void reset_cache_if_database_changed();
     // 这个字能不能落在 helpcode 约束的音节上。
     bool accepts_syllable_char(const SyllableHelpcode &helpcode, const std::string &hanzi) const;

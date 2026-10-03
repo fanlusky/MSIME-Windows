@@ -129,6 +129,17 @@ std::vector<WordItem> ShuangpinEngine::query(const QueryRequest &request)
     return candidates;
 }
 
+bool ShuangpinEngine::resolve_direct_helpcode(QueryRequest &request)
+{
+    if (!request.valid)
+    {
+        return false;
+    }
+    // 解码要用的搭配模型跟着整句选项走，先下发，和 query 的顺序一致。
+    dictionary_.set_sentence_association(request.sentence_association);
+    return dictionary_.resolve_direct_helpcode(request);
+}
+
 std::vector<WordItem> ShuangpinEngine::query_unfiltered(const QueryRequest &request)
 {
     const std::string &raw_input = request.raw_input;

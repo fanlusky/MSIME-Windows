@@ -1,4 +1,6 @@
 #include "shuangpin_dictionary.h"
+#include "../core/query_request.h"
+#include "../direct_helpcode/direct_resolver.h"
 #include "../user_dictionary/user_dictionary_journal.h"
 #include "../common/helpcode_utils.h"
 #include "../quanpin/quanpin_query.h"
@@ -1174,6 +1176,41 @@ void ShuangpinDictionary::reset_cache()
     _cached_buffer_sgl_reversed.clear();
     _cached_buffer_dbl.clear();
     _cached_buffer_series.clear();
+    if (direct_resolver_)
+    {
+        direct_resolver_->reset_cache();
+    }
+}
+
+bool ShuangpinDictionary::resolve_direct_helpcode(QueryRequest &request)
+{
+    reset_cache_if_database_changed();
+    if (!direct_resolver_)
+    {
+        direct_resolver_ = std::make_unique<direct_helpcode::Resolver>(profile_);
+    }
+    // 与 generateSeries 的词格同一套查询：普通跨度在 SQL 里截到 32 行，带辅码约束的跨度不截，
+    // 筛完约束再截（生僻字才筛得出来）。
+    constexpr int kSpanLimit = 32;
+    constexpr int kConstrainedSpanLimit = 4096;
+    auto lookup = quanpin::make_lattice_db_lookup(quanpin_db_, quanpin_statement_cache_, kSpanLimit);
+    auto constrained_lookup =
+        quanpin::make_lattice_db_lookup(quanpin_db_, quanpin_statement_cache_, kConstrainedSpanLimit);
+    direct_helpcode::ResolveContext context;
+    context.lookup = [lookup, constrained_lookup](const quanpin::Segments &span, bool constrained) {
+        return constrained ? constrained_lookup(span) : lookup(span);
+    };
+    context.keymap = helpcodes_ ? helpcodes_.get() : &HelpcodeUtils::helpcode_keymap();
+    context.options.language_model = language_model_;
+    if (collocation_db_ != nullptr && collocation_db_->valid() && sentence_association_.collocation_weight != 0.0)
+    {
+        context.options.collocation_scorer = [db = collocation_db_](std::string_view tail, std::string_view word,
+                                                                    bool is_rear) {
+            return db->query(std::string(tail), std::string(word), is_rear, gram::GrammarConfig{});
+        };
+        context.options.collocation_weight = sentence_association_.collocation_weight;
+    }
+    return direct_resolver_->resolve(request, context);
 }
 
 void ShuangpinDictionary::reset_sentence_cache()
