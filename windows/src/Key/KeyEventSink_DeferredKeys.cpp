@@ -534,6 +534,12 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
             isInputKey = CCompositionProcessorEngine::IsMidSentenceHelpcodeTriggerKey(
                 *classifiedCode, *classifiedWch, shadow.rawInput.data(), shadow.rawInput.size(), shadow.caret);
         }
+        // 直接辅助码的 / 与不看奇偶的 ; 韵母，同样按影子状态算。
+        if (!isInputKey)
+        {
+            isInputKey = CCompositionProcessorEngine::IsDirectHelpcodeInputKey(
+                *classifiedCode, *classifiedWch, shadow.rawInput.data(), shadow.rawInput.size(), shadow.caret);
+        }
         if (shadow.inputLength == 0 && (GetKeyState(VK_CAPITAL) & 0x0001) != 0 && *classifiedWch >= L'A' &&
             *classifiedWch <= L'Z' && *classifiedCode >= L'A' && *classifiedCode <= L'Z')
         {
