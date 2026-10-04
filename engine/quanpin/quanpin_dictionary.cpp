@@ -39,6 +39,13 @@ constexpr std::int64_t kAlternativeSegmentationPromotionRatio = 100;
 // 解码预算：只解通过静态门槛（上面 1/100 同款）且词库有行的备选，上限 4 个——
 // uanli 这类掉声母输入有 10-15 个等权目标，全解会伤 p95。
 constexpr size_t kAutocorrectContextDecodeLimit = 4;
+// 贵档读法另给的解码预算：它们不要求整词、不过静态门槛，只按 k-best 次序取前几条。
+constexpr size_t kCostlierContextDecodeLimit = 2;
+// 纠错表权重换算成手误代价（路径分单位）：换位 10 -> 2.0（约 1% 的手误率），漏字 11 ->
+// 2.2，多字 12 -> 2.4，邻键 13 -> 2.6，生成式 15 -> 3.0。只有跨档比较时它才起作用：
+// 同档读法权重相同，代价相互抵消。ponytail: 线性换算；校准路径 = user_journal 的纠错
+// 采纳事件（方向阶段 3）。
+constexpr double kAutocorrectWeightToLog = 0.2;
 // 接管边际：以打分器自身的对数单位计——词格 LM 打分是 log10（1.0 ≈ 10× 句概率），
 // 无 LM 的启发式回退是 ln（1.0 ≈ e≈2.7×）。对标 CN105045778B 的 β 型先验比率边际
 // （同音校对 β=0.01 → 2.0），手误场景放宽一档。ponytail: 朴素常数；校准路径 =
@@ -177,6 +184,7 @@ SeriesQueryResolution resolve_series_query(const std::string &raw_input, const q
             };
             const auto &primary_cut = cuts.front();
             result.corrected_segments = to_segments(primary_cut);
+            result.corrected_weight = primary_cut.weight;
             for (std::size_t i = 1; i < cuts.size(); ++i)
             {
                 if (cuts[i].same_cost_as(primary_cut))
@@ -186,6 +194,11 @@ SeriesQueryResolution resolve_series_query(const std::string &raw_input, const q
                 else
                 {
                     result.costlier_corrected_cuts.push_back(to_segments(cuts[i]));
+                    result.costlier_weights.push_back(cuts[i].weight);
+                    result.costlier_promotable.push_back(
+                        std::all_of(cuts[i].segments.begin(), cuts[i].segments.end(), [](const auto &segment) {
+                            return segment.weight <= quanpin::kAutocorrectInsertionWeight;
+                        }));
                 }
             }
         };
@@ -471,13 +484,15 @@ std::vector<WordItem> QuanpinDictionary::query_exact(const std::string &raw_inpu
             segmentation.empty() ? quanpin::join_segments(segments) : segmentation;
         append_unique_words(result, query_series(raw_input, fallback_segmentation, segments));
 
-        // 同档上下文消解（阶段 1）：词格开启时直接解出主切与同档备选的最佳路径分
-        // 裁决，静态词频只承担解码前置过滤。不能从候选列表读分——
+        // 上下文消解（阶段 1）：词格开启时直接解出主切、同档备选与前几条贵档读法的
+        // 最佳路径分，扣掉各自的手误代价后裁决，静态词频只承担同档的解码前置过滤。
+        // 不能从候选列表读分——
         // merge_lattice_candidates 会把与已有候选同词的生成行去重掉（already 集），
         // 最优路径通常恰好就是词库首行，列表里根本看不到它。词格不可用或边际不足
         // 时，下面的一切与改造前逐位一致（降级矩阵见任务 design.md）。
         bool context_reordered = false;
-        if (sentence_association_.word_lattice && !resolution.alternative_corrected_cuts.empty() &&
+        if (sentence_association_.word_lattice &&
+            (!resolution.alternative_corrected_cuts.empty() || !resolution.costlier_corrected_cuts.empty()) &&
             resolution.corrected_segments.size() >= 2 &&
             quanpin::has_only_complete_pinyin_segments(resolution.corrected_segments))
         {
@@ -512,7 +527,14 @@ std::vector<WordItem> QuanpinDictionary::query_exact(const std::string &raw_inpu
                 {
                     best_weight_by_key.emplace(item.key, item.weight);
                 }
-                std::vector<std::pair<std::int64_t, quanpin::Segments>> decode_pool;
+                struct DecodeCandidate
+                {
+                    std::int64_t top_weight = 0;
+                    quanpin::Segments cut;
+                    double penalty = 0.0;
+                };
+                const double primary_penalty = kAutocorrectWeightToLog * resolution.corrected_weight;
+                std::vector<DecodeCandidate> decode_pool;
                 for (const auto &cut : resolution.alternative_corrected_cuts)
                 {
                     const auto found = best_weight_by_key.find(quanpin::join_segments(cut));
@@ -521,23 +543,51 @@ std::vector<WordItem> QuanpinDictionary::query_exact(const std::string &raw_inpu
                     {
                         continue;
                     }
-                    decode_pool.emplace_back(found->second, cut);
+                    decode_pool.push_back({found->second, cut, primary_penalty});
                 }
                 std::stable_sort(decode_pool.begin(), decode_pool.end(),
-                                 [](const auto &lhs, const auto &rhs) { return lhs.first > rhs.first; });
-                // 第一遍只解路径分选胜者，只为胜出切分付完整管线的钱。
-                std::optional<double> winner_score;
+                                 [](const auto &lhs, const auto &rhs) { return lhs.top_weight > rhs.top_weight; });
+                if (decode_pool.size() > kAutocorrectContextDecodeLimit)
+                {
+                    decode_pool.resize(kAutocorrectContextDecodeLimit);
+                }
+                // 贵档读法按 k-best 次序再解几条，不要求词库有整词：shiideya 的多字读法
+                // shi'de'ya 拼不出整词，却是比换位读法 shi'die'ya（是爹呀）通顺得多的句子。
+                // 它们多付的手误代价按纠错表权重差计入总分。只收结构性手误的读法，见
+                // SeriesQueryResolution::costlier_promotable。
+                size_t costlier_decoded = 0;
+                for (size_t i = 0;
+                     i < resolution.costlier_corrected_cuts.size() && costlier_decoded < kCostlierContextDecodeLimit;
+                     ++i)
+                {
+                    if (!resolution.costlier_promotable[i])
+                    {
+                        continue;
+                    }
+                    ++costlier_decoded;
+                    const auto &cut = resolution.costlier_corrected_cuts[i];
+                    const auto found = best_weight_by_key.find(quanpin::join_segments(cut));
+                    decode_pool.push_back({found == best_weight_by_key.end() ? 0 : found->second, cut,
+                                           kAutocorrectWeightToLog * resolution.costlier_weights[i]});
+                }
+                // 第一遍只解路径分选胜者，只为胜出切分付完整管线的钱。总分 = 路径分 - 手误代价，
+                // 同档读法代价相同，比的仍是纯上下文差。
+                std::optional<double> winner_total;
                 std::int64_t winner_top_weight = 0;
                 quanpin::Segments winner_segments;
-                for (size_t i = 0; i < decode_pool.size() && i < kAutocorrectContextDecodeLimit; ++i)
+                for (const auto &candidate : decode_pool)
                 {
-                    const auto &cut = decode_pool[i].second;
-                    if (const auto cut_score = best_path_score(cut);
-                        cut_score.has_value() && (!winner_score.has_value() || *cut_score > *winner_score))
+                    const auto cut_score = best_path_score(candidate.cut);
+                    if (!cut_score.has_value())
                     {
-                        winner_score = cut_score;
-                        winner_top_weight = decode_pool[i].first;
-                        winner_segments = cut;
+                        continue;
+                    }
+                    const double total = *cut_score - candidate.penalty;
+                    if (!winner_total.has_value() || total > *winner_total)
+                    {
+                        winner_total = total;
+                        winner_top_weight = candidate.top_weight;
+                        winner_segments = candidate.cut;
                     }
                 }
                 // 用户在主切读音上的选择优先于上下文。调频只改词库权重，而加载 LM 时
@@ -550,7 +600,8 @@ std::vector<WordItem> QuanpinDictionary::query_exact(const std::string &raw_inpu
                 const auto user_prefers_primary = [&] {
                     return primary_top_weight >= winner_top_weight && user_prefers_reading(primary_key);
                 };
-                if (winner_score.has_value() && *winner_score - *primary_score >= kAutocorrectContextMarginLog &&
+                if (winner_total.has_value() &&
+                    *winner_total - (*primary_score - primary_penalty) >= kAutocorrectContextMarginLog &&
                     !user_prefers_primary())
                 {
                     // 边际达标：胜出切分领衔。merge_alternative_segmentations 假定传入
@@ -575,11 +626,11 @@ std::vector<WordItem> QuanpinDictionary::query_exact(const std::string &raw_inpu
                     // segmentation 填 canonical_pinyin，词格 select_distinct 用 path->key——所以
                     // 按 canonical_pinyin == winner_key 能干净地把前缀行摘出去。
                     //
-                    // 这个判据依赖一个前置事实：整键档的 canonical 必然就是 winner_key 本身。
-                    // 胜出切分只能出自 decode_pool，那里用 query_exact_segmentations_keyed_flat
-                    // 只收精确键，词库里没有整词的切分压根进不了池；于是整键档走的是
-                    // query_single_cut_keyed 的精确键分支，不会退到前缀区间扫描那层降级
-                    // （那种行的 key 是别的读音，会被这个判据误当成前缀行沉到末尾）。
+                    // 同档胜者只能出自用 query_exact_segmentations_keyed_flat 收精确键的那段池，
+                    // 整键档走 query_single_cut_keyed 的精确键分支，canonical 就是 winner_key。
+                    // 贵档胜者可能没有整词（shi'de'ya），整键档会退到前缀区间扫描，那种行的 key
+                    // 是别的读音，按这个判据沉到前缀块——它们本来就不是用户敲的读音，沉下去正好；
+                    // 整句行仍带 winner_key，照样领衔。
                     //
                     // 不切开会破坏 merge_alternative_segmentations 的既有分层（merged_full 在前、
                     // 前缀作为 remaining 追加）：query_series(ban'zheng) 先出 办证/辩证/整句，再出
@@ -609,7 +660,9 @@ std::vector<WordItem> QuanpinDictionary::query_exact(const std::string &raw_inpu
         }
         // Costlier readings sit below the whole primary cost tier: append them
         // last so a high-frequency dearer correction (gau -> gai, weight 13)
-        // can never precede the cheaper one (gau -> gua, weight 10).
+        // can never precede the cheaper one (gau -> gua, weight 10) on
+        // dictionary frequency alone. Only the context rerank above may lift one,
+        // and only after paying its larger typo cost.
         for (const auto &costlier : resolution.costlier_corrected_cuts)
         {
             append_unique_words(result, query_series(raw_input, quanpin::join_segments(costlier), costlier));

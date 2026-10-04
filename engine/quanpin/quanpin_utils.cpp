@@ -770,6 +770,8 @@ struct AutocorrectEdge
     // hypotheses (see the finalize comparator) so in-table inputs keep their
     // baseline cut set.
     bool generated = false;
+    // 这条边自己的纠正权重（未纠正为 0），随切分交给 AutocorrectCutSegment::weight。
+    int weight = 0;
 };
 
 // One propagated cut hypothesis, ranked by (edge_count, weight, arrival):
@@ -901,6 +903,7 @@ std::vector<AutocorrectCut> autocorrect_cut_kbest(const std::string &pinyin, con
         child.arrival = arrival++;
         child.weight = parent.weight + edge_weight;
         child.edge = edge;
+        child.edge.weight = edge_weight;
         child.has_generated = parent.has_generated || edge.generated;
         child.seq_hash = extend_sequence_hash(parent.seq_hash, edge.syllable);
         best[end].push_back(std::move(child));
@@ -989,7 +992,7 @@ std::vector<AutocorrectCut> autocorrect_cut_kbest(const std::string &pinyin, con
             const size_t segment_start = position - current->edge.raw_length;
             cut.segments.push_back(AutocorrectCutSegment{std::string(current->edge.syllable),
                                                          pinyin.substr(segment_start, current->edge.raw_length),
-                                                         segment_start, current->edge.corrected});
+                                                         segment_start, current->edge.corrected, current->edge.weight});
             position = segment_start;
             current = &best[position][current->prev_index];
         }
@@ -1107,6 +1110,7 @@ std::vector<AutocorrectCut> legal_input_correction_cuts(const std::string &pinyi
                 {
                     segment.syllable = std::string(common);
                     segment.corrected = true;
+                    segment.weight = kAutocorrectTranspositionWeight;
                     ++replaced.edge_count;
                     replaced.weight += kAutocorrectTranspositionWeight;
                     break;
