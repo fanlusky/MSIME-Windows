@@ -832,6 +832,51 @@ void run_legal_input_correction_tests(const std::filesystem::path &data_director
     std::filesystem::remove_all(directory);
 }
 
+// 贵档读法在上下文明显更好时可以领衔：shiideya 的换位读法 shi + ide->die（权重 10，
+// 是爹呀）比多字读法 shii->shi（权重 12，是的呀）便宜一档，按旧规则贵档永远排在最后。
+// fixture 无 sc.lm，启发式打分：是的(ln10000+6) + 呀(ln0.5) - 2.4 = 14.1，
+// 是 + 爹 + 呀 全是单字 = ln0.9 + ln0.01 + ln0.5 - 2.0 = -7.4。
+void run_autocorrect_costlier_context_tests(const std::filesystem::path &data_directory)
+{
+    const std::filesystem::path directory = data_directory / "autocorrect-costlier-context";
+    std::filesystem::create_directories(directory);
+    {
+        Database database(directory / "msime.db");
+        database.execute("CREATE TABLE tbl_1_s(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_1_s VALUES('shi', 's', '是', 900000);");
+        database.execute("CREATE TABLE tbl_2_s(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_2_s VALUES('shi''de', 'sd', '是的', 10000);");
+        database.execute("CREATE TABLE tbl_1_d(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_1_d VALUES('die', 'd', '爹', 10000);"
+                         "INSERT INTO tbl_1_d VALUES('de', 'd', '的', 900000);");
+        database.execute("CREATE TABLE tbl_1_y(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_1_y VALUES('ya', 'y', '呀', 500000);");
+    }
+
+    metasequoia::RuntimePaths paths;
+    paths.resources = directory;
+    paths.user_data = directory;
+    paths.cache = directory;
+    paths.dictionaries = directory;
+    const unsigned both = quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor;
+    SentenceAssociationOptions lattice_only;
+    lattice_only.word_lattice = true;
+
+    {
+        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, true, paths);
+        session.set_sentence_association(lattice_only);
+        type(session, "shiideya");
+        require(!session.candidates().empty() && session.candidates().front().word == "是的呀",
+                "A costlier correction the context clearly prefers must lead.");
+        require(find_candidate_index(session, "是爹呀") < session.candidates().size(),
+                "The cheaper correction must stay available.");
+        require(session.get_pinyin_segmentation_with_cases() == "shii'de'ya",
+                "The preedit must follow the leading costlier correction.");
+    }
+
+    std::filesystem::remove_all(directory);
+}
+
 // 多字、漏字纠错的读音和原始字母不等长，选词时要按纠错切分记录的原始区间消耗字母，
 // 不能按读音长度：buuhui 选「不会」曾剩下一个 i，选「张」会把 zhngg 一起吞掉。
 void run_autocorrect_selection_consumption_tests(const std::filesystem::path &data_directory)
@@ -1983,6 +2028,7 @@ int run_test()
     run_autocorrect_context_user_choice_tests(data_directory);
     run_legal_input_correction_tests(data_directory);
     run_autocorrect_selection_consumption_tests(data_directory);
+    run_autocorrect_costlier_context_tests(data_directory);
 
     run_autocorrect_generated_space_tests(data_directory);
 #endif

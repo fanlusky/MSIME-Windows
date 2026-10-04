@@ -100,6 +100,9 @@ struct AutocorrectCutSegment
     std::string raw_text;
     size_t start = 0;
     bool corrected = false;
+    // 这一段纠正的表权重（kAutocorrect*Weight，生成式为 kAutocorrectGeneratedShapeWeight），
+    // 未纠正为 0。用来区分结构性手误（换位、漏字、多字）与邻键、生成式这类噪声面大的纠正。
+    int weight = 0;
 };
 
 struct AutocorrectCut

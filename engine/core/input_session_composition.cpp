@@ -416,13 +416,15 @@ std::string BuildQuanpinAutocorrectDisplay(const QueryRequest &request)
 // 按领衔读法分隔成 zia'zhe'li'ya、jiu'zhee'yang，而不是字面切分 zi'a'zhe'li'ya——后者
 // 和首选对不上。边界取纠错切分记录的原始区间（多字、漏字纠错和原始字母不等长）；
 // 罕见音节替换（lia -> lai）不在 k-best 里，它是换位、字母数不变，按读法音节长度分。
-// 只在整串是合法拼音、首选带纠错标记、读法恰好盖住整串时生效（辅助码、手动分隔符都
-// 不满足），否则返回空串。
+// 切不成合法音节的输入同理：上下文把贵档读法提到首位时（shiideya 出「是的呀」），
+// 预编辑要跟着它分成 shii'de'ya，而不是 k-best 首条的 shi'ide'ya。
+// 只在首选带纠错标记、读法恰好盖住整串时生效（辅助码、手动分隔符都不满足），否则
+// 返回空串。
 std::string BuildQuanpinDisplayFromLeadingCorrection(const QueryRequest &request, const WordItem &head)
 {
     const std::string &cased = request.raw_input_with_cases.empty() ? request.raw_input : request.raw_input_with_cases;
     if (head.corrected_from.empty() || request.raw_input.find('\'') != std::string::npos ||
-        cased.size() != request.raw_input.size() || !quanpin::is_complete_pinyin_input(request.raw_input))
+        cased.size() != request.raw_input.size())
     {
         return {};
     }
