@@ -396,10 +396,9 @@ std::vector<WordItem> QuanpinDictionary::query_exact(const std::string &raw_inpu
     {
         pinyin_alternative_segmentations_.push_back(quanpin::join_segments(alternative));
     }
-    for (const auto &alternative : resolution.legal_corrected_cuts)
-    {
-        pinyin_alternative_segmentations_.push_back(quanpin::join_segments(cut_syllables(alternative)));
-    }
+    // 合法输入上的纠错读法不进这张表：它们多半会被裁决丢掉，而标记按读音字母匹配，
+    // 丢掉的读法会把原读法里字母恰好相同的前缀单字误标（xiee 的 xie 读法让 写/些/血
+    // 全带上纠错星标）。真正用上的那条在 arbitrate_legal_corrections 里直接打标。
 
     // Autocorrected results get their own cache slot so they never leak the
     // fallback tail into plain (correct) spellings sharing the same key.
@@ -1097,6 +1096,18 @@ std::vector<WordItem> QuanpinDictionary::arbitrate_legal_corrections(
     if (corrected.empty())
     {
         return result;
+    }
+    // 只给纠错读法的整读音候选打标（与 mark_autocorrect_candidates 同一判据：读音字母
+    // 等于纠错读法、又不同于敲的字母），前缀单字不标。标记随结果进缓存。
+    const std::string typed_letters = fold_autocorrect_letters(raw_input);
+    const std::string corrected_letters = fold_autocorrect_letters(corrected_key);
+    for (auto &item : corrected)
+    {
+        if (item.corrected_from.empty() && fold_autocorrect_letters(item.pinyin) == corrected_letters &&
+            corrected_letters != typed_letters)
+        {
+            item.corrected_from = typed_letters;
+        }
     }
 
     const bool correction_leads = (!plain_total.has_value() || *best_total > *plain_total) &&
