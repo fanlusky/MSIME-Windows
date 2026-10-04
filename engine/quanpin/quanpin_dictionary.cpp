@@ -116,14 +116,19 @@ std::string fold_autocorrect_letters(const std::string &text)
 // list by table order before reaching the correct reading (quan'li for uanli).
 // k=9 lifts R@1/R@3 across the deletion and mixed models with no p95 change.
 constexpr std::size_t kAutocorrectCutKBest = 9;
-// 合法输入上的换位读法个数上限：每条都要在按键路径上多解一次词格。
+// 合法输入上的纠错读法个数上限：每条都要在按键路径上多解一次词格。
 constexpr std::size_t kLegalCorrectionCutLimit = 3;
-// 合法输入上每处换位的手误代价，与词格路径分同单位（加载 sc.lm 时是 log10：2.0 =
-// 纠错读法的句概率要高出 100 倍才抵得过一处换位，约等于把换位手误率估成 1%）。
-// ponytail: 朴素常数；校准路径 = user_journal 的纠错采纳事件（第 2 期）。
-constexpr double kLegalInputTypoPenaltyLog = 2.0;
+// 合法输入上每处纠正的手误代价，与词格路径分同单位（加载 sc.lm 时是 log10：2.0 =
+// 纠错读法的句概率要高出 100 倍才抵得过一处纠正，约等于把手误率估成 1%）。改变字母
+// 数的纠正（多字、漏字）贵一档：合法输入里第二个音节是 e/a/er/an 的真词很多（邪恶
+// xie'e、答案 da'an、其二 qi'er），按多一个字母读都能拼出另一个读音；同价时词库扫描
+// 第 2 位的纠错从 6 个涨到 34 个，jioa 也被读成多了个 o 的「家」而不是换位的「叫」。
+// 3.0 让它们只在语言模型分不低于原读法时才露面。与纠错表权重（换位 10 < 漏字 11 <
+// 多字 12）同序。ponytail: 朴素常数；校准路径 = user_journal 的纠错采纳事件（第 2 期）。
+constexpr double kLegalInputTranspositionPenaltyLog = 2.0;
+constexpr double kLegalInputLengthChangePenaltyLog = 3.0;
 // 原读法领衔时，纠错读法离它在这个分差以内才出现在第 2 位；更远的不出现。没有它，
-// 每个碰巧能换位成别的音节的输入都会在第 2 位挂一个语言模型都不认的读法。
+// 每个碰巧能纠成别的音节的输入都会在第 2 位挂一个语言模型都不认的读法。
 constexpr double kLegalInputRunnerUpGapLog = 3.0;
 
 quanpin::Segments cut_syllables(const quanpin::AutocorrectCut &cut)
@@ -237,10 +242,10 @@ SeriesQueryResolution resolve_series_query(const std::string &raw_input, const q
     }
     else if (autocorrect_types != 0)
     {
-        // 合法输入：上面的闸把它整个挡在纠错外。这里只列出换位读法，主切不动，
+        // 合法输入：上面的闸把它整个挡在纠错外。这里只列出纠错读法，主切不动，
         // 取舍在 arbitrate_legal_corrections 按整句打分。
         result.legal_corrected_cuts =
-            quanpin::legal_input_transposition_cuts(raw_input, segments, autocorrect_types, kLegalCorrectionCutLimit);
+            quanpin::legal_input_correction_cuts(raw_input, segments, autocorrect_types, kLegalCorrectionCutLimit);
     }
     // Both branches rebuild the segmentation string from segments: they already
     // carry the canonical (alias-normalised) spelling, while a caller-passed
@@ -261,24 +266,28 @@ SeriesQueryResolution resolve_series_query(const std::string &raw_input, const q
 // = 词库行、读音字母与敲的字母逐个相同；同一串字母的另一种切分（fangan 的方案/
 // 反感、xian 的先/西安）字母没变，照旧按权重竞争，不受这里约束。字面切分只拼得出
 // 单字或整句时（zi'a'zhe'li'ya、ji'o'a）没有字面整词，纠错照常可以领衔。
+std::string candidate_letters(const WordItem &item)
+{
+    return fold_autocorrect_letters(item.canonical_pinyin.empty() ? item.pinyin : item.canonical_pinyin);
+}
+
+// 字面整词：词库行、读音字母与敲的字母逐个相同（任一种切分都算）。
+std::vector<WordItem>::iterator find_literal_whole_word(std::vector<WordItem> &candidates, const std::string &raw_input)
+{
+    const std::string typed = fold_autocorrect_letters(raw_input);
+    return std::find_if(candidates.begin(), candidates.end(), [&](const WordItem &item) {
+        return (item.source == CandidateSource::Database || item.source == CandidateSource::UserDatabase) &&
+               candidate_letters(item) == typed;
+    });
+}
+
 void keep_literal_whole_word_first(std::vector<WordItem> &candidates, const std::string &raw_input)
 {
-    if (candidates.empty())
+    if (candidates.empty() || candidate_letters(candidates.front()) == fold_autocorrect_letters(raw_input))
     {
         return;
     }
-    const std::string typed = fold_autocorrect_letters(raw_input);
-    const auto letters_of = [](const WordItem &item) {
-        return fold_autocorrect_letters(item.canonical_pinyin.empty() ? item.pinyin : item.canonical_pinyin);
-    };
-    if (letters_of(candidates.front()) == typed)
-    {
-        return;
-    }
-    const auto literal = std::find_if(candidates.begin(), candidates.end(), [&](const WordItem &item) {
-        return (item.source == CandidateSource::Database || item.source == CandidateSource::UserDatabase) &&
-               letters_of(item) == typed;
-    });
+    const auto literal = find_literal_whole_word(candidates, raw_input);
     if (literal != candidates.end())
     {
         std::rotate(candidates.begin(), literal, literal + 1);
@@ -1028,11 +1037,11 @@ std::vector<WordItem> QuanpinDictionary::merge_alternative_segmentations(
     return merged;
 }
 
-// 合法输入上的换位手误（ziazheliya、jioa、liazheli、nia）按噪声信道整句打分：
-//   总分 = 词格最佳路径分 + 每处换位 -kLegalInputTypoPenaltyLog
+// 合法输入上的手误（ziazheliya、jioa、jiuzheeyang、nia）按噪声信道整句打分：
+//   总分 = 词格最佳路径分 - 每处纠正的手误代价（换位 2.0，多字/漏字 3.0）
 // 原读法代价为 0。最高分领衔，另一方的最佳读法占第 2 位：纠错领衔时原读法永远在
 // 第 2 位（纠错可能误判，原读法要留在手边）；原读法领衔时，纠错读法只在分差不超过
-// kLegalInputRunnerUpGapLog 时出现，否则整组不出——碰巧能换位成别的音节的输入很多，
+// kLegalInputRunnerUpGapLog 时出现，否则整组不出——碰巧能纠成别的音节的输入很多，
 // 语言模型都不认的读法不该挂在第 2 位。
 // 打分不看整句候选开关：那个开关管的是显示不显示整句候选，判断用户想打哪个读音
 // 是另一件事。用户在原读法键上调过频或造过词时，纠错不抢领衔（同上下文接管）。
@@ -1040,16 +1049,36 @@ std::vector<WordItem> QuanpinDictionary::arbitrate_legal_corrections(
     const std::string &raw_input, const quanpin::Segments &plain_segments,
     const std::vector<quanpin::AutocorrectCut> &corrected_cuts, std::vector<WordItem> result)
 {
+    // 字面切分本身就是真词时（邪恶 xie'e、答案 da'an），不认改变字母数的读法：少一个
+    // 音节的句子在语言模型里天然分高，「些」「但」会稳定挂在第 2 位，而这些输入几乎都是
+    // 照原样打的。换位读法不改音节数，没有这个偏差，照常参与（你啊 / 奶）。
+    const bool literal_is_word = find_literal_whole_word(result, raw_input) != result.end();
     std::optional<double> best_total;
     const quanpin::AutocorrectCut *best_cut = nullptr;
     for (const auto &cut : corrected_cuts)
     {
+        double penalty = 0.0;
+        bool changes_length = false;
+        for (const auto &segment : cut.segments)
+        {
+            if (!segment.corrected)
+            {
+                continue;
+            }
+            const bool same_length = segment.raw_text.size() == segment.syllable.size();
+            changes_length = changes_length || !same_length;
+            penalty += same_length ? kLegalInputTranspositionPenaltyLog : kLegalInputLengthChangePenaltyLog;
+        }
+        if (literal_is_word && changes_length)
+        {
+            continue;
+        }
         const auto score = lattice_best_path_score(cut_syllables(cut));
         if (!score.has_value())
         {
             continue;
         }
-        const double total = *score - kLegalInputTypoPenaltyLog * static_cast<double>(cut.edge_count);
+        const double total = *score - penalty;
         if (!best_total.has_value() || total > *best_total)
         {
             best_total = total;
