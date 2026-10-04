@@ -124,6 +124,8 @@ std::vector<WordItem> ShuangpinEngine::query(const QueryRequest &request)
     // 句中辅助码约束也随请求下发；开关关着时不筛（串里本就敲不进反引号，这里只是兜底）。
     dictionary_.set_syllable_helpcodes(request.enable_mid_sentence_helpcode ? request.syllable_helpcodes
                                                                             : SyllableHelpcodes{});
+    // 直接辅助码开着时词格的跨度查询走与解析器共用的缓存，见 ShuangpinDictionary::lattice_lookup。
+    dictionary_.set_direct_span_cache_enabled(request.enable_direct_helpcode);
     auto candidates = query_unfiltered(request);
     dictionary_.filter_by_syllable_helpcodes(candidates);
     return candidates;

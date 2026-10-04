@@ -282,15 +282,13 @@ vector<ShuangpinDictionary::WordItem> ShuangpinDictionary::generateSeries( //
         if (!lattice_options.char_constraints.empty())
         {
             constexpr int kConstrainedSpanLimit = 4096;
-            lattice_options.constrained_lookup =
-                quanpin::make_lattice_db_lookup(quanpin_db_, quanpin_statement_cache_, kConstrainedSpanLimit);
+            lattice_options.constrained_lookup = lattice_lookup(kConstrainedSpanLimit);
         }
         if (sentence_association_.word_lattice || !neural_rerankers.empty())
         {
-            quanpin::merge_lattice_candidates(
-                candidate_list, quanpin_syllables,
-                quanpin::make_lattice_db_lookup(quanpin_db_, quanpin_statement_cache_, lattice_options.span_limit),
-                pinyin_sequence, lattice_options, neural_rerankers);
+            quanpin::merge_lattice_candidates(candidate_list, quanpin_syllables,
+                                              lattice_lookup(lattice_options.span_limit), pinyin_sequence,
+                                              lattice_options, neural_rerankers);
         }
 
         /* 缓存起来 */
@@ -1182,10 +1180,37 @@ void ShuangpinDictionary::reset_cache()
     _cached_buffer_sgl_reversed.clear();
     _cached_buffer_dbl.clear();
     _cached_buffer_series.clear();
+    direct_span_cache_.clear();
     if (direct_resolver_)
     {
         direct_resolver_->reset_cache();
     }
+}
+
+quanpin::WordLatticeLookup ShuangpinDictionary::lattice_lookup(int limit)
+{
+    auto lookup = quanpin::make_lattice_db_lookup(quanpin_db_, quanpin_statement_cache_, limit);
+    if (!direct_span_cache_enabled_)
+    {
+        return lookup;
+    }
+    return [this, lookup = std::move(lookup), limit](const quanpin::Segments &span) {
+        // 超过上限整体清掉，免得一次长时间输入把内存撑大。
+        constexpr std::size_t kDirectSpanCacheLimit = 8192;
+        std::string key = quanpin::join_segments(span);
+        key.push_back('#');
+        key += std::to_string(limit);
+        auto found = direct_span_cache_.find(key);
+        if (found == direct_span_cache_.end())
+        {
+            if (direct_span_cache_.size() >= kDirectSpanCacheLimit)
+            {
+                direct_span_cache_.clear();
+            }
+            found = direct_span_cache_.emplace(std::move(key), lookup(span)).first;
+        }
+        return found->second;
+    };
 }
 
 bool ShuangpinDictionary::resolve_direct_helpcode(QueryRequest &request)
@@ -1199,9 +1224,10 @@ bool ShuangpinDictionary::resolve_direct_helpcode(QueryRequest &request)
     // 筛完约束再截（生僻字才筛得出来）。
     constexpr int kSpanLimit = 32;
     constexpr int kConstrainedSpanLimit = 4096;
-    auto lookup = quanpin::make_lattice_db_lookup(quanpin_db_, quanpin_statement_cache_, kSpanLimit);
-    auto constrained_lookup =
-        quanpin::make_lattice_db_lookup(quanpin_db_, quanpin_statement_cache_, kConstrainedSpanLimit);
+    // 解析器只在直接辅助码开着时跑，查到的行进共用缓存，随后的 generateSeries 直接复用。
+    direct_span_cache_enabled_ = true;
+    auto lookup = lattice_lookup(kSpanLimit);
+    auto constrained_lookup = lattice_lookup(kConstrainedSpanLimit);
     direct_helpcode::ResolveContext context;
     context.lookup = [lookup, constrained_lookup](const quanpin::Segments &span, bool constrained) {
         return constrained ? constrained_lookup(span) : lookup(span);

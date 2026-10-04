@@ -1,9 +1,11 @@
 #include "direct_lattice.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <string_view>
 #include <unordered_map>
 
 namespace direct_helpcode
@@ -25,34 +27,6 @@ std::vector<std::string> split_utf8_chars(const std::string &text)
         i += len;
     }
     return chars;
-}
-
-std::size_t utf8_codepoints(const std::string &text)
-{
-    std::size_t n = 0;
-    for (unsigned char c : text)
-    {
-        if ((c & 0xC0) != 0x80)
-            ++n;
-    }
-    return n;
-}
-
-std::string tail_codepoints(const std::string &text, std::size_t n)
-{
-    const std::size_t total = utf8_codepoints(text);
-    if (total <= n)
-        return text;
-    std::size_t skip = total - n;
-    std::size_t i = 0;
-    while (i < text.size() && skip > 0)
-    {
-        ++i;
-        --skip;
-        while (i < text.size() && (static_cast<unsigned char>(text[i]) & 0xC0) == 0x80)
-            ++i;
-    }
-    return text.substr(i);
 }
 
 // 以下三个打分函数与 word_lattice.cpp 同义，见那边的注释。
@@ -298,6 +272,85 @@ class WordGraphBuilder
     int sequences_ = 0;
 };
 
+// 搭配打分的尾窗。每条状态转移都要生成一个新尾窗，用 std::string 时每次都是堆分配（拼接一次、截断
+// 一次、存进假设一次），是解码的大头。合法 UTF-8 下 8 个码点至多 32 字节，放在定长缓冲里；词库行
+// 不保证是合法 UTF-8，真超出时退回 std::string。截断规则与 word_lattice.cpp 的 tail_codepoints 完全一致。
+class CollocationTail
+{
+  public:
+    std::string_view view() const
+    {
+        return overflow_.empty() ? std::string_view(bytes_.data(), size_) : std::string_view(overflow_);
+    }
+
+    // 等价于 word_lattice.cpp 的 tail_codepoints(view() + word, kCollocationTailCodepoints)。
+    CollocationTail extended(std::string_view word) const
+    {
+        const std::string_view tail = view();
+        const std::size_t total = tail.size() + word.size();
+        CollocationTail next;
+        if (total <= kScratch)
+        {
+            std::array<char, kScratch> scratch;
+            std::copy(tail.begin(), tail.end(), scratch.begin());
+            std::copy(word.begin(), word.end(), scratch.begin() + static_cast<std::ptrdiff_t>(tail.size()));
+            next.assign(keep_tail(std::string_view(scratch.data(), total)));
+        }
+        else
+        {
+            const std::string joined = std::string(tail) + std::string(word);
+            next.assign(keep_tail(joined));
+        }
+        return next;
+    }
+
+  private:
+    static constexpr std::size_t kCapacity = 48;
+    static constexpr std::size_t kScratch = 160;
+
+    // tail_codepoints 的同一套规则：数非续字节当码点，从头跳过多出来的码点。
+    static std::string_view keep_tail(std::string_view text)
+    {
+        std::size_t total = 0;
+        for (unsigned char c : text)
+        {
+            if ((c & 0xC0) != 0x80)
+                ++total;
+        }
+        if (total <= kCollocationTailCodepoints)
+            return text;
+        std::size_t skip = total - kCollocationTailCodepoints;
+        std::size_t i = 0;
+        while (i < text.size() && skip > 0)
+        {
+            ++i;
+            --skip;
+            while (i < text.size() && (static_cast<unsigned char>(text[i]) & 0xC0) == 0x80)
+                ++i;
+        }
+        return text.substr(i);
+    }
+
+    void assign(std::string_view text)
+    {
+        if (text.size() <= kCapacity)
+        {
+            std::copy(text.begin(), text.end(), bytes_.begin());
+            size_ = static_cast<std::uint8_t>(text.size());
+            overflow_.clear();
+        }
+        else
+        {
+            size_ = 0;
+            overflow_.assign(text);
+        }
+    }
+
+    std::array<char, kCapacity> bytes_{};
+    std::uint8_t size_ = 0;
+    std::string overflow_;
+};
+
 struct Hyp
 {
     double score = kNegInf;
@@ -306,7 +359,7 @@ struct Hyp
     // 走到这个假设的那条边；分隔符直通时为空。
     const WordEdge *edge = nullptr;
     ngram::State state;
-    std::string collocation_tail;
+    CollocationTail collocation_tail;
 };
 
 void keep_beam(std::vector<Hyp> &column, int beam)
@@ -360,8 +413,8 @@ std::optional<DecodedPath> decode_best_path(const SpellingGraph &graph, const Sp
                 next.score = hyp.score + edge.base_score;
                 if (edge.placeholder || !model)
                     next.state = hyp.state;
-                // 关闭搭配项时尾窗始终为空，不为每个假设白拷一次字符串。
-                if (collocation)
+                // 关闭搭配项时尾窗始终为空，不为每个假设白拷一次。
+                if (collocation && edge.placeholder)
                     next.collocation_tail = hyp.collocation_tail;
                 if (!edge.placeholder)
                 {
@@ -371,9 +424,8 @@ std::optional<DecodedPath> decode_best_path(const SpellingGraph &graph, const Sp
                     {
                         const bool is_rear = next_spelling_position(graph, edge.end) == n;
                         next.score += options.collocation_weight *
-                                      options.collocation_scorer(hyp.collocation_tail, edge.word, is_rear);
-                        next.collocation_tail =
-                            tail_codepoints(hyp.collocation_tail + edge.word, kCollocationTailCodepoints);
+                                      options.collocation_scorer(hyp.collocation_tail.view(), edge.word, is_rear);
+                        next.collocation_tail = hyp.collocation_tail.extended(edge.word);
                     }
                 }
                 next.prev_pos = static_cast<int>(pos);

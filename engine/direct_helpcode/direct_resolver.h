@@ -74,6 +74,9 @@ class Resolver
     std::unordered_map<std::string, std::vector<quanpin::LatticeLexeme>> span_cache_;
     // 跨按键复用的词边：见 WordEdgeMemo。
     WordEdgeMemo word_memo_;
+    // 搭配分（尾窗 + 词 + 是否句尾 → 分数），整句打分选项变了随 reset_cache 一起清。
+    std::unordered_map<std::string, double> collocation_memo_;
+    std::string collocation_key_;
     std::unordered_map<std::string, Resolution> resolution_cache_;
     const DecodedPath *last_sentence_ = nullptr;
 };

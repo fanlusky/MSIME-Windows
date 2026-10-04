@@ -332,6 +332,7 @@ void ImeSession::apply_request_options(QueryRequest &request) const
         // 改写请求时再打开。
         request.enable_shuangpin_helpcode = false;
         request.enable_mid_sentence_helpcode = false;
+        request.enable_direct_helpcode = true;
     }
     request.enable_quanpin_helpcode = enable_quanpin_helpcode_;
     request.enable_quanpin_autocorrect_transposition =

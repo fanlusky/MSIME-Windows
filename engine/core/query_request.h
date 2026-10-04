@@ -39,6 +39,8 @@ struct QueryRequest
     // 句中辅助码的形状。原串里没有反引号，下游没法从原串反推切分，所以去段串到原串的下标映射
     // （末尾多一项等于原串长度）和每个音节后面原样的辅码文本由解析器直接填在这里。
     bool direct_helpcode = false;
+    // 会话开着直接辅助码（不论这次请求有没有被改写）。词典层据此让词格与解析器共用一份跨度查询缓存。
+    bool enable_direct_helpcode = false;
     std::vector<std::size_t> direct_helpcode_source_index;
     std::vector<std::pair<std::size_t, std::string>> direct_helpcode_decorations;
     // Autocorrection is type-gated (bit0 transposition, bit1 neighbor in the session-level

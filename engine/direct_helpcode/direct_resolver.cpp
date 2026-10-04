@@ -13,6 +13,7 @@ namespace
 // 缓存条目上限：超过就整体清掉，免得一次长时间输入把内存撑大。
 constexpr std::size_t kSpanCacheLimit = 8192;
 constexpr std::size_t kResolutionCacheLimit = 256;
+constexpr std::size_t kCollocationMemoLimit = 65536;
 
 std::string lowercase(std::string text)
 {
@@ -116,6 +117,7 @@ void Resolver::reset_cache()
 {
     span_cache_.clear();
     word_memo_.clear();
+    collocation_memo_.clear();
     resolution_cache_.clear();
     last_sentence_ = nullptr;
 }
@@ -221,7 +223,29 @@ bool Resolver::resolve(QueryRequest &request, const ResolveContext &context)
             };
             if (word_memo_.size() >= kSpanCacheLimit)
                 word_memo_.clear();
-            if (auto path = decode_best_path(graph, lookup, accept, context.options, &word_memo_))
+            // 搭配分只取决于（尾窗、词、是否句尾），是纯函数：记下来跨假设、跨按键复用，结果与不缓存完全一致。
+            // 解析器一次要比较所有切法，边数远多于单一切分的词格，不缓存时 .gram 查询是解码的大头。
+            DecodeOptions options = context.options;
+            if (options.collocation_scorer && options.collocation_weight > 0.0)
+            {
+                options.collocation_scorer = [this, &context](std::string_view tail, std::string_view word,
+                                                              bool is_rear) {
+                    // 复用同一个键缓冲：命中时不分配，只有未命中插入时才拷一份。
+                    std::string &key = collocation_key_;
+                    key.clear();
+                    key.append(tail).push_back('\x1f');
+                    key.append(word).push_back(is_rear ? '1' : '0');
+                    auto found = collocation_memo_.find(key);
+                    if (found != collocation_memo_.end())
+                        return found->second;
+                    if (collocation_memo_.size() >= kCollocationMemoLimit)
+                        collocation_memo_.clear();
+                    const double score = context.options.collocation_scorer(tail, word, is_rear);
+                    collocation_memo_.emplace(key, score);
+                    return score;
+                };
+            }
+            if (auto path = decode_best_path(graph, lookup, accept, options, &word_memo_))
             {
                 resolution.spellings = path->syllables;
                 if (path->complete && !path->sentence.empty())
