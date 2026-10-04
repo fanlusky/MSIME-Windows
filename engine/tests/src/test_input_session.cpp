@@ -646,6 +646,11 @@ void run_legal_input_correction_tests(const std::filesystem::path &data_director
                          "INSERT INTO tbl_3_j VALUES('jiu''zhe''yang', 'jzy', '就这样', 5000);");
         database.execute("CREATE TABLE tbl_1_e(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
                          "INSERT INTO tbl_1_e VALUES('e', 'e', '恶', 300000);");
+        database.execute("CREATE TABLE tbl_2_x(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_2_x VALUES('xie''e', 'xe', '邪恶', 1000);");
+        database.execute("CREATE TABLE tbl_1_x(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_1_x VALUES('xie', 'x', '写', 2000000);"
+                         "INSERT INTO tbl_1_x VALUES('xie', 'x', '些', 1500000);");
         database.execute("CREATE TABLE tbl_2_s(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
                          "INSERT INTO tbl_2_s VALUES('shu''e', 'se', '数额', 1000);");
         database.execute("CREATE TABLE tbl_1_s(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
@@ -737,6 +742,17 @@ void run_legal_input_correction_tests(const std::filesystem::path &data_director
                     std::none_of(session.candidates().begin(), session.candidates().end(),
                                  [](const WordItem &item) { return !item.corrected_from.empty(); }),
                 "A length-changing correction must not be offered over a literal dictionary word.");
+    }
+    // 被裁掉的纠错读法不能波及原读法：xiee 按多一个 e 读成 xie 被丢掉之后，邪恶 后面的
+    // 前缀单字 写/些 读音也是 xie，曾因此全被标成纠错。
+    {
+        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, true, paths);
+        type(session, "xiee");
+        require(!session.candidates().empty() && session.candidates().front().word == "邪恶" &&
+                    find_candidate_index(session, "写") < session.candidates().size() &&
+                    std::none_of(session.candidates().begin(), session.candidates().end(),
+                                 [](const WordItem &item) { return !item.corrected_from.empty(); }),
+                "A discarded correction reading must not mark the literal reading's prefix characters.");
     }
 
     // 罕见音节：来这里 = ln3000+9-2 = 15.0，俩这里 = -0.9。
