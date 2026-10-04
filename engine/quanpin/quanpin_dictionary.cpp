@@ -484,14 +484,16 @@ std::vector<WordItem> QuanpinDictionary::query_exact(const std::string &raw_inpu
             segmentation.empty() ? quanpin::join_segments(segments) : segmentation;
         append_unique_words(result, query_series(raw_input, fallback_segmentation, segments));
 
-        // 上下文消解（阶段 1）：词格开启时直接解出主切、同档备选与前几条贵档读法的
-        // 最佳路径分，扣掉各自的手误代价后裁决，静态词频只承担同档的解码前置过滤。
+        // 上下文消解（阶段 1）：任一整句来源开着时直接解出主切、同档备选与前几条贵档
+        // 读法的最佳路径分，扣掉各自的手误代价后裁决，静态词频只承担同档的解码前置过滤。
+        // 门控看 any_sentence_source 而不是 word_lattice：只开万象重排（不显示 Trigram 整句）
+        // 时词格照样在内部解码，shiideya 曾因此退回静态排序、让「是爹呀」领衔。
         // 不能从候选列表读分——
         // merge_lattice_candidates 会把与已有候选同词的生成行去重掉（already 集），
-        // 最优路径通常恰好就是词库首行，列表里根本看不到它。词格不可用或边际不足
+        // 最优路径通常恰好就是词库首行，列表里根本看不到它。整句来源全关或边际不足
         // 时，下面的一切与改造前逐位一致（降级矩阵见任务 design.md）。
         bool context_reordered = false;
-        if (sentence_association_.word_lattice &&
+        if (sentence_association_.any_sentence_source() &&
             (!resolution.alternative_corrected_cuts.empty() || !resolution.costlier_corrected_cuts.empty()) &&
             resolution.corrected_segments.size() >= 2 &&
             quanpin::has_only_complete_pinyin_segments(resolution.corrected_segments))
@@ -641,6 +643,12 @@ std::vector<WordItem> QuanpinDictionary::query_exact(const std::string &raw_inpu
                     for (auto &item : query_series(raw_input, winner_key, winner_segments))
                     {
                         (item.canonical_pinyin == winner_key ? winner_full : winner_prefix).push_back(std::move(item));
+                    }
+                    // 贵档胜者没有整词、也没有整句行时（整句来源只开了重排、模型没载入），
+                    // 整键块是空的；不能让主切的行顶回首位，由胜者的最长前缀词领衔。
+                    if (winner_full.empty())
+                    {
+                        winner_full.swap(winner_prefix);
                     }
                     result = std::move(winner_full);
                     append_unique_words(result, std::move(rest));
