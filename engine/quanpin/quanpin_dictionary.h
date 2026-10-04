@@ -42,7 +42,7 @@ struct SeriesQueryResolution
     // cheaper tier by dictionary frequency, so they are appended after the
     // primary tier rather than merged into it.
     std::vector<quanpin::Segments> costlier_corrected_cuts;
-    // 合法输入上的换位手误读法（quanpin::legal_input_transposition_cuts）。主切仍是
+    // 合法输入上的手误读法（quanpin::legal_input_correction_cuts）。主切仍是
     // 用户敲出的合法切分，这些读法与它按整句打分争领衔，见 arbitrate_legal_corrections。
     std::vector<quanpin::AutocorrectCut> legal_corrected_cuts;
     bool corrected_input = false;
