@@ -873,6 +873,17 @@ void run_autocorrect_costlier_context_tests(const std::filesystem::path &data_di
         require(session.get_pinyin_segmentation_with_cases() == "shii'de'ya",
                 "The preedit must follow the leading costlier correction.");
     }
+    // 只开万象重排、不显示 Trigram 整句（用户实际配置）：上下文消解照样生效。fixture
+    // 没有 .gram，重排不出整句行，贵档胜者由它的最长前缀词「是的」领衔。
+    {
+        SentenceAssociationOptions rerank_only;
+        rerank_only.collocation_rerank = true;
+        metasequoia::InputSession session(SchemeType::Quanpin, both, true, true, true, paths);
+        session.set_sentence_association(rerank_only);
+        type(session, "shiideya");
+        require(!session.candidates().empty() && session.candidates().front().word == "是的",
+                "The context rerank must run whenever any sentence source is on, not only the Trigram row.");
+    }
 
     std::filesystem::remove_all(directory);
 }
