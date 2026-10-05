@@ -57,6 +57,10 @@ class CCompositionProcessorEngine
     // 规则见 engine/contracts/date_time_input.h。接不上的数字仍是选词键，Shift+数字始终选词。
     static bool IsDateTimeInputKey(UINT uCode, WCHAR wch, _In_reads_opt_(length) const WCHAR *buffer, DWORD_PTR length,
                                    DWORD_PTR caret);
+    // V 模式（数字转中文、算式计算）收的编码键：V 后面的数字和 . + - * / ( )。规则见
+    // engine/contracts/v_mode_input.h，前缀由 Server 的 VModeChanged 决定。
+    static bool IsVModeInputKey(WCHAR wch, _In_reads_opt_(length) const WCHAR *buffer, DWORD_PTR length,
+                                DWORD_PTR caret);
     // 当句中辅助码触发键的分号在缓冲里记成反引号（与 Server 的 raw 一致），其余字符原样返回。
     static WCHAR NormalizeMidSentenceHelpcodeTrigger(WCHAR wch, _In_reads_opt_(length) const WCHAR *buffer,
                                                      DWORD_PTR length, DWORD_PTR caret);
