@@ -306,6 +306,18 @@ BOOL CCompositionProcessorEngine::IsVirtualKeyNeed( //
         }
         return TRUE;
     }
+    // V-mode: bare digits are input, so Shift+1..9 selects like in U-mode. It must be decided here,
+    // before the punctuation rule below would commit the highlighted candidate together with '!' '@' ...
+    // Shift+8/9 produce '*' '(' and were already taken as input above.
+    if (IsVModeShiftDigitSelectionKey(uCode, _keystrokeBuffer.Get(), _keystrokeBuffer.GetLength()))
+    {
+        if (pKeyState)
+        {
+            pKeyState->Category = CATEGORY_CANDIDATE;
+            pKeyState->Function = FUNCTION_SELECT_BY_NUMBER;
+        }
+        return TRUE;
+    }
 
     if (IsJapaneseMinusEqualPunctuationKey(uCode, pwch ? *pwch : 0, fComposing, candidateMode,
                                            _keystrokeBuffer.GetLength()))
@@ -912,6 +924,15 @@ bool CCompositionProcessorEngine::IsDateTimeInputKey(UINT uCode, WCHAR wch, cons
 
 // 只看字符不看键位：主键盘和小键盘的数字、运算符一样收，Server 也只看字符。前缀认哪个由 Server 的
 // VModeChanged 决定（双拼只认 V，全拼 V、v 都认）。
+bool CCompositionProcessorEngine::IsVModeShiftDigitSelectionKey(UINT uCode, const WCHAR *buffer, DWORD_PTR length)
+{
+    const bool shift_only = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0 &&
+                            (GetAsyncKeyState(VK_CONTROL) & 0x8000) == 0 && (GetAsyncKeyState(VK_MENU) & 0x8000) == 0;
+    return shift_only && uCode >= L'1' && uCode <= L'9' &&
+           FanyImeVModeInput::IsComposition(buffer, static_cast<std::size_t>(length),
+                                            Global::VModeTrigger.load(std::memory_order_relaxed));
+}
+
 bool CCompositionProcessorEngine::IsVModeInputKey(WCHAR wch, const WCHAR *buffer, DWORD_PTR length, DWORD_PTR caret)
 {
     return buffer != nullptr && FanyImeVModeInput::AcceptsAt(buffer, static_cast<std::size_t>(length),
