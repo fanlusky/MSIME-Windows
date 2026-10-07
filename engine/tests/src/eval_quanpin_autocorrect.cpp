@@ -643,7 +643,7 @@ enum class DictionaryGate
 
 DictionaryGate classify_dictionary_gate(const std::string &typo)
 {
-    if (quanpin::looks_like_syllable_with_jianpin_tail(typo))
+    if (quanpin::looks_like_jianpin_spelling(typo))
     {
         return DictionaryGate::JianpinShape;
     }

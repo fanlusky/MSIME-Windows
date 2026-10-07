@@ -976,25 +976,22 @@ void test_quanpin_autocorrect_switches_and_guard()
 
     // Jianpin-shape guard: one or more legal syllables plus at most one trailing
     // letter is user intent, never a typo (AC5).
-    expect(quanpin::looks_like_syllable_with_jianpin_tail("zheg"),
-           "'zheg' (zhe + g) must be detected as jianpin intent.");
-    expect(quanpin::looks_like_syllable_with_jianpin_tail("keneng"),
+    expect(quanpin::looks_like_jianpin_spelling("zheg"), "'zheg' (zhe + g) must be detected as jianpin intent.");
+    expect(quanpin::looks_like_jianpin_spelling("keneng"),
            "A fully legal spelling also satisfies the shape predicate.");
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("sahng"),
-           "'sahng' leaves a 3-letter tail and must stay correctable.");
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("shabg"),
-           "'shabg' leaves a 2-letter tail and must stay correctable.");
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("xi'an"), "Manual delimiters never take part in the guard.");
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("wj"),
+    expect(!quanpin::looks_like_jianpin_spelling("sahng"), "'sahng' leaves a 3-letter tail and must stay correctable.");
+    expect(!quanpin::looks_like_jianpin_spelling("shabg"), "'shabg' leaves a 2-letter tail and must stay correctable.");
+    expect(!quanpin::looks_like_jianpin_spelling("xi'an"), "Manual delimiters never take part in the guard.");
+    expect(!quanpin::looks_like_jianpin_spelling("wj"),
            "Pure-consonant jianpin must stay correctable at the predicate level.");
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("bqng"),
+    expect(!quanpin::looks_like_jianpin_spelling("bqng"),
            "3+ letter all-consonant strings stay correctable by design (no multi-letter jianpin).");
     // A complete syllable plus a lone trailing VOWEL is not jianpin (no vowel is
     // a jianpin initial); it reads as a transposition typo, so the guard must
     // let it through to correction ("gau" = ga + u -> gua).
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("gau"),
+    expect(!quanpin::looks_like_jianpin_spelling("gau"),
            "'gau' (ga + trailing vowel u) must stay correctable, not be read as jianpin.");
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("hau"),
+    expect(!quanpin::looks_like_jianpin_spelling("hau"),
            "'hau' (ha + trailing vowel u) must stay correctable, not be read as jianpin.");
     expect(quanpin::join_segments(quanpin::autocorrect_cut("gau", transposition_only)) == "gua",
            "'gau' must correct to 'gua' via transposition once the guard lets it through.");
@@ -1053,8 +1050,7 @@ void test_quanpin_autocorrect_switches_and_guard()
     // r is a QWERTY neighbor of e): the BFS cut exists by design, the shape
     // guard must fire before it at the dictionary layer (end-to-end in the
     // display test below).
-    expect(quanpin::looks_like_syllable_with_jianpin_tail("zher"),
-           "'zher' (zhe + r) must be detected as jianpin intent.");
+    expect(quanpin::looks_like_jianpin_spelling("zher"), "'zher' (zhe + r) must be detected as jianpin intent.");
     expect(!quanpin::autocorrect_cut_detail("zher", insertion_only).empty(),
            "The insertion key 'zher' is in the BFS search space by design; the guard is the dictionary layer's job.");
 
@@ -1337,7 +1333,7 @@ void test_quanpin_autocorrect_display()
     // "zher" case above documents -- rather because the static tables happened to
     // lack the "eng" -> "ang" pair. The generated space supplies it, so the input
     // now cuts. Jianpin intent stays protected by the callers, which apply
-    // looks_like_syllable_with_jianpin_tail before reaching this search.
+    // looks_like_jianpin_spelling before reaching this search
     expect(!quanpin::autocorrect_cut_detail("keneng", both).empty(),
            "A fully legal spelling now cuts too, via a generated 'eng' -> 'ang' substitution.");
     expect(quanpin::autocorrect_cut_detail("sahng", none).empty(),

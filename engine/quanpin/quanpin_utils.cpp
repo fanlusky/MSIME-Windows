@@ -152,7 +152,7 @@ bool has_only_complete_pinyin_segments(const Segments &segments)
                        [&](const std::string &segment) { return valid_pinyin.find(segment) != valid_pinyin.end(); });
 }
 
-bool looks_like_syllable_with_jianpin_tail(const std::string &pinyin)
+bool looks_like_jianpin_spelling(const std::string &pinyin)
 {
     // Manual delimiters express user-intent boundaries and never enter the
     // correction path, so there is nothing for this guard to protect.
@@ -162,6 +162,15 @@ bool looks_like_syllable_with_jianpin_tail(const std::string &pinyin)
     }
 
     const auto &valid_pinyin = intact_pinyin_set();
+    const std::string initial = pinyin.substr(0, 1);
+    // A leading initial followed by complete syllables is mixed jianpin, not an
+    // extra letter to delete ("ywen" = y + wen)
+    // Repeated initials ("sshang") remain eligible for insertion correction
+    if (pinyin.size() > 1 && pinyin[0] != pinyin[1] && prefix_pinyin_set().count(initial) != 0 &&
+        valid_pinyin.count(initial) == 0 && is_complete_pinyin_input(pinyin.substr(1)))
+    {
+        return true;
+    }
     static const size_t kMaxSyllableLength =
         std::max_element(intact_pinyin_list().begin(), intact_pinyin_list().end(),
                          [](const std::string &lhs, const std::string &rhs) { return lhs.size() < rhs.size(); })

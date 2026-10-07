@@ -708,18 +708,26 @@ TEST_CASE(QuanpinAutocorrectCutTypeBitSwitchMatrix)
 
 TEST_CASE(QuanpinJianpinShapeGuardBlocksCorrection)
 {
-    // One or more legal syllables plus at most one trailing letter is jianpin
-    // intent (zheg = zhe + g), never a typo the tables may rewrite.
-    REQUIRE(quanpin::looks_like_syllable_with_jianpin_tail("zheg"));
-    REQUIRE(quanpin::looks_like_syllable_with_jianpin_tail("keneng"));
-    REQUIRE(quanpin::looks_like_syllable_with_jianpin_tail("shang"));
-    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("sahng"));
-    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("shabg"));
-    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("xi'an"));
+    // Complete syllables with a leading or trailing initial express jianpin
+    // intent (ywen = y + wen, zheg = zhe + g), not a typo to rewrite
+    REQUIRE(quanpin::looks_like_jianpin_spelling("ywen"));
+    REQUIRE(quanpin::looks_like_jianpin_spelling("xsheng"));
+    REQUIRE(quanpin::looks_like_jianpin_spelling("ywenhua"));
+    REQUIRE(quanpin::looks_like_jianpin_spelling("zheg"));
+    REQUIRE(quanpin::looks_like_jianpin_spelling("keneng"));
+    REQUIRE(quanpin::looks_like_jianpin_spelling("shang"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("sahng"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("shabg"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("xi'an"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("hau"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("gau"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("uanli"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("sshang"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("wwen"));
     // All-consonant strings stay correctable: the engine has no multi-letter
     // jianpin, so correction is the only useful reading of e.g. bqng -> bang.
-    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("bqng"));
-    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("wj"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("bqng"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("wj"));
 }
 
 // The counterpart of QuanpinJianpinShapeGuardBlocksCorrection: the shape predicate
