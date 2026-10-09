@@ -6,6 +6,7 @@
 #include "KeyHandlerEditSession.h"
 #include "KeyFocusRecovery.h"
 #include "KeyRepeatGuard.h"
+#include "CapsLockPunctuationPolicy.h"
 #include "stats_collector.h"
 #include "stats_passthrough.h"
 #include "CaretAnchorPolicy.h"
@@ -411,6 +412,13 @@ BOOL CMetasequoiaIME::_IsKeyEaten(         //
         // - start of input: don't eat
         // - middle of input: eat
         if (isCapsLockOn && isUppercaseAlphabet && !isInputInProgress)
+        {
+            return isTouchKeyboardSpecialKeys;
+        }
+
+        if (ShouldPassThroughCapsLockPunctuation(
+                isCapsLockOn, Global::JapaneseInputModeEnabled.load(std::memory_order_relaxed), isInputInProgress,
+                pCompositionProcessorEngine->IsPunctuation(wch) != FALSE))
         {
             return isTouchKeyboardSpecialKeys;
         }
