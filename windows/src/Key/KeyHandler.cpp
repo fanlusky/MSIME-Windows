@@ -12,6 +12,7 @@
 #include "FanyUtils.h"
 #include "Ipc.h"
 #include "CommitCandidateAndContinuePayload.h"
+#include "PunctuationCommitText.h"
 #include "FanyDefines.h"
 #include "../../../engine/contracts/preedit_caret_map.h"
 
@@ -1614,10 +1615,19 @@ HRESULT CMetasequoiaIME::_HandleCompositionPunctuation(TfEditCookie ec, _In_ ITf
             punctuationIndex >= 1 ? punctuationStr[punctuationIndex - 1] : _GetPrecedingDocumentChar(ec, pContext);
     }
 
-    CStringRange punctuationString;
-    punctuationString.Set(punctuationStr.c_str(), punctuationStr.length());
-
     const bool hasActiveComposition = _IsComposing() ? true : false;
+
+    // The create-word selection sits inside the range this replaces but is not
+    // part of punctuationStr, so it has to be carried in by hand.
+    const std::wstring punctuationCommitText =
+        hasActiveComposition ? BuildPunctuationCommitText(GlobalIme::word_for_creating_word, punctuationStr)
+                             : punctuationStr;
+    GlobalIme::word_for_creating_word.clear();
+    GlobalIme::pending_create_word_preedit.clear();
+
+    CStringRange punctuationString;
+    punctuationString.Set(punctuationCommitText.c_str(), punctuationCommitText.length());
+
     if (hasActiveComposition)
     {
         hr = _InsertTextToComposition(ec, pContext, &punctuationString);
