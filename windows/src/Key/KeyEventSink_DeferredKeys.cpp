@@ -9,6 +9,7 @@
 #include "KeyHandlerEditSession.h"
 #include "KeyFocusRecovery.h"
 #include "KeyRepeatGuard.h"
+#include "CapsLockPunctuationPolicy.h"
 #include "stats_collector.h"
 #include "stats_passthrough.h"
 #include "CaretAnchorPolicy.h"
@@ -538,6 +539,16 @@ bool CMetasequoiaIME::_ClassifyDeferredKeyDown(_In_ ITfContext *pContext, WPARAM
         shadow.inputLength == 0 && !shadow.candidateActive)
     {
         return setKeyState(CATEGORY_COMPOSING, FUNCTION_BACKSPACE);
+    }
+
+    // Use the projected state and queue raw text behind any pending commit;
+    // passing it to the host now could insert it before the preceding candidate.
+    if (shadow.imeOpen &&
+        ShouldPassThroughCapsLockPunctuation((GetKeyState(VK_CAPITAL) & 0x0001) != 0, shadow.japaneseMode,
+                                             shadow.inputLength > 0 || shadow.candidateActive,
+                                             _pCompositionProcessorEngine->IsPunctuation(*classifiedWch) != FALSE))
+    {
+        return true; // CATEGORY_NONE/FUNCTION_NONE selects ApplicationText.
     }
 
     _KEYSTROKE_STATE inputState = {};
