@@ -164,10 +164,9 @@ bool looks_like_jianpin_spelling(const std::string &pinyin)
     const auto &valid_pinyin = intact_pinyin_set();
     const std::string initial = pinyin.substr(0, 1);
     // A leading initial followed by complete syllables is mixed jianpin, not an
-    // extra letter to delete ("ywen" = y + wen)
-    // Repeated initials ("sshang") remain eligible for insertion correction
-    if (pinyin.size() > 1 && pinyin[0] != pinyin[1] && prefix_pinyin_set().count(initial) != 0 &&
-        valid_pinyin.count(initial) == 0 && is_complete_pinyin_input(pinyin.substr(1)))
+    // extra letter to delete ("ywen" = y + wen, "sshang" = s + shang)
+    if (prefix_pinyin_set().count(initial) != 0 && valid_pinyin.count(initial) == 0 &&
+        is_complete_pinyin_input(pinyin.substr(1)))
     {
         return true;
     }

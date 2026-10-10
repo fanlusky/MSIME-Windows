@@ -216,7 +216,7 @@ std::optional<size_t> corrected_reading_raw_length(const std::string &raw_letter
 // True for a leading initial followed by complete syllables ("ywen" = y + wen),
 // or one or more legal syllables plus at most one trailing letter ("zheg" = zhe + g)
 // These jianpin-intent shapes are not typos
-// Repeated leading initials ("sshang") stay eligible for insertion correction
+// Repeated leading initials are included ("sshang" = s + shang)
 // Deliberately NOT true for all-consonant strings of 3+ letters: the engine
 // has no multi-letter jianpin, so correction is the only useful reading of e.g.
 // "bqng" -> bang. Inputs with manual delimiters return false; the correction path

@@ -349,9 +349,13 @@ void run_autocorrect_mixed_jianpin_tests(const std::filesystem::path &data_direc
                          "INSERT INTO tbl_2_x VALUES('xue''sheng', 'xs', '学生', 100);"
                          "CREATE TABLE tbl_1_s(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
                          "INSERT INTO tbl_1_s VALUES('sheng', 's', '生', 1000);"
+                         "INSERT INTO tbl_1_s VALUES('shang', 's', '上', 1000);"
+                         "CREATE TABLE tbl_2_s(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_2_s VALUES('shi''shang', 'ss', '世上', 100);"
                          "CREATE TABLE tbl_3_y(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
                          "INSERT INTO tbl_3_y VALUES('ying''wen''hua', 'ywh', '英文化', 100);"
                          "CREATE TABLE tbl_2_w(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_2_w VALUES('wei''wen', 'ww', '慰问', 100);"
                          "INSERT INTO tbl_2_w VALUES('wen''hua', 'wh', '文化', 1000);");
     }
     metasequoia::RuntimePaths paths;
@@ -366,7 +370,8 @@ void run_autocorrect_mixed_jianpin_tests(const std::filesystem::path &data_direc
         const char *segmentation;
     };
     const std::array cases{Case{"ywen", "英文", "y'wen"}, Case{"xsheng", "学生", "x'sheng"},
-                           Case{"ywenhua", "英文化", "y'wen'hua"}};
+                           Case{"ywenhua", "英文化", "y'wen'hua"}, Case{"sshang", "世上", "s'shang"},
+                           Case{"wwen", "慰问", "w'wen"}};
     for (const unsigned mask : {0u, quanpin::kAutocorrectTransposition, quanpin::kAutocorrectNeighbor,
                                 quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor,
                                 quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor |
@@ -391,7 +396,7 @@ void run_autocorrect_mixed_jianpin_tests(const std::filesystem::path &data_direc
                     "Selecting a mixed-jianpin word must consume the original input.");
         }
     }
-    for (const char *typo : {"sahng", "shabg", "shng", "bqng", "hau", "gau", "uanli", "sshang", "wwen"})
+    for (const char *typo : {"sahng", "shabg", "shng", "bqng", "hau", "gau", "uanli"})
     {
         require(!quanpin::looks_like_jianpin_spelling(typo),
                 "Malformed spellings must still be eligible for autocorrection.");
