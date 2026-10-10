@@ -213,9 +213,11 @@ std::optional<AutocorrectCut> correction_cut_for_reading(const std::string &raw_
 std::optional<size_t> corrected_reading_raw_length(const std::string &raw_letters, const Segments &reading,
                                                    unsigned autocorrect_types);
 
-// True when the input reads as one or more legal syllables plus at most one trailing
-// letter ("zheg" = zhe + g): a jianpin-intent shape, which is user intent and never
-// a typo. Deliberately NOT true for all-consonant strings of 3+ letters: the engine
+// True for a leading initial followed by complete syllables ("ywen" = y + wen),
+// or one or more legal syllables plus at most one trailing letter ("zheg" = zhe + g)
+// These jianpin-intent shapes are not typos
+// Repeated leading initials are included ("sshang" = s + shang)
+// Deliberately NOT true for all-consonant strings of 3+ letters: the engine
 // has no multi-letter jianpin, so correction is the only useful reading of e.g.
 // "bqng" -> bang. Inputs with manual delimiters return false; the correction path
 // excludes them on its own.
@@ -229,6 +231,6 @@ std::optional<size_t> corrected_reading_raw_length(const std::string &raw_letter
 // input_session_composition.cpp (preedit layer). A new caller has to do the same;
 // none of these signatures carries the constraint, so omitting it fails silently
 // rather than at compile time.
-bool looks_like_syllable_with_jianpin_tail(const std::string &pinyin);
+bool looks_like_jianpin_spelling(const std::string &pinyin);
 
 } // namespace quanpin

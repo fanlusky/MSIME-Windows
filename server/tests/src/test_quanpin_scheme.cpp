@@ -708,18 +708,26 @@ TEST_CASE(QuanpinAutocorrectCutTypeBitSwitchMatrix)
 
 TEST_CASE(QuanpinJianpinShapeGuardBlocksCorrection)
 {
-    // One or more legal syllables plus at most one trailing letter is jianpin
-    // intent (zheg = zhe + g), never a typo the tables may rewrite.
-    REQUIRE(quanpin::looks_like_syllable_with_jianpin_tail("zheg"));
-    REQUIRE(quanpin::looks_like_syllable_with_jianpin_tail("keneng"));
-    REQUIRE(quanpin::looks_like_syllable_with_jianpin_tail("shang"));
-    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("sahng"));
-    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("shabg"));
-    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("xi'an"));
+    // Complete syllables with a leading or trailing initial express jianpin
+    // intent (ywen = y + wen, zheg = zhe + g), not a typo to rewrite
+    REQUIRE(quanpin::looks_like_jianpin_spelling("ywen"));
+    REQUIRE(quanpin::looks_like_jianpin_spelling("xsheng"));
+    REQUIRE(quanpin::looks_like_jianpin_spelling("ywenhua"));
+    REQUIRE(quanpin::looks_like_jianpin_spelling("sshang"));
+    REQUIRE(quanpin::looks_like_jianpin_spelling("wwen"));
+    REQUIRE(quanpin::looks_like_jianpin_spelling("zheg"));
+    REQUIRE(quanpin::looks_like_jianpin_spelling("keneng"));
+    REQUIRE(quanpin::looks_like_jianpin_spelling("shang"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("sahng"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("shabg"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("xi'an"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("hau"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("gau"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("uanli"));
     // All-consonant strings stay correctable: the engine has no multi-letter
     // jianpin, so correction is the only useful reading of e.g. bqng -> bang.
-    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("bqng"));
-    REQUIRE(!quanpin::looks_like_syllable_with_jianpin_tail("wj"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("bqng"));
+    REQUIRE(!quanpin::looks_like_jianpin_spelling("wj"));
 }
 
 // The counterpart of QuanpinJianpinShapeGuardBlocksCorrection: the shape predicate
@@ -1050,20 +1058,20 @@ TEST_CASE(QuanpinDictionaryAutocorrectInsertionTypo)
     const unsigned all = quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor |
                          quanpin::kAutocorrectDeletion | quanpin::kAutocorrectInsertion;
 
-    // 阶段 4 生效信号：开头双打（sshang）经插入纠错键命中目标词，标记
+    // 阶段 4 生效信号：中间误插（sghang）经插入纠错键命中目标词，标记
     // corrected_from，canonical 读音落在纠错后的 shang 上（造词/调频不学习
-    // 错拼）。关掉 insertion 位则回到无纠错标记的现状。
-    const auto candidates = dictionary.query("sshang", "", all);
+    // 错拼）。关掉 insertion 位则回到无纠错标记的现状
+    const auto candidates = dictionary.query("sghang", "", all);
     REQUIRE(!candidates.empty());
     REQUIRE_EQ(candidates.front().word, std::string("上"));
     REQUIRE_EQ(candidates.front().pinyin, std::string("shang"));
-    REQUIRE_EQ(candidates.front().corrected_from, std::string("sshang"));
+    REQUIRE_EQ(candidates.front().corrected_from, std::string("sghang"));
 
     const unsigned legacy_bits =
         quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor | quanpin::kAutocorrectDeletion;
-    const auto legacy = dictionary.query("sshang", "", legacy_bits);
+    const auto legacy = dictionary.query("sghang", "", legacy_bits);
     REQUIRE(std::none_of(legacy.begin(), legacy.end(),
-                         [](const WordItem &item) { return item.corrected_from == "sshang"; }));
+                         [](const WordItem &item) { return item.corrected_from == "sghang"; }));
 }
 
 TEST_CASE(QuanpinDictionaryAutocorrectAmbiguousDisambiguation)

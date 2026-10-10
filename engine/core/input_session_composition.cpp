@@ -371,11 +371,11 @@ std::string BuildQuanpinAutocorrectDisplay(const QueryRequest &request)
     }
 
     // Jianpin guard, mirroring resolve_series_query in the dictionary layer: a
-    // legal syllable plus at most one trailing letter is user intent, never a
-    // typo. The deletion table explains shapes like "zheg" -> zheng, so without
-    // this guard the preedit would lose the scheme separators once the deletion
-    // bit rides along with the legacy switches.
-    if (quanpin::looks_like_syllable_with_jianpin_tail(request.raw_input))
+    // leading initial plus complete syllables, or legal syllables plus at most
+    // one trailing initial, expresses user intent rather than a typo
+    // Corrections like "ywen" -> wen and "zheg" -> zheng would otherwise erase
+    // the original syllable boundaries from the preedit
+    if (quanpin::looks_like_jianpin_spelling(request.raw_input))
     {
         // The typed spelling is legal, but the scheme alias table may still
         // have re-segmented it into a reading with copied letters (dongan ->

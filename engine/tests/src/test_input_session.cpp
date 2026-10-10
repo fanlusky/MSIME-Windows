@@ -334,6 +334,75 @@ void run_umlaut_alias_session_tests(const std::filesystem::path &data_directory)
     std::filesystem::remove_all(directory);
 }
 
+void run_autocorrect_mixed_jianpin_tests(const std::filesystem::path &data_directory)
+{
+    const auto directory = data_directory / "autocorrect-mixed-jianpin";
+    std::filesystem::create_directories(directory);
+    {
+        Database database(directory / "msime.db");
+        database.execute("CREATE TABLE tbl_2_y(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_2_y VALUES('ying''wen', 'yw', '英文', 100);"
+                         "INSERT INTO tbl_2_y VALUES('yu''wen', 'yw', '语文', 90);"
+                         "CREATE TABLE tbl_1_w(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_1_w VALUES('wen', 'w', '问', 1000);"
+                         "CREATE TABLE tbl_2_x(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_2_x VALUES('xue''sheng', 'xs', '学生', 100);"
+                         "CREATE TABLE tbl_1_s(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_1_s VALUES('sheng', 's', '生', 1000);"
+                         "INSERT INTO tbl_1_s VALUES('shang', 's', '上', 1000);"
+                         "CREATE TABLE tbl_2_s(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_2_s VALUES('shi''shang', 'ss', '世上', 100);"
+                         "CREATE TABLE tbl_3_y(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_3_y VALUES('ying''wen''hua', 'ywh', '英文化', 100);"
+                         "CREATE TABLE tbl_2_w(key TEXT,jp TEXT,value TEXT,weight INTEGER);"
+                         "INSERT INTO tbl_2_w VALUES('wei''wen', 'ww', '慰问', 100);"
+                         "INSERT INTO tbl_2_w VALUES('wen''hua', 'wh', '文化', 1000);");
+    }
+    metasequoia::RuntimePaths paths;
+    paths.resources = directory;
+    paths.user_data = directory;
+    paths.cache = directory;
+    paths.dictionaries = directory;
+    struct Case
+    {
+        const char *input;
+        const char *word;
+        const char *segmentation;
+    };
+    const std::array cases{Case{"ywen", "英文", "y'wen"}, Case{"xsheng", "学生", "x'sheng"},
+                           Case{"ywenhua", "英文化", "y'wen'hua"}, Case{"sshang", "世上", "s'shang"},
+                           Case{"wwen", "慰问", "w'wen"}};
+    for (const unsigned mask : {0u, quanpin::kAutocorrectTransposition, quanpin::kAutocorrectNeighbor,
+                                quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor,
+                                quanpin::kAutocorrectTransposition | quanpin::kAutocorrectNeighbor |
+                                    quanpin::kAutocorrectDeletion | quanpin::kAutocorrectInsertion})
+    {
+        for (const auto &test : cases)
+        {
+            metasequoia::InputSession session(SchemeType::Quanpin, mask, true, true, false, paths);
+            type(session, test.input);
+            require(candidate_index(session, test.word) == 0,
+                    "Autocorrection must not displace a mixed-jianpin candidate.");
+            require(session.candidates().front().corrected_from.empty(),
+                    "A correctly typed mixed-jianpin candidate must not be marked as corrected.");
+            require(session.get_pinyin_segmentation_with_cases() == test.segmentation,
+                    "The mixed-jianpin preedit must keep the typed syllable boundaries.");
+            if (std::string(test.input) == "ywen")
+            {
+                require(find_candidate_index(session, "语文") < session.candidates().size(),
+                        "Autocorrection must retain mixed-jianpin alternatives.");
+            }
+            require(session.select_candidate(0).commit == test.word && session.preedit().empty(),
+                    "Selecting a mixed-jianpin word must consume the original input.");
+        }
+    }
+    for (const char *typo : {"sahng", "shabg", "shng", "bqng", "hau", "gau", "uanli"})
+    {
+        require(!quanpin::looks_like_jianpin_spelling(typo),
+                "Malformed spellings must still be eligible for autocorrection.");
+    }
+}
+
 // 光标驱动的前缀解码（PRD R2–R7，Stage 1）：候选与量化边界按「光标之前的完整音节
 // 单元前缀」重算。自建隔离词库，不与主 fixture 互相污染；Server（Stage 2）将以
 // set_caret + recompute_candidates 的同一方式消费这些入口。
@@ -2045,6 +2114,7 @@ int run_test()
 
     run_umlaut_alias_session_tests(data_directory);
     run_caret_prefix_session_tests(data_directory);
+    run_autocorrect_mixed_jianpin_tests(data_directory);
     run_autocorrect_context_ranking_tests(data_directory);
     run_autocorrect_context_layering_tests(data_directory);
     run_autocorrect_context_user_choice_tests(data_directory);

@@ -163,7 +163,7 @@ SeriesQueryResolution resolve_series_query(const std::string &raw_input, const q
     // kept unchanged.
     const bool eligible = autocorrect_types != 0 && raw_input.find('\'') == std::string::npos &&
                           !quanpin::has_only_complete_pinyin_segments(segments) &&
-                          !quanpin::looks_like_syllable_with_jianpin_tail(raw_input);
+                          !quanpin::looks_like_jianpin_spelling(raw_input);
     if (eligible)
     {
         // Fill corrected_segments and the two alternative tiers from cost-ranked

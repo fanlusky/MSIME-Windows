@@ -974,27 +974,26 @@ void test_quanpin_autocorrect_switches_and_guard()
     expect(quanpin::join_segments(quanpin::autocorrect_cut("shabg", both)) == "shang",
            "Both switches on must correct 'shabg'.");
 
-    // Jianpin-shape guard: one or more legal syllables plus at most one trailing
-    // letter is user intent, never a typo (AC5).
-    expect(quanpin::looks_like_syllable_with_jianpin_tail("zheg"),
-           "'zheg' (zhe + g) must be detected as jianpin intent.");
-    expect(quanpin::looks_like_syllable_with_jianpin_tail("keneng"),
+    // Jianpin-shape guard: a leading initial plus legal syllables, or legal
+    // syllables plus at most one trailing initial, is user intent, not a typo
+    expect(quanpin::looks_like_jianpin_spelling("zheg"), "'zheg' (zhe + g) must be detected as jianpin intent.");
+    expect(quanpin::looks_like_jianpin_spelling("sshang"), "'sshang' (s + shang) must be detected as jianpin intent.");
+    expect(quanpin::looks_like_jianpin_spelling("wwen"), "'wwen' (w + wen) must be detected as jianpin intent.");
+    expect(quanpin::looks_like_jianpin_spelling("keneng"),
            "A fully legal spelling also satisfies the shape predicate.");
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("sahng"),
-           "'sahng' leaves a 3-letter tail and must stay correctable.");
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("shabg"),
-           "'shabg' leaves a 2-letter tail and must stay correctable.");
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("xi'an"), "Manual delimiters never take part in the guard.");
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("wj"),
+    expect(!quanpin::looks_like_jianpin_spelling("sahng"), "'sahng' leaves a 3-letter tail and must stay correctable.");
+    expect(!quanpin::looks_like_jianpin_spelling("shabg"), "'shabg' leaves a 2-letter tail and must stay correctable.");
+    expect(!quanpin::looks_like_jianpin_spelling("xi'an"), "Manual delimiters never take part in the guard.");
+    expect(!quanpin::looks_like_jianpin_spelling("wj"),
            "Pure-consonant jianpin must stay correctable at the predicate level.");
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("bqng"),
+    expect(!quanpin::looks_like_jianpin_spelling("bqng"),
            "3+ letter all-consonant strings stay correctable by design (no multi-letter jianpin).");
     // A complete syllable plus a lone trailing VOWEL is not jianpin (no vowel is
     // a jianpin initial); it reads as a transposition typo, so the guard must
     // let it through to correction ("gau" = ga + u -> gua).
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("gau"),
+    expect(!quanpin::looks_like_jianpin_spelling("gau"),
            "'gau' (ga + trailing vowel u) must stay correctable, not be read as jianpin.");
-    expect(!quanpin::looks_like_syllable_with_jianpin_tail("hau"),
+    expect(!quanpin::looks_like_jianpin_spelling("hau"),
            "'hau' (ha + trailing vowel u) must stay correctable, not be read as jianpin.");
     expect(quanpin::join_segments(quanpin::autocorrect_cut("gau", transposition_only)) == "gua",
            "'gau' must correct to 'gua' via transposition once the guard lets it through.");
@@ -1053,8 +1052,7 @@ void test_quanpin_autocorrect_switches_and_guard()
     // r is a QWERTY neighbor of e): the BFS cut exists by design, the shape
     // guard must fire before it at the dictionary layer (end-to-end in the
     // display test below).
-    expect(quanpin::looks_like_syllable_with_jianpin_tail("zher"),
-           "'zher' (zhe + r) must be detected as jianpin intent.");
+    expect(quanpin::looks_like_jianpin_spelling("zher"), "'zher' (zhe + r) must be detected as jianpin intent.");
     expect(!quanpin::autocorrect_cut_detail("zher", insertion_only).empty(),
            "The insertion key 'zher' is in the BFS search space by design; the guard is the dictionary layer's job.");
 
@@ -1337,7 +1335,7 @@ void test_quanpin_autocorrect_display()
     // "zher" case above documents -- rather because the static tables happened to
     // lack the "eng" -> "ang" pair. The generated space supplies it, so the input
     // now cuts. Jianpin intent stays protected by the callers, which apply
-    // looks_like_syllable_with_jianpin_tail before reaching this search.
+    // looks_like_jianpin_spelling before reaching this search
     expect(!quanpin::autocorrect_cut_detail("keneng", both).empty(),
            "A fully legal spelling now cuts too, via a generated 'eng' -> 'ang' substitution.");
     expect(quanpin::autocorrect_cut_detail("sahng", none).empty(),
@@ -1454,16 +1452,16 @@ void test_quanpin_autocorrect_display()
         const auto deletion_off = dictionary.query("shng", "sh'n'g", both);
         expect(count_marked(deletion_off) == 0, "Without the deletion bit 'shng' must stay uncorrected and unmarked.");
 
-        // 插入（阶段 4）：insertion 位开时 "sshang"（双打 s）经纠错键命中目标词
+        // 插入（阶段 4）：insertion 位开时 "sghang"（中间误插 g）经纠错键命中目标词
         // 并带 corrected_from（AC5）；关闭 insertion 位则无纠错标记。注：结尾单
         // 插入（如 shangg = shang + g）属简拼尾形状，被词典门按设计拦截，
-        // 与 zher 同理 —— insertion 的可达面在中间/开头插入与多音节输入。
-        const auto insertion = dictionary.query("sshang", "", all_four);
-        expect(!insertion.empty() && insertion.front().word == "上" && insertion.front().corrected_from == "sshang",
+        // 与 zher 同理 —— insertion 的可达面在中间插入与多音节输入
+        const auto insertion = dictionary.query("sghang", "", all_four);
+        expect(!insertion.empty() && insertion.front().word == "上" && insertion.front().corrected_from == "sghang",
                "An insertion typo must resolve through the corrected key and carry corrected_from.");
-        const auto insertion_off = dictionary.query("sshang", "", all);
+        const auto insertion_off = dictionary.query("sghang", "", all);
         expect(count_marked(insertion_off) == 0,
-               "Without the insertion bit 'sshang' must stay uncorrected and unmarked.");
+               "Without the insertion bit 'sghang' must stay uncorrected and unmarked.");
     }
 
     // 会话级 preedit：get_pinyin_segmentation_with_cases 必须画原始字母。
@@ -1654,26 +1652,25 @@ void test_quanpin_autocorrect_display()
     }
     {
         // 阶段 4：插入输入的 display —— raw span 比音节长 1，preedit 显示原始
-        // 字母（无分隔，单段纠错）。用开头双打 "sshang"：结尾单插入属简拼尾
-        // 形状，被词典门拦截（见 zher 用例）。
+        // 字母（无分隔，单段纠错），用中间误插 "sghang" 避开首尾简拼形状
         const unsigned all_four =
             transposition_only | neighbor_only | quanpin::kAutocorrectDeletion | quanpin::kAutocorrectInsertion;
         metasequoia::InputSession session(SchemeType::Quanpin, all_four, true, true, true, paths);
-        type_display_session(session, "sshang");
-        expect(session.get_pinyin_segmentation_with_cases() == "sshang",
+        type_display_session(session, "sghang");
+        expect(session.get_pinyin_segmentation_with_cases() == "sghang",
                "An insertion-corrected input must show its typed letters in the preedit.");
         expect(!session.candidates().empty() && session.candidates().front().word == "上" &&
-                   session.candidates().front().corrected_from == "sshang",
+                   session.candidates().front().corrected_from == "sghang",
                "The insertion reading must reach the candidates end to end.");
     }
     {
         // 阶段 4（design D4）：仅开 transposition 时请求布尔映射也带上 insertion
-        // 位 —— "sshang" 必须可纠（端到端行为断言）。
+        // 位 —— "sghang" 必须可纠（端到端行为断言）
         metasequoia::InputSession session(SchemeType::Quanpin, transposition_only, true, true, true, paths);
-        type_display_session(session, "sshang");
+        type_display_session(session, "sghang");
         expect(std::any_of(session.candidates().begin(), session.candidates().end(),
                            [](const WordItem &item) { return item.word == "上"; }),
-               "Transposition-only must still enable the insertion reading of 'sshang' (D4 linkage).");
+               "Transposition-only must still enable the insertion reading of 'sghang' (D4 linkage).");
     }
     {
         // 阶段 4：'zher' 是 insertion 键（r 是 e 的邻键）但属简拼守卫形状，
@@ -1691,7 +1688,7 @@ void test_quanpin_autocorrect_display()
     }
     {
         metasequoia::InputSession session(SchemeType::Quanpin, none, true, true, true, paths);
-        type_display_session(session, "sshang");
+        type_display_session(session, "sghang");
         expect(std::none_of(session.candidates().begin(), session.candidates().end(),
                             [](const WordItem &item) { return !item.corrected_from.empty(); }),
                "Both switches off must keep the insertion reading disabled.");
