@@ -19,8 +19,29 @@ constexpr bool IsTranslationCommitKey(uint32_t keycode, uint32_t modifiers_down)
     return keycode == kVirtualKeyReturn && (modifiers_down & kKeyModifierMask) == kModifierControl;
 }
 
+// The machine-translated zh->en glosses (sources/cn-en/ in msime-dictionary) lead
+// each sense with a part-of-speech label: "n. silver medal", "proper n. Wanshan
+// District", "adj. spreading; n. sound of laughter". The label is shown in the
+// candidate window but must not reach the committed text.
+inline std::string_view StripPartOfSpeechLabel(std::string_view sense)
+{
+    static constexpr std::string_view kLabels[] = {"proper n. ", "interj. ", "idiom. ", "pron. ", "prep. ",
+                                                   "conj. ",     "adj. ",    "adv. ",   "num. ",  "det. ",
+                                                   "aux. ",      "n. ",      "v. "};
+    for (const auto label : kLabels)
+    {
+        if (sense.size() > label.size() && sense.substr(0, label.size()) == label)
+        {
+            const size_t rest = sense.find_first_not_of(' ', label.size());
+            return rest == std::string_view::npos ? sense : sense.substr(rest);
+        }
+    }
+    return sense;
+}
+
 // english.db stores one gloss string per entry with the senses already joined:
 // en->zh uses the fullwidth '；' ("苹果；家伙"), zh->en the ASCII "; " ("string; trail").
+// Every sense is returned, with its part-of-speech label removed.
 // A cloud gloss is a single sentence and has no separator, so it stays one entry.
 // Header-only pure policy so tests can pin it without linking the server stack.
 inline std::vector<std::string> SplitTranslationGloss(std::string_view gloss)
@@ -33,7 +54,7 @@ inline std::vector<std::string> SplitTranslationGloss(std::string_view gloss)
         if (first == std::string_view::npos)
             return;
         const size_t last = sense.find_last_not_of(" \t\r\n");
-        senses.emplace_back(sense.substr(first, last - first + 1));
+        senses.emplace_back(StripPartOfSpeechLabel(sense.substr(first, last - first + 1)));
     };
     while (start <= gloss.size())
     {

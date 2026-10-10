@@ -33,6 +33,30 @@ TEST_CASE(translation_gloss_splits_on_both_semicolon_widths)
     REQUIRE_EQ(chuan[2], std::string("chuan"));
 }
 
+TEST_CASE(translation_gloss_drops_part_of_speech_labels)
+{
+    using FanyImeIpc::SplitTranslationGloss;
+    // Machine-translated zh->en glosses label each sense; every sense is kept.
+    const auto laugh = SplitTranslationGloss("adj. spreading; n. sound of laughter; v. giggle; idiom. burst out");
+    REQUIRE_EQ(laugh.size(), static_cast<size_t>(4));
+    REQUIRE_EQ(laugh[0], std::string("spreading"));
+    REQUIRE_EQ(laugh[1], std::string("sound of laughter"));
+    REQUIRE_EQ(laugh[2], std::string("giggle"));
+    REQUIRE_EQ(laugh[3], std::string("burst out"));
+
+    const auto place = SplitTranslationGloss("proper n. Wanshan District");
+    REQUIRE_EQ(place.size(), static_cast<size_t>(1));
+    REQUIRE_EQ(place[0], std::string("Wanshan District"));
+
+    // Unlabelled senses, and words that merely start like a label, are untouched.
+    const auto stoop = SplitTranslationGloss("v. stoop; crouch");
+    REQUIRE_EQ(stoop[1], std::string("crouch"));
+    const auto peculiar = SplitTranslationGloss("very peculiar");
+    REQUIRE_EQ(peculiar[0], std::string("very peculiar"));
+    const auto bare = SplitTranslationGloss("n.");
+    REQUIRE_EQ(bare[0], std::string("n."));
+}
+
 TEST_CASE(translation_gloss_keeps_a_single_sense_whole)
 {
     using FanyImeIpc::SplitTranslationGloss;

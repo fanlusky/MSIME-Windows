@@ -5,7 +5,7 @@
 仓外文件（msime 的快捷短语、读音纠错、emoji/颜文字/符号表，ECDICT，SCOWL，rime-jp_sela），产出：
 
     msime.db           全拼表（含地名补充、自定义词条、读音纠错）、86 五笔、快捷短语、japanese_lexicon
-    english.db         英文候选、中英双向释义（ECDICT）、custom/translations.txt 覆盖
+    english.db         英文候选、中英双向释义（ECDICT）、sources/cn-en/ 的中译英释义（全部义项）、custom/translations.txt 覆盖
     others.db          emoji、颜文字、符号
     dict_japanese.dat  日文整句模型（sources/japanese/ 的 Mozc 词库）
     以及 Mozc 与 SCOWL 的声明、dictionary-manifest.json、SHA256SUMS.txt、local-dictionary.json
@@ -18,6 +18,7 @@
     python scripts/build-dictionary.py --dictionary D:/msime-dictionary
     python scripts/build-dictionary.py --compare-release dict-v2.0.13   # 构建后与官方 Release 逐表对比
     python scripts/build-dictionary.py --verify                         # 只校验 out/ 是否仍是本脚本构建的结果
+    python scripts/build-dictionary.py --if-stale                       # 源数据或构建脚本没变就跳过（installer\test.ps1 用）
 
 构建 others.db 需要 pypinyin（python -m pip install pypinyin）。
 """
@@ -52,6 +53,8 @@ def main() -> None:
                         help="改用这个目录下的 msime resources/dictionary-sources 文件（本地修改用），不按锁校验")
     parser.add_argument("--compare-release", metavar="TAG", help="构建后与这个 dict-v* Release 逐表对比，不一致时失败")
     parser.add_argument("--verify", action="store_true", help="只校验 out/ 是否仍是本脚本构建的结果")
+    parser.add_argument("--if-stale", action="store_true",
+                        help="out/ 已由当前 msime-dictionary 提交和当前构建脚本构建、且工作区干净时跳过，否则重新构建")
     args = parser.parse_args()
 
     if args.verify:
@@ -66,6 +69,12 @@ def main() -> None:
         raise SystemExit(f"{dictionary} 不是 msime-dictionary checkout（没有 sources/ 和 custom/），用 --dictionary 指定")
     commit, dirty = inputs.git_state(dictionary)
     print(f"msime-dictionary：{dictionary}（{commit[:12] or '不是 Git 工作区'}{'，有未提交改动' if dirty else ''}）")
+    if args.if_stale and not args.compare_release:
+        reason = build.stale_reason(commit, dirty or args.msime_resources is not None)
+        if reason is None:
+            print(f"词库已是最新：{build.OUT}")
+            return
+        print(f"重新构建词库：{reason}")
     mismatched = inputs.check_upstream(dictionary)
     if mismatched:
         print(f"提示：{len(mismatched)} 个文件与 upstream.lock.json 记录的不同（本地改过的上游文件或生成表）："
