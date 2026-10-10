@@ -1,21 +1,30 @@
 #include "Key/CapsLockPunctuationPolicy.h"
+#include <cstdio>
 
 int main()
 {
-    // Caps Lock OFF keeps the user's punctuation/full-width behavior.
-    if (ShouldPassThroughCapsLockPunctuation(false, false, false, true))
+    // Fixed contract table: bits are Caps Lock, Japanese, active input, punctuation.
+    // Include overlapping exclusions (for example Japanese AND active input).
+    // Only idle, non-Japanese punctuation with Caps Lock ON may pass through.
+    constexpr bool expected[16] = {false, false, false, false, false, false, false, false,
+                                   false, true,  false, false, false, false, false, false};
+    int failures = 0;
+    for (unsigned state = 0; state < 16; ++state)
+    {
+        const bool capsLock = (state & 8) != 0;
+        const bool japanese = (state & 4) != 0;
+        const bool inputActive = (state & 2) != 0;
+        const bool punctuation = (state & 1) != 0;
+        const bool actual = ShouldPassThroughCapsLockPunctuation(capsLock, japanese, inputActive, punctuation);
+        if (actual != expected[state])
+        {
+            std::fprintf(stderr, "FAIL caps=%d japanese=%d active=%d punctuation=%d: expected=%d actual=%d\n", capsLock,
+                         japanese, inputActive, punctuation, expected[state], actual);
+            ++failures;
+        }
+    }
+    if (failures != 0)
         return 1;
-    // Caps Lock ON passes an idle Chinese punctuation key to the host.
-    if (!ShouldPassThroughCapsLockPunctuation(true, false, false, true))
-        return 2;
-    // A composition or candidate list must retain its existing handling.
-    if (ShouldPassThroughCapsLockPunctuation(true, false, true, true))
-        return 3;
-    // Japanese punctuation and long-vowel handling remain unchanged.
-    if (ShouldPassThroughCapsLockPunctuation(true, true, false, true))
-        return 4;
-    // Letters, digits, Space and control keys use their existing classifiers.
-    if (ShouldPassThroughCapsLockPunctuation(true, false, false, false))
-        return 5;
+    std::puts("PASS: all 16 Caps Lock punctuation policy combinations");
     return 0;
 }
