@@ -60,10 +60,10 @@ pwsh -File ./Prepare-PackageFiles.ps1 -TargetVersion 1.2.3 -RepoRoot .. `
 - [Inno Setup](https://jrsoftware.org/isinfo.php) 6.6 或更高版本
 - Windows SDK（提供 `signtool.exe`）
 - 先初始化本仓 submodule，并完成 `windows/`、`server/` 的 Release 编译以及 `ui-html/` 设置页构建。Release 构建必须生成同目录 PDB；打包脚本会拒绝缺少匹配符号的产物（符号是否随包安装是另一回事，由 `-IncludeSymbols` 决定）。
-- 在仓库根目录运行 `python scripts/product_lock.py fetch-dictionaries --staging-root .`，下载并验证产品锁中的词库。
+- 本地测试包的词库从与本仓同级的 `msime-dictionary` 检出构建（见下文 `build-dictionary.py`），`Invoke-LocalTest.ps1` 打完整包前会自动调用，不再下载产品锁的 Release；需要复现发布用的词库时再手动运行 `python scripts/product_lock.py fetch-dictionaries --staging-root .`。
 - 词格整句打分用的 `sc.lm` 由 `scripts\build-language-model.ps1` 从 `language-model\lock.json` 钉住的上游语料转换而来。`Invoke-LocalTest.ps1` 打完整包前会自动调它，一般不用手工执行；首次运行要下 ~75 MB 并转换一次，之后摘要对得上就直接跳过。
-- 本地打完整包前，可以直接运行 `scripts\prepare-package-inputs.ps1`，一次准备好神经整句模型、`sc.lm` 和词库。它按各自的锁校验 SHA256，已就绪的直接跳过；词库按 release URL 直接下载，不需要登录 `gh`。
-- 想在本地从 msime-dictionary 的文本源数据构建词库，运行 `python scripts\build-dictionary.py [--dictionary <msime-dictionary checkout>]`（默认读与本仓同级的 `msime-dictionary`，需要 `pip install pypinyin`）：它按 msime Rust 构建器的规则读 `sources/` 与 `custom/`，加上 `scripts\dictionary_build\inputs.lock.json` 固定的仓外文件，生成本仓现有的 `msime.db` / `english.db` / `others.db` / `dict_japanese.dat` 布局写到 `MetasequoiaImeDict\out\`（产品锁的旧词库先备份到 `out.bak\`）。加 `--compare-release dict-vX.Y.Z` 会与官方 Release 逐表对比。`out\` 里有它写的 `local-dictionary.json` 时，`prepare-package-inputs.ps1` 只校验、不会用产品锁的旧词库覆盖；删掉 `out\` 即回到产品锁。CI 与正式发布仍按产品锁取词库。
+- 本地打完整包前，可以直接运行 `scripts\prepare-package-inputs.ps1`，一次准备好神经整句模型、`sc.lm` 和词库。模型按各自的锁校验 SHA256，已就绪的直接跳过；词库用 `build-dictionary.py --if-stale` 从本地 `msime-dictionary` 构建。
+- 想在本地从 msime-dictionary 的文本源数据构建词库，运行 `python scripts\build-dictionary.py [--dictionary <msime-dictionary checkout>]`（默认读与本仓同级的 `msime-dictionary`，需要 `pip install pypinyin`）：它按 msime Rust 构建器的规则读 `sources/` 与 `custom/`，加上 `scripts\dictionary_build\inputs.lock.json` 固定的仓外文件，生成本仓现有的 `msime.db` / `english.db` / `others.db` / `dict_japanese.dat` 布局写到 `MetasequoiaImeDict\out\`（产品锁的旧词库先备份到 `out.bak\`）。加 `--compare-release dict-vX.Y.Z` 会与官方 Release 逐表对比。加 `--if-stale` 时，`out\` 已由当前 `msime-dictionary` 提交和当前构建脚本构建、且工作区干净就跳过，否则重建；`Invoke-LocalTest.ps1` 与 `prepare-package-inputs.ps1` 都这样调用。CI 与正式发布仍按产品锁取词库。
 - `engine/helpcode/helpcodes/` 是本仓的目录，普通检出即有，无需旧 HelpCode 仓库，也无需初始化 submodule。
 
 ## 本地打包路径
