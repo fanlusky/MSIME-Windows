@@ -38,6 +38,8 @@ namespace
 {
 constexpr unsigned kSampleRate = 16000;
 constexpr long kPolishTimeoutMs = 3000L;
+// DeepSeek thinking spends seconds reasoning before it answers; the user opted into that wait.
+constexpr long kPolishThinkingTimeoutMs = 30000L;
 metasequoia::voice::AudioCapture g_capture;
 std::mutex g_mutex;
 std::vector<float> g_samples;
@@ -629,7 +631,10 @@ std::string Polish(const std::string &text, const VoiceInputConfig &config)
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     // Polishing is optional: if it cannot finish promptly, abort the request and
     // let the caller commit the original ASR text returned below.
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, kPolishTimeoutMs);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS,
+                     VoiceInput::UsesDeepSeekThinking(config.polish_provider, config.polish_thinking)
+                         ? kPolishThinkingTimeoutMs
+                         : kPolishTimeoutMs);
     const CURLcode result = curl_easy_perform(curl);
     long http_status = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_status);

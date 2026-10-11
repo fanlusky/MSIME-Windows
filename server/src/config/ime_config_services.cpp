@@ -99,6 +99,8 @@ bool SetConfiguredVoiceInputString(const std::string &key, const std::string &va
         target = &VoiceInputConfig::polish_endpoint;
     else if (key == "polish_model")
         target = &VoiceInputConfig::polish_model;
+    else if (key == "polish_thinking" && VoiceInput::IsValidThinkingLevel(value))
+        target = &VoiceInputConfig::polish_thinking;
     else if (key == "polish_prompt_id")
         target = &VoiceInputConfig::polish_prompt_id;
     else if (key == "polish_prompt")
@@ -388,6 +390,8 @@ bool SetConfiguredAiAssistantString(const std::string &key, const std::string &v
 {
     if (key == "prompt_id" && value != "custom_1" && value != "custom_2" && value != "custom_3")
         return false;
+    if (key == "thinking" && !VoiceInput::IsValidThinkingLevel(value))
+        return false;
     if (key == "provider")
     {
         const std::string provider = VoiceInput::NormalizeProviderId(value);
@@ -454,6 +458,8 @@ bool SetConfiguredAiAssistantString(const std::string &key, const std::string &v
         target = &g_ai_assistant.token;
     else if (key == "prompt_id")
         target = &g_ai_assistant.prompt_id;
+    else if (key == "thinking")
+        target = &g_ai_assistant.thinking;
     else if (key == "prompt_custom_1")
         target = &g_ai_assistant.prompt_custom_1;
     else if (key == "prompt_custom_2")

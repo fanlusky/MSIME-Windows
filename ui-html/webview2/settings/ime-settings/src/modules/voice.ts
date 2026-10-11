@@ -407,6 +407,8 @@ export function setupVoiceInput(): void {
   setupDropdownMenu('voicePolishProviderBtn', 'voicePolishProviderMenu', 'changeVoicePolishProvider', true);
   setupDropdownMenu('voicePolishPromptBtn', 'voicePolishPromptMenu', 'changeVoicePolishPrompt', true,
     'voice_input.polish_prompt_id');
+  setupDropdownMenu('voicePolishThinkingBtn', 'voicePolishThinkingMenu', 'changeVoicePolishThinking', true,
+    'voice_input.polish_thinking');
   listenMenuSelection('voiceAsrProviderMenu', switchAsrProvider);
   listenMenuSelection('voiceDoubaoAuthModeMenu', switchDoubaoAuthMode);
   listenMenuSelection('voiceDoubaoEndpointMenu', switchDoubaoEndpoint);
@@ -545,6 +547,8 @@ export function applyVoiceConfig(config: Record<string, unknown>): void {
   const polishModel = document.getElementById('voicePolishModel') as HTMLInputElement | null;
   const polishDefaults = POLISH_DEFAULTS[polishProvider];
   if (polishModel && polishDefaults?.model) polishModel.placeholder = polishDefaults.model;
+  applyDropdownValue('voicePolishThinkingBtn', 'voicePolishThinkingMenu',
+    typeof config.polish_thinking === 'string' ? config.polish_thinking : 'disabled');
   selectedPromptId = typeof config.polish_prompt_id === 'string' ? config.polish_prompt_id : 'cleanup';
   if (selectedPromptId === 'custom') selectedPromptId = 'custom_1';
   customPrompts = {

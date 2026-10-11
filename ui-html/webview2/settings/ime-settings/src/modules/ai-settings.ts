@@ -127,6 +127,7 @@ export function setupAiSettings(): void {
   setupDropdownMenu('aiModelBtn', 'aiModelMenu', '', true, 'ai_assistant.model');
   setupDropdownMenu('aiPromptSlotBtn', 'aiPromptSlotMenu', 'changeAiPromptSlot', true,
     'ai_assistant.prompt_id');
+  setupDropdownMenu('aiThinkingBtn', 'aiThinkingMenu', 'changeAiThinking', true, 'ai_assistant.thinking');
   document.getElementById('aiProviderMenu')?.addEventListener('click', (event) => {
     const item = (event.target as HTMLElement | null)?.closest('.dropdown-item') as HTMLElement | null;
     const provider = item?.dataset.value;
@@ -189,6 +190,8 @@ export function applyAiConfig(config: Record<string, unknown>): void {
   const limit = document.getElementById('aiCandidateLimit') as HTMLInputElement | null;
   if (limit && typeof config.candidate_limit === 'number') limit.value = String(config.candidate_limit);
   if (typeof config.enabled === 'boolean') applyToggleState('aiEnabled', config.enabled);
+  applyDropdownValue('aiThinkingBtn', 'aiThinkingMenu',
+    typeof config.thinking === 'string' ? config.thinking : 'disabled');
   currentProvider = typeof config.provider === 'string' ? config.provider : 'deepseek';
   tokens = readProviderMap(config.tokens, currentProvider, typeof config.token === 'string' ? config.token : '');
   endpoints = readProviderMap(config.endpoints, currentProvider, typeof config.endpoint === 'string' ? config.endpoint : '');

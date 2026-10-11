@@ -151,6 +151,8 @@ set(SRC_FILES
     "./src/ai/ai_assistant_cache.h"
     "./src/ai/ai_assistant_cache_key.cpp"
     "./src/ai/ai_assistant_cache_key.h"
+    "./src/ai/ai_assistant_request.cpp"
+    "./src/ai/ai_assistant_request.h"
     "./src/clipboard/clipboard_history.cpp"
     "./src/clipboard/clipboard_history.h"
     "./src/cloud/cloud_ime.cpp"

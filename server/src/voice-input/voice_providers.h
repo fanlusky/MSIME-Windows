@@ -29,6 +29,10 @@ inline constexpr std::string_view kDoubaoEndpointAsync = "wss://openspeech.byted
 
 bool IsDoubaoAsrProvider(std::string_view provider);
 std::string NormalizeProviderId(std::string_view provider);
+// DeepSeek thinking levels: disabled | low | high | max (the latter three are sent as reasoning_effort).
+bool IsValidThinkingLevel(std::string_view level);
+// True only for DeepSeek with a level other than disabled; every other case keeps thinking off.
+bool UsesDeepSeekThinking(std::string_view provider, std::string_view level);
 // Resolves an explicit doubao_auth_mode, falling back to inferring the legacy console from a
 // usable App ID when the key is absent (configs written before the setting existed).
 std::string NormalizeDoubaoAuthMode(std::string_view mode, std::string_view app_key);

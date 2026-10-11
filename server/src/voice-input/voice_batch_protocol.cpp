@@ -36,9 +36,18 @@ std::string BuildBatchPolish(const std::string &text, const VoiceInputConfig &co
     auto body = nlohmann::json::parse(metasequoia::voice::make_polish_request(
         ResolvePolishModel(config), ResolvePolishSystemPrompt(config), WrapAsrUserMessage(text)));
     if (config.polish_provider == "siliconflow")
+    {
         body["enable_thinking"] = false;
+    }
+    else if (UsesDeepSeekThinking(config.polish_provider, config.polish_thinking))
+    {
+        body["thinking"] = {{"type", "enabled"}};
+        body["reasoning_effort"] = config.polish_thinking;
+    }
     else if (config.polish_provider == "deepseek")
+    {
         body["thinking"] = {{"type", "disabled"}};
+    }
     return body.dump();
 }
 } // namespace VoiceInput

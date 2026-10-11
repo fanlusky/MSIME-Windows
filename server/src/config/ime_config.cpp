@@ -780,6 +780,9 @@ bool LoadImeConfig()
         voice.polish_endpoint = tbl["voice_input"]["polish_endpoint"].value_or(
             std::string("https://api.siliconflow.cn/v1/chat/completions"));
         voice.polish_model = tbl["voice_input"]["polish_model"].value_or(std::string());
+        voice.polish_thinking = tbl["voice_input"]["polish_thinking"].value_or(std::string("disabled"));
+        if (!VoiceInput::IsValidThinkingLevel(voice.polish_thinking))
+            voice.polish_thinking = "disabled";
         voice.polish_prompt = tbl["voice_input"]["polish_prompt"].value_or(std::string());
         voice.polish_prompt_id = tbl["voice_input"]["polish_prompt_id"].value_or(std::string("cleanup"));
         if (voice.polish_prompt_id == "custom")
@@ -856,6 +859,9 @@ bool LoadImeConfig()
         g_ai_assistant.model = g_ai_assistant.models[g_ai_assistant.provider];
         const int ai_limit = tbl["ai_assistant"]["candidate_limit"].value_or(3);
         g_ai_assistant.candidate_limit = ai_limit >= 1 && ai_limit <= 10 ? ai_limit : 3;
+        g_ai_assistant.thinking = tbl["ai_assistant"]["thinking"].value_or(std::string("disabled"));
+        if (!VoiceInput::IsValidThinkingLevel(g_ai_assistant.thinking))
+            g_ai_assistant.thinking = "disabled";
         const std::string legacy_ai_prompt = tbl["ai_assistant"]["prompt"].value_or(g_ai_assistant.prompt);
         g_ai_assistant.prompt_id = tbl["ai_assistant"]["prompt_id"].value_or(std::string("custom_1"));
         if (g_ai_assistant.prompt_id != "custom_1" && g_ai_assistant.prompt_id != "custom_2" &&

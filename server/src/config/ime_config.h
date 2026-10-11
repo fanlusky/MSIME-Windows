@@ -40,6 +40,8 @@ struct VoiceInputConfig
     std::map<std::string, std::string> polish_tokens;
     std::string polish_endpoint = "https://api.siliconflow.cn/v1/chat/completions";
     std::string polish_model;
+    // DeepSeek reasoning effort: disabled | low | high | max. Other providers ignore it.
+    std::string polish_thinking = "disabled";
     // cleanup | faithful | zh2en | casual | custom_1 | custom_2 | custom_3
     std::string polish_prompt_id = "cleanup";
     // Legacy single custom prompt. Retained for config compatibility.
@@ -81,6 +83,8 @@ struct AiAssistantConfig
                                               {"groq", "qwen/qwen3.8-27b"},
                                               {"custom", ""}};
     int candidate_limit = 3;
+    // DeepSeek reasoning effort: disabled | low | high | max. Other providers ignore it.
+    std::string thinking = "disabled";
     // custom_1 | custom_2 | custom_3
     std::string prompt_id = "custom_1";
     std::string prompt_custom_1;

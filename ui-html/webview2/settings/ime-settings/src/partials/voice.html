@@ -143,6 +143,22 @@
         </div>
       </div>
       <label><span>模型</span><input id="voicePolishModel" type="text" autocomplete="off" spellcheck="false" placeholder="Qwen/Qwen3-8B"></label>
+      <div class="voice-field">
+        <span>思考强度</span>
+        <div class="dropdown">
+          <button class="dropdown-toggle" id="voicePolishThinkingBtn" type="button">
+            <span>关闭</span>
+            <img src="./assets/arrow.svg" alt="">
+          </button>
+          <div class="dropdown-menu" id="voicePolishThinkingMenu">
+            <div class="dropdown-item" data-value="disabled">关闭</div>
+            <div class="dropdown-item" data-value="low">低</div>
+            <div class="dropdown-item" data-value="high">高</div>
+            <div class="dropdown-item" data-value="max">最高</div>
+          </div>
+        </div>
+        <span class="voice-description">仅 DeepSeek 生效。开启后润色更细致，但上屏前要多等几秒到几十秒，超过 30 秒直接上屏原文。</span>
+      </div>
       <div class="voice-field voice-wide">
         <label for="voicePolishToken">API Token</label>
         <span class="voice-secret-input">

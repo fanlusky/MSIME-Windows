@@ -69,6 +69,16 @@ std::string NormalizeProviderId(std::string_view provider)
     return Lower(provider);
 }
 
+bool IsValidThinkingLevel(std::string_view level)
+{
+    return level == "disabled" || level == "low" || level == "high" || level == "max";
+}
+
+bool UsesDeepSeekThinking(std::string_view provider, std::string_view level)
+{
+    return NormalizeProviderId(provider) == "deepseek" && IsValidThinkingLevel(level) && level != "disabled";
+}
+
 std::string NormalizeDoubaoAuthMode(std::string_view mode, std::string_view app_key)
 {
     const std::string id = Lower(mode);

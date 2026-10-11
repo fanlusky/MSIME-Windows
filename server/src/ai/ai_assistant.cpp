@@ -1,6 +1,7 @@
 #include "ai_assistant.h"
 #include "ai_assistant_cache.h"
 #include "ai_assistant_cache_key.h"
+#include "ai_assistant_request.h"
 
 #include "utils/network_proxy.h"
 #include <curl/curl.h>
@@ -42,23 +43,7 @@ std::string Fetch(const AiAssistant::Request &request, uint64_t generation)
         return {};
     }
 
-    nlohmann::json input = {{"segmented_pinyin", request.pinyin_segments},
-                            {"context", request.context},
-                            {"candidate_limit", config.candidate_limit}};
-    nlohmann::json body = {
-        {"model", config.model},
-        {"stream", false},
-        {"temperature", 0.2},
-        {"max_tokens", 512},
-        {"response_format", {{"type", "json_object"}}},
-        {"messages",
-         {{{"role", "system"}, {"content", config.prompt}}, {{"role", "user"}, {"content", input.dump()}}}}};
-    if (config.provider == "deepseek")
-    {
-        // DeepSeek thinking can add hundreds of reasoning tokens and noticeably delay
-        // an IME suggestion. Keep custom OpenAI-compatible providers untouched.
-        body["thinking"] = {{"type", "disabled"}};
-    }
+    const nlohmann::json body = AiAssistant::detail::BuildRequestBody(request);
 
     // Deliberately exclude API token and system prompt from logs.
     (void)0;
@@ -80,7 +65,7 @@ std::string Fetch(const AiAssistant::Request &request, uint64_t generation)
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteResponse);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 2500L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 8000L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, AiAssistant::detail::RequestTimeoutMs(config));
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     const CURLcode result = curl_easy_perform(curl);
     long status = 0;

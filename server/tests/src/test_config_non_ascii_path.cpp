@@ -1192,3 +1192,58 @@ TEST_CASE(floating_toolbar_auto_hide_defaults_and_round_trips)
 
     fs::remove_all(unique_root, ec);
 }
+
+// DeepSeek 思考强度：两个出厂模板都带键且默认 disabled（缺键会在升级合并时丢掉用户的选择），
+// 缺键和非法值回退到 disabled，非法写入被拒且不落盘，合法值能往返。
+TEST_CASE(deepseek_thinking_levels_default_disabled_and_round_trip)
+{
+    {
+        std::ifstream input(MSIME_DEFAULT_CONFIG_PATH, std::ios::binary);
+        REQUIRE(static_cast<bool>(input));
+        const std::string installed((std::istreambuf_iterator<char>(input)), {});
+        const auto parsed = toml::parse(installed);
+        REQUIRE_EQ(parsed["ai_assistant"]["thinking"].value_or(std::string()), std::string("disabled"));
+        REQUIRE_EQ(parsed["voice_input"]["polish_thinking"].value_or(std::string()), std::string("disabled"));
+    }
+
+    namespace fs = std::filesystem;
+    const fs::path unique_root = MakeProfileRoot();
+    const fs::path local_app_data = unique_root / L"本地";
+    const fs::path data_dir = local_app_data / L"metasequoiaime";
+
+    std::error_code ec;
+    fs::remove_all(unique_root, ec);
+    SeedTemplate(data_dir);
+
+    {
+        ScopedConfigLocation local_app_data_env(local_app_data);
+
+        InitImeConfig();
+        REQUIRE_EQ(GetConfiguredAiAssistant().thinking, std::string("disabled"));
+        REQUIRE_EQ(GetConfiguredVoiceInput().polish_thinking, std::string("disabled"));
+
+        WriteText(data_dir / L"config.toml",
+                  "[ai_assistant]\nthinking = \"medium\"\n[voice_input]\npolish_thinking = \"ultra\"\n");
+        InitImeConfig();
+        REQUIRE_EQ(GetConfiguredAiAssistant().thinking, std::string("disabled"));
+        REQUIRE_EQ(GetConfiguredVoiceInput().polish_thinking, std::string("disabled"));
+
+        const std::string before_invalid_set = ReadText(data_dir / L"config.toml");
+        REQUIRE(!SetConfiguredAiAssistantString("thinking", "medium"));
+        REQUIRE(!SetConfiguredVoiceInputString("polish_thinking", "ultra"));
+        REQUIRE_EQ(GetConfiguredAiAssistant().thinking, std::string("disabled"));
+        REQUIRE_EQ(GetConfiguredVoiceInput().polish_thinking, std::string("disabled"));
+        REQUIRE_EQ(ReadText(data_dir / L"config.toml"), before_invalid_set);
+
+        for (const char *value : {"low", "high", "max", "disabled"})
+        {
+            REQUIRE(SetConfiguredAiAssistantString("thinking", value));
+            REQUIRE(SetConfiguredVoiceInputString("polish_thinking", value));
+            InitImeConfig();
+            REQUIRE_EQ(GetConfiguredAiAssistant().thinking, std::string(value));
+            REQUIRE_EQ(GetConfiguredVoiceInput().polish_thinking, std::string(value));
+        }
+    }
+
+    fs::remove_all(unique_root, ec);
+}

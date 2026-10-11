@@ -45,3 +45,23 @@ TEST_CASE(voice_batch_protocol_preserves_polish_prompt_and_thinking_settings)
     REQUIRE_EQ(body["enable_thinking"].get<bool>(), false);
     REQUIRE(!body.contains("thinking"));
 }
+
+TEST_CASE(voice_batch_protocol_sends_deepseek_thinking_level)
+{
+    VoiceInputConfig config;
+    config.polish_model = "fixture-polish";
+    config.polish_prompt = "fixture prompt";
+    config.polish_provider = "deepseek";
+    for (const char *level : {"low", "high", "max"})
+    {
+        config.polish_thinking = level;
+        const auto body = nlohmann::json::parse(VoiceInput::BuildBatchPolish("原始文本", config));
+        REQUIRE_EQ(body["thinking"]["type"].get<std::string>(), "enabled");
+        REQUIRE_EQ(body["reasoning_effort"].get<std::string>(), std::string(level));
+    }
+    // 其他提供商不认识 reasoning_effort，强度设置对它们不生效。
+    config.polish_provider = "openai";
+    const auto body = nlohmann::json::parse(VoiceInput::BuildBatchPolish("原始文本", config));
+    REQUIRE(!body.contains("thinking"));
+    REQUIRE(!body.contains("reasoning_effort"));
+}
