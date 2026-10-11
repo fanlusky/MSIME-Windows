@@ -256,6 +256,18 @@ try {
     }
     finally { Pop-Location }
 
+    # 完整包的数据输入和 Invoke-LocalTest.ps1 一样准备：词库从本仓同级的 msime-dictionary 构建，
+    # 不下载 Release；源数据提交和构建脚本都没变、工作区干净时直接跳过。不跑这一步，
+    # Prepare-PackageFiles 只会原样拿 MetasequoiaImeDict\out\ 里上次留下的东西。
+    if (-not $Light) {
+        & (Join-Path $repoRoot 'scripts\build-language-model.ps1')
+        python -m pip install -q pypinyin
+        if ($LASTEXITCODE -ne 0) { throw "安装 pypinyin 依赖失败（$LASTEXITCODE）" }
+        python (Join-Path $repoRoot 'scripts\build-dictionary.py') --if-stale
+        if ($LASTEXITCODE -ne 0) { throw "从 msime-dictionary 构建词库失败（$LASTEXITCODE）" }
+        & (Join-Path $repoRoot 'scripts\download-neural-model.ps1')
+    }
+
     & (Join-Path $PSScriptRoot 'Prepare-PackageFiles.ps1') `
         -TargetVersion $Version `
         -IncludeSymbols:$IncludeSymbols `
