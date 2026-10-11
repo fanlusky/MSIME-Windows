@@ -68,6 +68,7 @@ bool KeepsPreviousDefaultOnUpgrade(const std::string &assignment_id)
 {
     static const std::set<std::string> kIds = {
         MakeTomlAssignmentId("general", "emoji_mixed_input"),
+        MakeTomlAssignmentId("general", "candidate_translations"),
         MakeTomlAssignmentId("input", "default_ime_mode"),
         MakeTomlAssignmentId("appearance", "candidate_window_layout"),
         MakeTomlAssignmentId("appearance", "candidate_skin"),

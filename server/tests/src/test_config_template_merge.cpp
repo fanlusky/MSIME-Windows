@@ -183,7 +183,7 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
     std::ifstream input(MSIME_DEFAULT_CONFIG_PATH, std::ios::binary);
     REQUIRE(static_cast<bool>(input));
     const std::string installed((std::istreambuf_iterator<char>(input)), {});
-    const std::string previous_defaults = "[general]\nemoji_mixed_input = true\n"
+    const std::string previous_defaults = "[general]\nemoji_mixed_input = true\ncandidate_translations = true\n"
                                           "[input]\ndefault_ime_mode = \"english\"\n"
                                           "[appearance]\ncandidate_window_layout = \"vertical\"\n"
                                           "candidate_skin = \"willow_green\"\n"
@@ -196,6 +196,7 @@ TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
 
     const auto upgraded = toml::parse(MergeConfigIntoTemplate(installed, previous_defaults, previous_defaults));
     REQUIRE(upgraded["general"]["emoji_mixed_input"].value_or(false));
+    REQUIRE(upgraded["general"]["candidate_translations"].value_or(false));
     REQUIRE_EQ(upgraded["input"]["default_ime_mode"].value_or(std::string()), std::string("english"));
     REQUIRE_EQ(upgraded["appearance"]["candidate_window_layout"].value_or(std::string()), std::string("vertical"));
     REQUIRE_EQ(upgraded["appearance"]["candidate_skin"].value_or(std::string()), std::string("willow_green"));
