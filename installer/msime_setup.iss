@@ -931,6 +931,34 @@ begin
   Result := IsShippedAppDataItem(FileName) or IsRuntimeAppDataItem(FileName) or IsRetiredAppDataItem(FileName);
 end;
 
+{ 0.9.x 把效果档模型随包装在数据目录根下，现在 Server 只认 models\neural-desktop\。根下那份和
+  设置页下载的是同一个 model-v1 发布文件，在清理把它当退役文件删掉之前挪过去，升级用户就不用重下
+  （下载走 GitHub，不少用户连不上）。校验和对不上、或新位置已有文件时什么都不做，留给清理删。}
+procedure AdoptRetiredDesktopModel(const ExpectedSha256: String);
+var
+  OldPath, NewDir, NewPath: String;
+begin
+  OldPath := AddBackslash(GetDataDir('')) + 'sentence-model-desktop.safetensors';
+  NewDir := AddBackslash(GetDataDir('')) + 'models\neural-desktop';
+  NewPath := AddBackslash(NewDir) + 'sentence-model-desktop.safetensors';
+  if (not FileExists(OldPath)) or FileExists(NewPath) then
+    exit;
+  try
+    if CompareText(GetSHA256OfFile(OldPath), ExpectedSha256) <> 0 then
+    begin
+      Log('Retired desktop model does not match model-v1; leaving it to cleanup.');
+      exit;
+    end;
+  except
+    Log('Cannot hash retired desktop model: ' + GetExceptionMessage);
+    exit;
+  end;
+  if ForceDirectories(NewDir) and RenameFile(OldPath, NewPath) then
+    Log('Moved retired desktop model to ' + NewPath)
+  else
+    Log('Could not move retired desktop model to ' + NewPath);
+end;
+
 function InitializeUninstall(): Boolean;
 begin
   RegQueryStringValue(
@@ -1606,6 +1634,8 @@ begin
     Result := DataDirProblem;
     exit;
   end;
+  { 轻量包不清根目录，但新 Server 同样只认 models\neural-desktop\，所以两种包都要挪。}
+  AdoptRetiredDesktopModel('0a6ecba69bf1d39c7eb49549c716477dd6c03fdf05757773e1f50435262fb469');
 #ifdef LightPackage
   { 轻量包不替换词库：只清 HTML 和 Server/TSF，保留本机 msime.db 等。}
   TryDeleteTree(AddBackslash(GetDataDir('')) + 'html');
