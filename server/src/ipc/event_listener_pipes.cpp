@@ -871,6 +871,9 @@ void RegisteredPipeMonitorThread(HANDLE clientPipe, UINT pipeRole, uint64_t hand
             SendToTsfWorkerThreadClientViaNamedpipe(
                 hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::StatisticsEnabledChanged,
                 GetConfiguredStatisticsEnabled() ? L"1" : L"0");
+            SendToTsfWorkerThreadClientViaNamedpipe(
+                hello.client_id, Global::DataFromServerMsgTypeToTsfWorkerThread::AiContextUploadChanged,
+                GetConfiguredAiAssistant().enabled ? L"1" : L"0");
         }
     }
 

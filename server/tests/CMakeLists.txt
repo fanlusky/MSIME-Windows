@@ -45,6 +45,7 @@ set(TEST_SOURCE_FILES
     "${CMAKE_SOURCE_DIR}/src/ai/ai_assistant_request.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_ui_action_policy.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_translation_policy.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/test_ai_context_policy.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_ui_state.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_candidate_expansion_policy.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/test_composition_selection_history.cpp"

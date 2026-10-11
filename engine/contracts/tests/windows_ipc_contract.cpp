@@ -214,7 +214,13 @@ int main()
     CHECK(FanyImeWorkerReplyType::MidSentenceHelpcodeUppercaseChanged == 31);
     CHECK(FanyImeWorkerReplyType::VModeChanged == 32);
     CHECK(FanyImeWorkerReplyType::TrilingualCycleChanged == 33);
-    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::TrilingualCycleChanged);
+    CHECK(FanyImeWorkerReplyType::AiContextUploadChanged == 34);
+    CHECK(FanyImeWorkerReplyType::MaxKnown == FanyImeWorkerReplyType::AiContextUploadChanged);
+    // The sensitive-field flag stays clear of Shift/Ctrl/Alt, every pipe flag and the cycle request bits.
+    CHECK((FanyImePipeFlags::SensitiveField & 7u) == 0);
+    CHECK((FanyImePipeFlags::SensitiveField &
+           (FanyImePipeFlags::UiLess | FanyImePipeFlags::ImeSwitchCapsSnapshotPresent |
+            FanyImePipeFlags::ImeSwitchCapsSnapshotEnabled | FanyImeTrilingualInput::CycleRequestMask)) == 0);
     // V 模式的形状规则，TSF（WCHAR）与 Server（char）共用。
     {
         using FanyImeVModeInput::Trigger;

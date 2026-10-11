@@ -916,6 +916,10 @@ void HandleImeKey(uint64_t client_id, uint64_t activation_epoch, uint64_t reques
     // contract symmetric before any selection/composition predicates run.
     Global::Keycode = FanyImeIpc::NormalizeNumpadDigitKey(Global::Keycode);
 
+    const bool sensitive_field = (Global::ModifiersDown & FanyImePipeFlags::SensitiveField) != 0;
+    Global::ModifiersDown &= ~FanyImePipeFlags::SensitiveField;
+    NoteAiContextKeySource(client_id, activation_epoch, sensitive_field);
+
     // Only the explicit request bit cycles: a plain VK_SHIFT is still the binary
     // toggle, which the client also uses when it decides not to cycle.
     const UINT cycle_request = Global::ModifiersDown & FanyImeTrilingualInput::CycleRequestMask;

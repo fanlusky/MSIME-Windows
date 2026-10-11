@@ -149,6 +149,13 @@ namespace FanyImePipeFlags
 constexpr std::uint32_t UiLess = 0x80000000u;
 constexpr std::uint32_t ImeSwitchCapsSnapshotPresent = 0x40000000u;
 constexpr std::uint32_t ImeSwitchCapsSnapshotEnabled = 0x20000000u;
+// KeyEvent only: the focused field declares a password or PIN input scope. The
+// DLL checks only while the Server reports AiContextUploadChanged "1"; the Server
+// then sends no AI request and keeps the committed text out of the AI context.
+// The Server strips it before any key-modifier policy runs; old Servers never
+// receive it because the DLL only sets it after the new opcode turned it on.
+// 0x10000000..0x04000000 belong to FanyImeTrilingualInput.
+constexpr std::uint32_t SensitiveField = 0x02000000u;
 
 constexpr std::uint32_t EncodeImeSwitchCapsLockSnapshot(bool enabled)
 {
@@ -437,7 +444,11 @@ constexpr std::uint32_t VModeChanged = 32;
 // Whether language-switch hotkeys commit raw composition, then cycle Chinese/Japanese/English. Payload "0"/"1".
 // Separate from InputModeChanged so old DLLs retain its active-language meaning and ignore this switch.
 constexpr std::uint32_t TrilingualCycleChanged = 33;
-constexpr std::uint32_t MaxKnown = TrilingualCycleChanged;
+// Whether the AI assistant uploads the committed-text context. Payload "0"/"1". Only while it is "1" does the DLL
+// read the focused field's input scope and mark password fields with FanyImePipeFlags::SensitiveField, so with
+// the assistant off the key path does no extra TSF work.
+constexpr std::uint32_t AiContextUploadChanged = 34;
+constexpr std::uint32_t MaxKnown = AiContextUploadChanged;
 // Source compatibility for the Server's historical spellings.
 constexpr std::uint32_t SwitchToEn = SwitchToEnglish;
 constexpr std::uint32_t SwitchToCn = SwitchToChinese;

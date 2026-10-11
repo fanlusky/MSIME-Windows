@@ -8,6 +8,7 @@
 #include <utility>
 #include <unordered_map>
 #include "Ipc.h"
+#include "ipc/ai_context_policy.h"
 #include "ipc/async_request_origin.h"
 #include "ipc/candidate_ui_owner.h"
 #include "defines/defines.h"
@@ -322,6 +323,12 @@ AsyncRequestOrigin g_english_request_origin;
 AsyncRequestOrigin g_mixed_request_origin;
 AsyncRequestOrigin g_ai_request_origin;
 std::string g_ai_context;
+// g_ai_context 属于哪一次焦点会话。换了宿主进程（client_id）或焦点会话重新激活（activation_epoch）
+// 就清空，免得在一个应用里打的字被带进另一个应用的 AI 请求。
+uint64_t g_ai_context_client_id = 0;
+uint64_t g_ai_context_activation_epoch = 0;
+// 当前按键来自密码 / PIN 输入框（TSF 按 InputScope 判定）：不发 AI 请求，上屏也不进上下文。
+bool g_ai_sensitive_field = false;
 std::mutex g_status_snapshot_mutex;
 int g_latest_status_snapshot = -1;
 bool g_latest_english_input_mode = false;
@@ -512,13 +519,13 @@ void UpdateAiInput(const std::string &identity, uint64_t client_id, uint64_t act
                         (g_inputSession->current_scheme_type() == SchemeType::Quanpin ||
                          g_inputSession->current_scheme_type() == SchemeType::Shuangpin) &&
                         g_inputSession->is_all_complete_pure_pinyin() && !g_inputSession->has_active_helpcode() &&
-                        !identity.empty();
+                        !identity.empty() && !g_ai_sensitive_field;
     (void)0;
     AiAssistant::Request request;
     if (usable)
     {
         request.pinyin_segments = SplitPinyin(g_inputSession->get_pinyin_segmentation());
-        request.context = g_ai_context;
+        request.context = FanyImeIpc::StripCredentialLikeText(g_ai_context);
         request.identity = identity;
         request.config = config;
     }
@@ -575,10 +582,26 @@ std::string CandidateTextForOutput(const std::string &text)
     return GetConfiguredCharacterSet() == "traditional" ? ChineseConverter::ToTraditional(text) : text;
 }
 
+void NoteAiContextKeySource(uint64_t client_id, uint64_t activation_epoch, bool sensitive_field)
+{
+    g_ai_sensitive_field = sensitive_field;
+    if (client_id == g_ai_context_client_id && activation_epoch == g_ai_context_activation_epoch)
+        return;
+    g_ai_context_client_id = client_id;
+    g_ai_context_activation_epoch = activation_epoch;
+    if (g_ai_context.empty())
+        return;
+    g_ai_context.clear();
+    if (g_inputSession)
+        g_inputSession->set_rescoring_context(g_ai_context);
+}
+
 // 每次提交都把上屏文本追加进 AI 联想的上下文，并按 UTF-8 边界裁剪到 1024 字节。
 // 造词过程中每选中一段都会各自调用一次，因此这里只追加本次提交的那一段。
 void AppendAiContext(const std::string &committed_word)
 {
+    if (g_ai_sensitive_field)
+        return;
     g_ai_context += CandidateTextForOutput(committed_word);
     if (g_ai_context.size() > 1024)
     {

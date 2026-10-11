@@ -1209,6 +1209,11 @@ bool SendToNamedpipe(bool *deliveryAmbiguous = nullptr)
     {
         packet.modifiers_down |= FanyImePipeFlags::UiLess;
     }
+    if (packet.event_type == FanyImePipeEventType::KeyEvent && Global::SensitiveInputField &&
+        Global::AiContextUploadEnabled.load(std::memory_order_relaxed))
+    {
+        packet.modifiers_down |= FanyImePipeFlags::SensitiveField;
+    }
     if (packet.event_type == FanyImePipeEventType::ClientActivated && Global::HostUiLessMode)
     {
         packet.keycode = 1;
