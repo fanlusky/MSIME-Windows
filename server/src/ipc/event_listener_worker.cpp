@@ -372,6 +372,8 @@ void WorkerThread()
             const bool imeEnabled = task.pipe_data.keycode != 0;
             const auto capsLockSnapshot =
                 FanyImePipeFlags::DecodeImeSwitchCapsLockSnapshot(task.pipe_data.modifiers_down);
+            if (capsLockSnapshot.has_value())
+                SyncServerCapsLockState(*capsLockSnapshot);
             const bool capsLockEnabled =
                 capsLockSnapshot.has_value() ? *capsLockSnapshot : GetServerCapsLockState() != 0;
             const bool japaneseMode = GetActiveInputMode() == "japanese";
