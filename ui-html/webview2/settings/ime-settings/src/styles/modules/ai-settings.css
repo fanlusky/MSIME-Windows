@@ -52,6 +52,13 @@
   width: 100%;
 }
 
+/* 下拉按钮默认比输入框矮，统一高度后左右两列才能对齐。 */
+.ai-grid input,
+.ai-grid .dropdown-toggle {
+  box-sizing: border-box;
+  height: 40px;
+}
+
 .ai-field > label {
   color: inherit;
 }
@@ -152,26 +159,23 @@
   display: block;
 }
 
-/* 模型字段：输入框和「查询模型」按钮并排 */
+/* 模型字段：普通输入框，查询到的模型列表从它下方弹出；右侧是「查询模型」按钮。 */
 .ai-model-row {
-  position: relative;
   display: flex;
   align-items: stretch;
   gap: 8px;
 }
 
-.ai-model-row input {
+.ai-model-row .ai-model-dropdown {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-.ai-model-row .ai-model-dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: auto;
-  margin-top: 4px;
-  z-index: 10;
+/* 菜单按单行高度算可见行数，长模型名截断，完整名称见悬停提示。 */
+#aiModelMenu .dropdown-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ai-model-fetch-button {

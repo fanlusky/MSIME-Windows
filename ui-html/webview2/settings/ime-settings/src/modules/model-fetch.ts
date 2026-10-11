@@ -86,13 +86,6 @@ function renderModels(menu: HTMLElement, models: string[]): void {
     item.dataset.value = model;
     item.textContent = model;
     item.title = model;
-    item.addEventListener('click', () => {
-      const input = document.getElementById('aiModel') as HTMLInputElement | null;
-      if (input) {
-        input.value = model;
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
     return item;
   }));
 }

@@ -29,10 +29,14 @@
       <div class="ai-field">
         <span>模型</span>
         <div class="ai-model-row">
-          <input id="aiModel" type="text" autocomplete="off" spellcheck="false"
-                 aria-label="模型名称" placeholder="手动输入或点击「查询模型」获取列表">
+          <div class="dropdown ai-model-dropdown">
+            <div id="aiModelBtn" class="ai-model-combobox">
+              <input id="aiModel" type="text" autocomplete="off" spellcheck="false"
+                     aria-label="模型名称" aria-controls="aiModelMenu" aria-autocomplete="list">
+            </div>
+            <div class="dropdown-menu font-dropdown-menu compact-scroll-menu" id="aiModelMenu"></div>
+          </div>
           <button id="aiModelFetchButton" class="ai-model-fetch-button" type="button" title="按当前服务商和凭据查询可用模型列表">查询模型</button>
-          <div id="aiModelMenu" class="ai-model-dropdown-menu dropdown-menu font-dropdown-menu compact-scroll-menu"></div>
         </div>
         <div class="ai-model-actions">
           <button id="aiCredentialTestButton" class="credential-test-button" type="button">测试连接</button>

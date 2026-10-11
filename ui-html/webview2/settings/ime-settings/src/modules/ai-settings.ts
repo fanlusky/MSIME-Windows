@@ -124,7 +124,7 @@ export function setupAiSettings(): void {
     readConfig: currentAiConfig
   });
   setupDropdownMenu('aiProviderBtn', 'aiProviderMenu', 'changeAiProvider', true);
-  setupModelInputDropdown();
+  setupDropdownMenu('aiModelBtn', 'aiModelMenu', '', true, 'ai_assistant.model');
   setupDropdownMenu('aiPromptSlotBtn', 'aiPromptSlotMenu', 'changeAiPromptSlot', true,
     'ai_assistant.prompt_id');
   setupDropdownMenu('aiThinkingBtn', 'aiThinkingMenu', 'changeAiThinking', true, 'ai_assistant.thinking');
@@ -179,33 +179,6 @@ function setupTokenVisibilityToggle(): void {
     const label = shouldShow ? '隐藏 API Token' : '显示 API Token';
     toggle.setAttribute('aria-label', label);
     toggle.title = label;
-  });
-}
-
-function setupModelInputDropdown(): void {
-  const input = document.getElementById('aiModel') as HTMLInputElement | null;
-  const menu = document.getElementById('aiModelMenu') as HTMLElement | null;
-  if (!input || !menu) return;
-
-  input.addEventListener('focus', () => {
-    if (menu.children.length > 0) {
-      menu.classList.add('open');
-    }
-  });
-
-  input.addEventListener('blur', () => {
-    setTimeout(() => {
-      menu.classList.remove('open');
-    }, 200);
-  });
-
-  menu.addEventListener('click', (event) => {
-    const item = (event.target as HTMLElement | null)?.closest('.dropdown-item') as HTMLElement | null;
-    if (item) {
-      input.value = item.dataset.value || '';
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-      menu.classList.remove('open');
-    }
   });
 }
 
