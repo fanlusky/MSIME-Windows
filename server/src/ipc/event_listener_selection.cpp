@@ -90,7 +90,9 @@ void LearnEnglishSlot(const WordItem &selected, size_t absolute_index, uint64_t 
                                                    activation_epoch);
         return;
     }
-    if (absolute_index > *english_index && selected.source != CandidateSource::EnglishDictionary)
+    // emoji、颜文字按自己的位置排（最匹配的 emoji 就在首页末位），选它们不是嫌英文排得太前，不让英文后退。
+    if (absolute_index > *english_index && selected.source != CandidateSource::EnglishDictionary &&
+        selected.source != CandidateSource::Emoji && selected.source != CandidateSource::Kaomoji)
     {
         FanyNamedPipe::EnqueueLearnEnglishSlotTask(code, static_cast<int>(*english_index),
                                                    static_cast<int>(absolute_index), client_id, activation_epoch);

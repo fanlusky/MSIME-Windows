@@ -99,7 +99,12 @@ TEST_CASE(candidate_expansion_refills_the_current_last_page_and_keeps_learned_en
     const auto english_index = FanyImeIpc::SlottedEnglishIndex(ui.items);
     REQUIRE(english_index.has_value());
     REQUIRE_EQ(*english_index, size_t{6});
-    RequireExpressiveTail(ui.items);
+    // 知道每页候选数时，最匹配的 emoji 展开后仍在首页末位，其余 emoji 和颜文字在末尾。
+    REQUIRE_EQ(ui.items[7].word, std::string("😀"));
+    const size_t start = ui.items.size() - 3;
+    REQUIRE_EQ(ui.items[start].word, std::string("😁"));
+    REQUIRE_EQ(ui.items[start + 1].word, std::string("(^_^)"));
+    REQUIRE_EQ(ui.items[start + 2].word, std::string("(T_T)"));
 }
 
 TEST_CASE(candidate_expansion_deduplicates_results_and_preserves_fixed_english_metadata)
