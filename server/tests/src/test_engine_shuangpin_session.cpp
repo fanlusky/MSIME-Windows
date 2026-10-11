@@ -1,6 +1,7 @@
 #include "tests/includes/test_framework.h"
 #include "src/session/engine_input_session.h"
 #include "src/config/ime_config.h"
+#include "src/config/ime_config_internal.h"
 #include "engine/common/helpcode_utils.h"
 #include "engine/quanpin/quanpin_query.h"
 #include "engine/shuangpin/shuangpin_dictionary.h"
@@ -79,6 +80,33 @@ class ScopedConfigRoot
     std::wstring previous_;
     bool had_previous_ = false;
     std::filesystem::path root_;
+};
+
+// 测辅助码行为的用例自己把开关打开：开关的默认值跟出厂模板走，模板改成新用户默认关闭后，
+// 依赖默认值的用例就会在辅助码关着的情况下运行。只改内存里的开关、不写配置文件，开发机上跑
+// 也不会动用户配置；结束时还原。会话在构造时读取开关，所以要先于会话构造。
+class ScopedHelpcodesEnabled
+{
+  public:
+    ScopedHelpcodesEnabled()
+        : shuangpin_(ime_config_detail::g_shuangpin_helpcode_enabled),
+          quanpin_(ime_config_detail::g_quanpin_helpcode_enabled)
+    {
+        ime_config_detail::g_shuangpin_helpcode_enabled = true;
+        ime_config_detail::g_quanpin_helpcode_enabled = true;
+    }
+    ~ScopedHelpcodesEnabled()
+    {
+        ime_config_detail::g_shuangpin_helpcode_enabled = shuangpin_;
+        ime_config_detail::g_quanpin_helpcode_enabled = quanpin_;
+    }
+
+    ScopedHelpcodesEnabled(const ScopedHelpcodesEnabled &) = delete;
+    ScopedHelpcodesEnabled &operator=(const ScopedHelpcodesEnabled &) = delete;
+
+  private:
+    bool shuangpin_;
+    bool quanpin_;
 };
 
 bool HasCandidateWithCanonicalPrefix(const EngineInputSession &session, const char *prefix)
@@ -600,6 +628,7 @@ TEST_CASE(EngineShuangpinAiCandidateConsumesFullRawInput)
 
 TEST_CASE(EngineShuangpinSessionContinuesCompositionWithSingleHelpcode)
 {
+    ScopedHelpcodesEnabled helpcodes;
     EngineInputSession session(SchemeType::Shuangpin);
     InputLetters(session, "xitelea");
 
@@ -612,6 +641,7 @@ TEST_CASE(EngineShuangpinSessionContinuesCompositionWithSingleHelpcode)
 
 TEST_CASE(EngineShuangpinUppercaseSingleHelpcodePrefersSecondCodeMatches)
 {
+    ScopedHelpcodesEnabled helpcodes;
     REQUIRE(HelpcodeUtils::select_helpcode_schema("lantian"));
     EngineInputSession session(SchemeType::Shuangpin);
     InputLetters(session, "nid");
@@ -637,6 +667,7 @@ TEST_CASE(EngineShuangpinUppercaseSingleHelpcodePrefersSecondCodeMatches)
 
 TEST_CASE(EngineShuangpinSessionContinuesCompositionWithDoubleHelpcode)
 {
+    ScopedHelpcodesEnabled helpcodes;
     EngineInputSession session(SchemeType::Shuangpin);
     InputLetters(session, "xiteleaA");
 
@@ -647,6 +678,7 @@ TEST_CASE(EngineShuangpinSessionContinuesCompositionWithDoubleHelpcode)
 
 TEST_CASE(EngineShuangpinDoubleHelpcodesAreDisplayedAsOneSegment)
 {
+    ScopedHelpcodesEnabled helpcodes;
     EngineInputSession session(SchemeType::Shuangpin);
     InputLetters(session, "yakP");
 
@@ -670,6 +702,7 @@ TEST_CASE(EngineShuangpinSessionExposesBothPreeditForms)
 
 TEST_CASE(EngineShuangpinSessionCloudQueryMatchesLegacyTiming)
 {
+    ScopedHelpcodesEnabled helpcodes;
     EngineInputSession session(SchemeType::Shuangpin);
 
     InputLetters(session, "xi");
@@ -695,6 +728,7 @@ TEST_CASE(EngineShuangpinSessionCloudQueryMatchesLegacyTiming)
 
 TEST_CASE(EngineShuangpinSessionCloudQueryDoesNotTriggerWhenHelpcodesApply)
 {
+    ScopedHelpcodesEnabled helpcodes;
     EngineInputSession session(SchemeType::Shuangpin);
 
     InputLetters(session, "xitelea");
@@ -750,6 +784,7 @@ TEST_CASE(EngineShuangpinSessionStoresMultiSyllableDynamicPhrase)
 
 TEST_CASE(EngineQuanpinSessionCloudQueryDoesNotTriggerWhenHelpcodesApply)
 {
+    ScopedHelpcodesEnabled helpcodes;
     EngineInputSession session(SchemeType::Quanpin);
 
     InputLetters(session, "xiteleA");
@@ -1073,6 +1108,7 @@ TEST_CASE(EngineQuanpinSessionContinuesCompositionWithoutRetainingHelpcodes)
 
 TEST_CASE(EngineShuangpinSessionDynamicCloudCandidateParticipatesInHelpcodesQuery)
 {
+    ScopedHelpcodesEnabled helpcodes;
     EngineInputSession session(SchemeType::Shuangpin);
     InputLetters(session, "xitele");
 
@@ -1148,6 +1184,7 @@ TEST_CASE(EngineQuanpinSessionDynamicCloudCandidateParticipatesInHelpcodesQuery)
 
 TEST_CASE(EngineShuangpinSessionHasActiveHelpcodeTracksCloudQueryGate)
 {
+    ScopedHelpcodesEnabled helpcodes;
     EngineInputSession session(SchemeType::Shuangpin);
     InputLetters(session, "xitele");
 
@@ -1164,6 +1201,7 @@ TEST_CASE(EngineShuangpinSessionHasActiveHelpcodeTracksCloudQueryGate)
 
 TEST_CASE(EngineQuanpinSessionHasActiveHelpcodeTracksCloudQueryGate)
 {
+    ScopedHelpcodesEnabled helpcodes;
     EngineInputSession session(SchemeType::Quanpin);
     InputLetters(session, "xitele");
 
