@@ -190,3 +190,7 @@
     .context-submenu { background: #23272c; border-color: #3a4047; color: #c7cdd5; border-radius: 3px; }
     .context-menu-item { border-radius: 2px; }
     .context-menu-item:hover { background: #30353b; }
+    /* 翻译单词取 Notion Brown，词性（.cand-pos）用相邻的 Notion Orange 再调淡，分隔符（.cand-sep）是单词色降不透明度；D2D 端同值见 candidate_presenter.cpp。 */
+    .cand-translation { color: #937264; opacity: 1; }
+    .cand-translation .cand-pos { color: #ffa34480; }
+    .cand-translation .cand-sep { color: #93726473; }

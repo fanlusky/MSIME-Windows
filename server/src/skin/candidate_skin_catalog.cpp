@@ -156,12 +156,16 @@ bool ReadColors(const toml::table *table, CandidateColors &out)
         !ReadCssColor(*table, "hover", out.hover) || !ReadCssColor(*table, "surface", out.surface) ||
         !ReadCssColor(*table, "border", out.border) || !ReadCssColor(*table, "text", out.text) ||
         !ReadCssColor(*table, "number", out.number) || !ReadCssColor(*table, "translation", out.translation) ||
+        !ReadCssColor(*table, "translation_pos", out.translationPos) ||
+        !ReadCssColor(*table, "translation_separator", out.translationSeparator) ||
         !ReadCssColor(*table, "candidate_text", out.candidateText) ||
         !ReadCssColor(*table, "preedit_text", out.preeditText) ||
         !ReadCssColor(*table, "preedit_caret", out.preeditCaret) ||
         !ReadCssColor(*table, "selected_text", out.selectedText) ||
         !ReadCssColor(*table, "selected_number", out.selectedNumber) ||
         !ReadCssColor(*table, "selected_translation", out.selectedTranslation) ||
+        !ReadCssColor(*table, "selected_translation_pos", out.selectedTranslationPos) ||
+        !ReadCssColor(*table, "selected_translation_separator", out.selectedTranslationSeparator) ||
         !ReadCssColor(*table, "selected_bar", out.selectedBar) ||
         !ReadCssColor(*table, "preedit_background", out.preeditBackground) ||
         !ReadCssColor(*table, "preedit_divider", out.preeditDivider))

@@ -222,3 +222,10 @@
     .context-menu-item { color: #1f3138; }
     .context-menu-item:hover { background: #d2e8ec; }
     .cand-translation { margin-left: 0.65em; font-size: 0.78em; opacity: 0.62; }
+    /* 翻译单词取 Notion Orange，词性（.cand-pos）用相邻的 Notion Red 再调淡，分隔符（.cand-sep）是单词色降不透明度；D2D 端同值见 candidate_presenter.cpp。 */
+    .cand-translation { color: #d9730d; opacity: 1; }
+    .cand-translation .cand-pos { color: #e03e3e80; }
+    .cand-translation .cand-sep { color: #d9730d73; }
+    .first .cand-translation { color: #64473a; }
+    .first .cand-translation .cand-pos { color: #e03e3e80; }
+    .first .cand-translation .cand-sep { color: #64473a73; }

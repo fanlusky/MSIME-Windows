@@ -37,7 +37,11 @@ border = "rgba(91, 155, 255, 0.38)"
 text = "#E3EAFF"
 number = "#E0C07A"
 translation = "#529E72"
+translation_pos = "#529CCA80"
+translation_separator = "#529E7273"
 selected_translation = "#7FB797"
+selected_translation_pos = "#529CCA80"
+selected_translation_separator = "#7FB79773"
 
 [candidate.light]
 accent = "#2F5BD3"
@@ -48,7 +52,11 @@ border = "rgba(42, 53, 112, 0.24)"
 text = "#1C2550"
 number = "#A67C2E"
 translation = "#448361"
+translation_pos = "#0B6E9980"
+translation_separator = "#44836173"
 selected_translation = "#386D51"
+selected_translation_pos = "#0B6E9980"
+selected_translation_separator = "#386D5173"
 
 [toolbar]
 corner_radius_dip = 8

@@ -18,6 +18,10 @@ struct CandidateColors
     std::string number;
     // 候选后的翻译文本。留空时沿用候选文字色并降到 62% 不透明度；设置后按原值绘制，选中行也不改。
     std::string translation;
+    // 翻译里的词性（n. / adj. …）与义项分隔符（; / ；）。留空时与同一行的翻译同色。
+    // 包写了 translation 而没写这两项时，基础皮肤自带的词性/分隔符配色也一并作废，跟随新的翻译色。
+    std::string translationPos;
+    std::string translationSeparator;
     std::optional<bool> showSelectedBar;
     // 以下各项留空时的回退：candidate_text / preedit_text 用 text；preedit_caret / selected_bar 用 accent；
     // selected_text / selected_number 用基础皮肤的选中行配色；selected_translation 用 translation，
@@ -28,6 +32,10 @@ struct CandidateColors
     std::string selectedText;
     std::string selectedNumber;
     std::string selectedTranslation;
+    // 选中行的词性与分隔符。留空时用 translation_pos / translation_separator；包写了 selected_translation
+    // 而没写这两项时跟随 selected_translation。
+    std::string selectedTranslationPos;
+    std::string selectedTranslationSeparator;
     std::string selectedBar;
     std::string preeditBackground;
     std::string preeditDivider;

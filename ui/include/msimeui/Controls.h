@@ -499,12 +499,30 @@ class ListView : public Visual
 class CandidateList : public Visual
 {
   public:
+    // Role of a run inside the translation text. Secondary runs (e.g. a
+    // leading tag) and delimiters take their own colors from Appearance.
+    enum class TextRunRole
+    {
+        Secondary,
+        Delimiter,
+    };
+
+    // Run in UTF-16 code units of Item::translation.
+    struct TextRun
+    {
+        UINT32 start = 0;
+        UINT32 length = 0;
+        TextRunRole role = TextRunRole::Secondary;
+    };
+
     struct Item
     {
         std::wstring label;
         std::wstring text;
         std::wstring annotation;
         std::wstring translation;
+        // Runs not listed here use the translation color.
+        std::vector<TextRun> translationRuns;
     };
 
     enum class Orientation
@@ -572,6 +590,13 @@ class CandidateList : public Visual
         // Translation color for the selected (and pressed) row. Alpha 0
         // falls back to translationColor, then to the derived color above.
         D2D1_COLOR_F rowTranslationSelected = D2D1::ColorF(0, 0.0f);
+        // Colors of the Secondary / Delimiter translation runs. Alpha 0 uses
+        // the translation color of that row. The *Selected variants apply to
+        // the selected (and pressed) row and fall back to the normal ones.
+        D2D1_COLOR_F translationSecondaryColor = D2D1::ColorF(0, 0.0f);
+        D2D1_COLOR_F translationDelimiterColor = D2D1::ColorF(0, 0.0f);
+        D2D1_COLOR_F rowTranslationSecondarySelected = D2D1::ColorF(0, 0.0f);
+        D2D1_COLOR_F rowTranslationDelimiterSelected = D2D1::ColorF(0, 0.0f);
     };
 
     using SelectionChangedHandler = std::function<void(size_t selectedIndex)>;

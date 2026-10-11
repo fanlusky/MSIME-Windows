@@ -25,7 +25,9 @@ skins/
 
 外部皮肤使用 `skin.toml` 声明几何与候选配色，可选 `[toolbar]`、`[toolbar.dark]`、`[toolbar.light]` 覆盖悬浮工具栏的圆角与配色（D2D 与 WebView2 两个渲染器都生效）。不提供候选框 HTML、`cand.css` 或工具栏 CSS。
 
-候选配色写在 `[candidate.dark]` / `[candidate.light]` 下，键都可省略：`accent`、`selected`、`hover`、`surface`、`border`、`text`、`number`、`translation` 和布尔值 `show_selected_bar`。`translation` 是候选后面的翻译文本：不写时沿用候选文字色并降到 62% 不透明度；写了就按原值绘制（选中行另写 `selected_translation` 时用后者），D2D 与 WebView2 两个后端一致。
+候选配色写在 `[candidate.dark]` / `[candidate.light]` 下，键都可省略：`accent`、`selected`、`hover`、`surface`、`border`、`text`、`number`、`translation` 和布尔值 `show_selected_bar`。`translation` 是候选后面的翻译文本：不写时沿用基础皮肤的翻译色；写了就按原值绘制（选中行另写 `selected_translation` 时用后者），D2D 与 WebView2 两个后端一致。翻译里的词性和义项分隔符由 Server 切开，分别包在 `.cand-translation .cand-pos` 与 `.cand-translation .cand-sep` 里（D2D 端是 `CandidateList::Item::translationRuns`），皮肤键 `translation_pos` / `translation_separator`（选中行 `selected_translation_pos` / `selected_translation_separator`）不写时与翻译同色。
+
+内置皮肤在各自 CSS 末尾给 `.cand-translation` 定了 Notion 调色板里的颜色；词性用相邻的另一个 Notion 色加 `80` 透明度，分隔符用单词色加 `73` 透明度；微信、杨柳青和秋桂的选中行铺实色高亮，另配了 `.first .cand-translation`。改这些值要同步 `server/src/window/candidate_presenter.cpp` 里的 `SetTranslationColors` / `SetSelectedTranslationColors`。
 
 细分配色 `candidate_text`、`preedit_text`、`preedit_caret`、`selected_text`、`selected_number`、`selected_translation`、`selected_bar`、`preedit_background`、`preedit_divider`，右键菜单 `[candidate.<theme>.menu]`，以及 `[candidate_window]` 下的 `border_width_dip`、`item_corner_radius_dip`、`shadow`、`font_family`，字段和回落规则见 [examples/skin-examples/schema/README.md](../../../examples/skin-examples/schema/README.md)。WebView2 一侧由 Server 的 `BuildExternalCandidateSkinCss` 生成 CSS，追加在 base 皮肤样式之后；用户设置的候选文字色通过 `--msime-user-text` 压过皮肤的 `candidate_text` / `preedit_text`。
 

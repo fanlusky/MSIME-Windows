@@ -210,3 +210,7 @@
     .context-submenu .context-menu-item { padding-right: 8px; }
     .context-menu-parent:hover>.context-submenu { display:block; }
     .context-menu-separator { height:1px; margin:3px 5px; background:#0000001a; }
+    /* 翻译单词取 Notion Pink，词性（.cand-pos）用相邻的 Notion Purple 再调淡，分隔符（.cand-sep）是单词色降不透明度；D2D 端同值见 candidate_presenter.cpp。 */
+    .cand-translation { color: #ad1a72; opacity: 1; }
+    .cand-translation .cand-pos { color: #6940a580; }
+    .cand-translation .cand-sep { color: #ad1a7273; }

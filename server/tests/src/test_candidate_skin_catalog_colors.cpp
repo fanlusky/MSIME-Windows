@@ -73,6 +73,35 @@ text = "#202020"
     std::filesystem::remove_all(root, ec);
 }
 
+// 词性与分隔符各有一组键；留空时保持为空，由渲染端跟随翻译色。
+TEST_CASE(candidate_skin_catalog_reads_translation_part_colors)
+{
+    const auto root = WriteSkin(L"parts", R"toml(
+[candidate.dark]
+translation = "#529cca"
+translation_pos = "#529cca99"
+translation_separator = "#529cca73"
+selected_translation_pos = "rgba(255, 255, 255, 0.5)"
+selected_translation_separator = "#ffffff66"
+
+[candidate.light]
+translation = "#0b6e99"
+)toml");
+    std::string error;
+    const auto package = CandidateSkinCatalog::Load(root, "gloss", &error);
+    REQUIRE(error.empty());
+    REQUIRE(package.has_value());
+    REQUIRE_EQ(package->dark.translationPos, std::string("#529cca99"));
+    REQUIRE_EQ(package->dark.translationSeparator, std::string("#529cca73"));
+    REQUIRE_EQ(package->dark.selectedTranslationPos, std::string("rgba(255, 255, 255, 0.5)"));
+    REQUIRE_EQ(package->dark.selectedTranslationSeparator, std::string("#ffffff66"));
+    REQUIRE(package->light.translationPos.empty());
+    REQUIRE(package->light.translationSeparator.empty());
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    REQUIRE(Rejects(L"parts-inject", "[candidate.dark]\ntranslation_pos = \"red; } body { display: none\"\n"));
+}
+
 TEST_CASE(candidate_skin_catalog_rejects_non_string_translation_color)
 {
     const auto root = WriteSkin(L"invalid", R"(

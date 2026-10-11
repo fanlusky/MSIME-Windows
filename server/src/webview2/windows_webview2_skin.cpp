@@ -207,7 +207,11 @@ void AppendExternalCandidateColorCss(std::wstring &css, const CandidateSkinCatal
     if (!colors.translation.empty())
     {
         css.append(L".cand-translation { opacity: 1; }\n");
+        // 换了翻译色就不再用基础皮肤给词性/分隔符配的颜色，没单独写的跟随新的翻译色。
+        css.append(L".cand-translation .cand-pos, .cand-translation .cand-sep { color: inherit; }\n");
     }
+    add(colors.translationPos, L".cand-translation .cand-pos", L"color");
+    add(colors.translationSeparator, L".cand-translation .cand-sep", L"color");
     if (colors.showSelectedBar.has_value() && !*colors.showSelectedBar)
     {
         css.append(L".first::before { display: none; }\n");
@@ -229,7 +233,12 @@ void AppendExternalCandidateColorCss(std::wstring &css, const CandidateSkinCatal
     if (!colors.selectedTranslation.empty())
     {
         css.append(L".cand.first .cand-translation { opacity: 1; }\n");
+        css.append(
+            L".cand.first .cand-translation .cand-pos, .cand.first .cand-translation .cand-sep { color: inherit; "
+            L"}\n");
     }
+    add(colors.selectedTranslationPos, L".cand.first .cand-translation .cand-pos", L"color");
+    add(colors.selectedTranslationSeparator, L".cand.first .cand-translation .cand-sep", L"color");
     add(colors.menuBackground, L".context-menu, .context-submenu", L"background");
     add(colors.menuBorder, L".context-menu, .context-submenu", L"border-color");
     add(colors.menuText, L".context-menu, .context-submenu, .context-menu-item", L"color");

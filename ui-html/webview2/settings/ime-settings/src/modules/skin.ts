@@ -11,8 +11,10 @@ export type CandidateSkin = string;
 type CandidateColors = {
   accent?: string; selected?: string; hover?: string; surface?: string;
   border?: string; text?: string; number?: string; translation?: string; showSelectedBar?: boolean;
+  translationPos?: string; translationSeparator?: string;
   candidateText?: string; preeditText?: string; preeditCaret?: string; selectedText?: string;
   selectedNumber?: string; selectedTranslation?: string; selectedBar?: string;
+  selectedTranslationPos?: string; selectedTranslationSeparator?: string;
   preeditBackground?: string; preeditDivider?: string;
   menu?: { background?: string; border?: string; text?: string; hover?: string };
 };
@@ -296,7 +298,15 @@ function candidatePreviewCss(skin: ExternalSkin): string {
     if (text) css += `${prefix}.container { color: ${text}; }\n`;
     if (number) css += `${prefix}.num, ${prefix}.cand-no { color: ${number}; }\n`;
     // Mirrors the candidate window: an explicit translation colour is used as-is instead of the inherited text colour at opacity .62.
-    if (translation) css += `${prefix}.cand-translation { color: ${translation}; opacity: 1; }\n`;
+    if (translation) {
+      css += `${prefix}.cand-translation { color: ${translation}; opacity: 1; }\n`;
+      // A new translation colour drops the base skin's part-of-speech / separator colours; unset ones follow it.
+      css += `${prefix}.cand-translation .cand-pos, ${prefix}.cand-translation .cand-sep { color: inherit; }\n`;
+    }
+    const translationPos = skinColor(colors.translationPos);
+    const translationSeparator = skinColor(colors.translationSeparator);
+    if (translationPos) css += `${prefix}.cand-translation .cand-pos { color: ${translationPos}; }\n`;
+    if (translationSeparator) css += `${prefix}.cand-translation .cand-sep { color: ${translationSeparator}; }\n`;
     if (colors.showSelectedBar === false) css += `${prefix}.first::before { display: none; }\n`;
     // Detailed colours, mirroring AppendExternalCandidateColorCss. The user's text colour (--msime-user-text) still wins
     // over candidate_text / preedit_text, and :where(.cand) keeps the base skin's selected-row text colour in force.
@@ -315,6 +325,13 @@ function candidatePreviewCss(skin: ExternalSkin): string {
     if (selectedNumber) css += `${prefix}.cand.first .num, ${prefix}.cand.first .cand-no { color: ${selectedNumber}; }\n`;
     if (selectedTranslation) {
       css += `${prefix}.cand.first .cand-translation { color: ${selectedTranslation}; opacity: 1; }\n`;
+      css += `${prefix}.cand.first .cand-translation .cand-pos, ${prefix}.cand.first .cand-translation .cand-sep { color: inherit; }\n`;
+    }
+    const selectedTranslationPos = skinColor(colors.selectedTranslationPos);
+    const selectedTranslationSeparator = skinColor(colors.selectedTranslationSeparator);
+    if (selectedTranslationPos) css += `${prefix}.cand.first .cand-translation .cand-pos { color: ${selectedTranslationPos}; }\n`;
+    if (selectedTranslationSeparator) {
+      css += `${prefix}.cand.first .cand-translation .cand-sep { color: ${selectedTranslationSeparator}; }\n`;
     }
     css += geometryPreviewCss(skin, colors, prefix);
     return css;

@@ -4,6 +4,7 @@
 #include "defines/defines.h"
 #include "defines/globals.h"
 #include "global/globals.h"
+#include "ipc/candidate_translation_policy.h"
 #include "ipc/ipc.h"
 #include "log/candidate_diag_log.h"
 #include "skin/candidate_skin_catalog.h"
@@ -136,9 +137,37 @@ struct CandSkinTokens
     D2D1_COLOR_F preeditCaret = D2D1::ColorF(0, 0.0f);
     D2D1_COLOR_F selectedBar = D2D1::ColorF(0, 0.0f);
     D2D1_COLOR_F rowTranslationSelected = D2D1::ColorF(0, 0.0f);
+    // 翻译里的词性与分隔符。alpha 0 表示与本行翻译同色。
+    D2D1_COLOR_F translationPos = D2D1::ColorF(0, 0.0f);
+    D2D1_COLOR_F translationSeparator = D2D1::ColorF(0, 0.0f);
+    D2D1_COLOR_F rowTranslationPosSelected = D2D1::ColorF(0, 0.0f);
+    D2D1_COLOR_F rowTranslationSeparatorSelected = D2D1::ColorF(0, 0.0f);
     D2D1_COLOR_F preeditBackground = D2D1::ColorF(0, 0.0f);
     D2D1_COLOR_F preeditDivider = D2D1::ColorF(0, 0.0f);
 };
+
+// 内置皮肤翻译里词性与分隔符的不透明度，对应 CSS 里 8 位十六进制颜色的 99 与 73。
+constexpr float kTranslationPosAlpha = 0x80 / 255.0f;
+constexpr float kTranslationSeparatorAlpha = 0x73 / 255.0f;
+
+// 内置皮肤的翻译配色取自 Notion 调色板（https://docs.super.so/notion-colors），与
+// ui-html/webview2/candwnd/skins/<skin>/*.css 里的 .cand-translation 同值。词性用相邻的另一个色相再调淡，
+// 和英文单词区分开；分隔符是单词色降不透明度。
+void SetTranslationColors(CandSkinTokens &tokens, UINT rgb, UINT posRgb)
+{
+    tokens.translation = ColorFromRgb(rgb);
+    tokens.translationPos = ColorFromRgb(posRgb, kTranslationPosAlpha);
+    tokens.translationSeparator = ColorFromRgb(rgb, kTranslationSeparatorAlpha);
+}
+
+// 选中行铺了实色高亮的皮肤，翻译在选中行另换一组颜色，避免彩色字压在高亮色上。
+// 词性的不透明度单独给：实色高亮上按普通行的比例调淡会糊进底色。
+void SetSelectedTranslationColors(CandSkinTokens &tokens, UINT rgb, float alpha, UINT posRgb, float posAlpha)
+{
+    tokens.rowTranslationSelected = ColorFromRgb(rgb, alpha);
+    tokens.rowTranslationPosSelected = ColorFromRgb(posRgb, posAlpha);
+    tokens.rowTranslationSeparatorSelected = ColorFromRgb(rgb, alpha * kTranslationSeparatorAlpha);
+}
 
 // 皮肤阴影档位只缩放两层阴影的不透明度，几何不变；none 由调用方直接关掉阴影。
 float ShadowAlphaScale(const std::string &shadow)
@@ -160,7 +189,23 @@ void ApplyPackageColors(const CandidateSkinCatalog::CandidateColors &colors, Can
     apply(colors.selectedBar, tokens.selectedBar);
     apply(colors.selectedText, tokens.rowTextSelected);
     apply(colors.selectedNumber, tokens.rowLabelSelected);
-    apply(colors.selectedTranslation, tokens.rowTranslationSelected);
+    // 包换了翻译色就不再用基础皮肤的词性/分隔符配色：普通行回到与翻译同色，选中行跟随 selected_translation。
+    // 与 WebView2 端的 `color: inherit` 重置一致。
+    if (!colors.translation.empty())
+    {
+        tokens.translationPos = D2D1::ColorF(0, 0.0f);
+        tokens.translationSeparator = D2D1::ColorF(0, 0.0f);
+    }
+    if (!colors.selectedTranslation.empty())
+    {
+        apply(colors.selectedTranslation, tokens.rowTranslationSelected);
+        tokens.rowTranslationPosSelected = tokens.rowTranslationSelected;
+        tokens.rowTranslationSeparatorSelected = tokens.rowTranslationSelected;
+    }
+    apply(colors.translationPos, tokens.translationPos);
+    apply(colors.translationSeparator, tokens.translationSeparator);
+    apply(colors.selectedTranslationPos, tokens.rowTranslationPosSelected);
+    apply(colors.selectedTranslationSeparator, tokens.rowTranslationSeparatorSelected);
     apply(colors.preeditBackground, tokens.preeditBackground);
     apply(colors.preeditDivider, tokens.preeditDivider);
     apply(colors.menuBackground, tokens.menuFill);
@@ -486,6 +531,8 @@ void CandidatePresenter::ApplySkin()
     {
         if (horizontalLayout)
             tokens.outerItemRadius = tokens.radius;
+        // 单词 Notion Purple，与强调色同一色相；词性 Notion Pink。
+        SetTranslationColors(tokens, candLight ? 0x6940A5 : 0x9A6DD7, candLight ? 0xAD1A72 : 0xE255A1);
     }
     else if (baseSkin == "wechat")
     {
@@ -499,6 +546,9 @@ void CandidatePresenter::ApplySkin()
         tokens.showSelectedBar = false;
         tokens.rowTextSelected = ColorFromRgb(0xFFFFFF);
         tokens.rowLabelSelected = ColorFromRgb(0xFFFFFF);
+        // 单词 Notion Blue，词性 Notion Green；选中行是实色绿底，单词换成半透明白，词性换 Notion Yellow。
+        SetTranslationColors(tokens, candLight ? 0x0B6E99 : 0x529CCA, candLight ? 0x0F7B6C : 0x4DAB9A);
+        SetSelectedTranslationColors(tokens, 0xFFFFFF, 0.8f, 0xFFDC49, 0.85f);
         if (candLight)
         {
             tokens.hover = D2D1::ColorF(7.0f / 255.0f, 193.0f / 255.0f, 96.0f / 255.0f, 0.14f);
@@ -548,6 +598,9 @@ void CandidatePresenter::ApplySkin()
         tokens.showSelectedBar = false;
         tokens.rowTextSelected = ColorFromRgb(0xFFFFFF);
         tokens.rowLabelSelected = ColorFromRgb(0xFFFFFF);
+        // 单词 Notion Green，词性 Notion Blue；选中行是实色绿底，单词换成半透明白，词性换 Notion Yellow。
+        SetTranslationColors(tokens, candLight ? 0x0F7B6C : 0x4DAB9A, candLight ? 0x0B6E99 : 0x529CCA);
+        SetSelectedTranslationColors(tokens, 0xFFFFFF, 0.8f, 0xFFDC49, 0.85f);
         if (candLight)
         {
             tokens.accent = ColorFromRgb(0x58B980);
@@ -579,6 +632,8 @@ void CandidatePresenter::ApplySkin()
         tokens.itemRadius = 2.0f;
         tokens.selected = D2D1::ColorF(0, 0.0f);
         tokens.showSelectedBar = false;
+        // 单词 Notion Brown，石墨铅笔的木杆色，压在冷灰底上不抢候选；词性 Notion Orange。
+        SetTranslationColors(tokens, candLight ? 0x64473A : 0x937264, candLight ? 0xD9730D : 0xFFA344);
         if (candLight)
         {
             tokens.accent = ColorFromRgb(0x5F6B7A);
@@ -614,8 +669,12 @@ void CandidatePresenter::ApplySkin()
         tokens.itemRadius = 6.0f;
         tokens.outerItemRadius = 10.0f;
         tokens.showSelectedBar = false;
+        // 翻译：浅色单词 Notion Orange、词性 Notion Red，选中行的淡黄高亮上单词换 Notion Brown；
+        // 深色单词 Notion Yellow、词性 Notion Orange，选中行橙底上单词换半透明白、词性换 Notion Brown。
         if (candLight)
         {
+            SetTranslationColors(tokens, 0xD9730D, 0xE03E3E);
+            SetSelectedTranslationColors(tokens, 0x64473A, 1.0f, 0xE03E3E, kTranslationPosAlpha);
             tokens.accent = ColorFromRgb(0xE6A817);
             tokens.selected = ColorFromRgb(0xFFE399);
             tokens.hover = D2D1::ColorF(255.0f / 255.0f, 227.0f / 255.0f, 153.0f / 255.0f, 0.55f);
@@ -629,6 +688,8 @@ void CandidatePresenter::ApplySkin()
         }
         else
         {
+            SetTranslationColors(tokens, 0xFFDC49, 0xFFA344);
+            SetSelectedTranslationColors(tokens, 0xFFFFFF, 0.8f, 0x64473A, 0.85f);
             tokens.accent = ColorFromRgb(0xF97D0A);
             tokens.selected = ColorFromRgb(0xF97D0A);
             tokens.hover = D2D1::ColorF(249.0f / 255.0f, 125.0f / 255.0f, 10.0f / 255.0f, 0.30f);
@@ -665,6 +726,8 @@ void CandidatePresenter::ApplySkin()
         tokens.trianglePager = true;
         tokens.trimHiddenPreeditGap = true;
         tokens.accent = ColorFromRgb(0xE183D9);
+        // 单词 Notion Pink，与粉色选中条同一色相；词性 Notion Purple。
+        SetTranslationColors(tokens, candLight ? 0xAD1A72 : 0xE255A1, candLight ? 0x6940A5 : 0x9A6DD7);
         if (candLight)
         {
             tokens.selected = ColorFromRgb(0xEAEAEA);
@@ -801,6 +864,10 @@ void CandidatePresenter::ApplySkin()
     appearance.annotationColor = palette.candidateText;
     appearance.translationColor = tokens.translation;
     appearance.rowTranslationSelected = tokens.rowTranslationSelected;
+    appearance.translationSecondaryColor = tokens.translationPos;
+    appearance.translationDelimiterColor = tokens.translationSeparator;
+    appearance.rowTranslationSecondarySelected = tokens.rowTranslationPosSelected;
+    appearance.rowTranslationDelimiterSelected = tokens.rowTranslationSeparatorSelected;
     appearance.rowFillSelected = tokens.selected;
     appearance.rowFillHover = tokens.hover;
     appearance.rowFillPressed = tokens.selected;
@@ -961,7 +1028,22 @@ std::uint64_t CandidatePresenter::FillItemsFromUi()
         item.text = string_to_wstring(view.text + view.badge);
         item.annotation = string_to_wstring(view.annotation);
         if (translationsEnabled)
-            item.translation = string_to_wstring(view.translation);
+        {
+            // 逐段转成 UTF-16 再拼起来，区间按拼出来的串计，与 WebView2 的 .cand-pos / .cand-sep 同一切法。
+            for (const auto &segment : FanyImeIpc::SegmentTranslationGloss(view.translation))
+            {
+                const std::wstring text = string_to_wstring(segment.text);
+                if (segment.kind != FanyImeIpc::TranslationSegmentKind::Text)
+                {
+                    item.translationRuns.push_back({static_cast<UINT32>(item.translation.size()),
+                                                    static_cast<UINT32>(text.size()),
+                                                    segment.kind == FanyImeIpc::TranslationSegmentKind::Separator
+                                                        ? msimeui::CandidateList::TextRunRole::Delimiter
+                                                        : msimeui::CandidateList::TextRunRole::Secondary});
+                }
+                item.translation += text;
+            }
+        }
         items.push_back(std::move(item));
     }
     ignoreSelectionCallback_ = true;

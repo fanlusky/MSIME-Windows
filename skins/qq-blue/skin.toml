@@ -22,7 +22,11 @@ border = "rgba(18,161,245,.35)"
 text = "#E9E8E8"
 number = "#B0E3FB"
 translation = "#9D68D3"
+translation_pos = "#E255A180"
+translation_separator = "#9D68D373"
 selected_translation = "#E1D0F1"
+selected_translation_pos = "#E255A180"
+selected_translation_separator = "#E1D0F173"
 show_selected_bar = false
 
 [candidate.light]
@@ -34,7 +38,11 @@ border = "#DCE6F0"
 text = "#1A1A1A"
 number = "#0052D9"
 translation = "#9065B0"
+translation_pos = "#AD1A7280"
+translation_separator = "#9065B073"
 selected_translation = "#7F599B"
+selected_translation_pos = "#AD1A7280"
+selected_translation_separator = "#7F599B73"
 show_selected_bar = false
 
 # 工具栏跟候选窗同一套底色、边框和亮蓝拖动条；不写会沿用 fluent 的黑底紫条。

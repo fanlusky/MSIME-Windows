@@ -23,7 +23,9 @@ constexpr bool IsTranslationCommitKey(uint32_t keycode, uint32_t modifiers_down)
 // each sense with a part-of-speech label: "n. silver medal", "proper n. Wanshan
 // District", "adj. spreading; n. sound of laughter". The label is shown in the
 // candidate window but must not reach the committed text.
-inline std::string_view StripPartOfSpeechLabel(std::string_view sense)
+// Returns the length of the label at the start of `sense` without its trailing
+// space ("n." -> 2), or 0 when the sense has no label.
+inline size_t PartOfSpeechLabelLength(std::string_view sense)
 {
     static constexpr std::string_view kLabels[] = {"proper n. ", "interj. ", "idiom. ", "pron. ", "prep. ",
                                                    "conj. ",     "adj. ",    "adv. ",   "num. ",  "det. ",
@@ -31,12 +33,73 @@ inline std::string_view StripPartOfSpeechLabel(std::string_view sense)
     for (const auto label : kLabels)
     {
         if (sense.size() > label.size() && sense.substr(0, label.size()) == label)
-        {
-            const size_t rest = sense.find_first_not_of(' ', label.size());
-            return rest == std::string_view::npos ? sense : sense.substr(rest);
-        }
+            return label.size() - 1;
     }
-    return sense;
+    return 0;
+}
+
+inline std::string_view StripPartOfSpeechLabel(std::string_view sense)
+{
+    const size_t label = PartOfSpeechLabelLength(sense);
+    if (label == 0)
+        return sense;
+    const size_t rest = sense.find_first_not_of(' ', label);
+    return rest == std::string_view::npos ? sense : sense.substr(rest);
+}
+
+enum class TranslationSegmentKind
+{
+    Text,
+    PartOfSpeech,
+    Separator,
+};
+
+struct TranslationSegment
+{
+    TranslationSegmentKind kind = TranslationSegmentKind::Text;
+    std::string text;
+};
+
+// Splits a displayed gloss into the runs the candidate window colors apart: the
+// senses' text, their part-of-speech labels and the separators between senses.
+// Concatenating the segments' text gives back `gloss` unchanged.
+inline std::vector<TranslationSegment> SegmentTranslationGloss(std::string_view gloss)
+{
+    static constexpr std::string_view kFullwidthSemicolon = "\xEF\xBC\x9B";
+    std::vector<TranslationSegment> segments;
+    const auto push = [&segments](TranslationSegmentKind kind, std::string_view text) {
+        if (text.empty())
+            return;
+        if (!segments.empty() && segments.back().kind == kind)
+            segments.back().text.append(text);
+        else
+            segments.push_back({kind, std::string(text)});
+    };
+    const auto pushSense = [&push](std::string_view sense) {
+        const size_t first = (std::min)(sense.find_first_not_of(" \t\r\n"), sense.size());
+        push(TranslationSegmentKind::Text, sense.substr(0, first));
+        sense.remove_prefix(first);
+        const size_t label = PartOfSpeechLabelLength(sense);
+        push(TranslationSegmentKind::PartOfSpeech, sense.substr(0, label));
+        push(TranslationSegmentKind::Text, sense.substr(label));
+    };
+    size_t start = 0;
+    while (start < gloss.size())
+    {
+        const size_t ascii = gloss.find(';', start);
+        const size_t fullwidth = gloss.find(kFullwidthSemicolon, start);
+        const size_t cut = (std::min)(ascii, fullwidth);
+        if (cut == std::string_view::npos)
+        {
+            pushSense(gloss.substr(start));
+            break;
+        }
+        pushSense(gloss.substr(start, cut - start));
+        const size_t width = cut == fullwidth ? kFullwidthSemicolon.size() : 1;
+        push(TranslationSegmentKind::Separator, gloss.substr(cut, width));
+        start = cut + width;
+    }
+    return segments;
 }
 
 // english.db stores one gloss string per entry with the senses already joined:

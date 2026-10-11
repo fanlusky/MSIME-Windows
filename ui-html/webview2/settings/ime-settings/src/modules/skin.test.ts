@@ -103,6 +103,26 @@ it('previews number and translation colours from the skin manifest', () => {
   expect(generatedCss).not.toContain('display: none');
 });
 
+it('previews part-of-speech and separator colours, inheriting the translation colour when unset', () => {
+  applyCandidateSkinCatalog([
+    {
+      id: 'custom-pos', name: 'Custom Pos', version: '1', base: 'fluent', layouts: ['horizontal'],
+      themes: ['dark', 'light'], compatible: true,
+      candidate: {
+        dark: { translation: '#529cca', translationPos: '#529cca99', selectedTranslationSeparator: '#ffffff66' },
+        light: {}
+      }
+    }
+  ], [], '', true, 1);
+  applyCandidateSkin('custom-pos');
+
+  const host = ':is(:scope, :scope .candidate)';
+  expect(generatedCss).toContain(`${host} .cand-translation .cand-pos, ${host} .cand-translation .cand-sep { color: inherit; }`);
+  expect(generatedCss).toContain(`${host} .cand-translation .cand-pos { color: #529cca99; }`);
+  expect(generatedCss).not.toContain(`${host} .cand-translation .cand-sep { color: #`);
+  expect(generatedCss).toContain(`${host} .cand.first .cand-translation .cand-sep { color: #ffffff66; }`);
+});
+
 it('anchors preview colour rules on the host so the light theme and selected bar apply', () => {
   applyCandidateSkinCatalog([
     {

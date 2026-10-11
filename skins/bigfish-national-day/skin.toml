@@ -37,7 +37,11 @@ border = "rgba(242, 182, 50, 0.45)"
 text = "#F6EEE3"
 number = "#F2B632"
 translation = "#379AD3"
+translation_pos = "#9A6DD780"
+translation_separator = "#379AD373"
 selected_translation = "#4FA6D8"
+selected_translation_pos = "#9A6DD780"
+selected_translation_separator = "#4FA6D873"
 preedit_caret = "#F2B632"
 
 [candidate.light]
@@ -49,7 +53,11 @@ border = "rgba(200, 16, 46, 0.28)"
 text = "#3A1418"
 number = "#B7791F"
 translation = "#337EA9"
+translation_pos = "#6940A580"
+translation_separator = "#337EA973"
 selected_translation = "#2A678B"
+selected_translation_pos = "#6940A580"
+selected_translation_separator = "#2A678B73"
 preedit_caret = "#C8102E"
 
 [toolbar]

@@ -80,6 +80,8 @@ border = "rgba(155, 155, 155, 0.18)"       # 卡片外框颜色
 text = "#e9e8e8"                           # 文字色，candidate_text 和 preedit_text 不写时用它
 number = "rgba(233, 232, 232, 0.62)"       # 候选序号，也是翻页箭头的颜色
 translation = "#9d68d3"                    # 翻译文字，不写时取候选文字色的 62% 不透明度
+translation_pos = "#e255a180"    # 翻译里的词性（n. / adj. …），不写时与翻译同色
+translation_separator = "#9d68d373" # 义项分隔符（; / ；），不写时与翻译同色
 show_selected_bar = true                   # 是否在选中候选左侧画一道竖条：true | false
 
 # 细分配色，不写时按注释里的规则回落
@@ -89,6 +91,8 @@ preedit_caret = "#e08aa8"                  # 预编辑光标，回落到 accent
 selected_text = "#fff4f8"                  # 选中候选的文字，回落到 base 的选中文字色
 selected_number = "rgba(233, 232, 232, 0.62)"  # 选中候选的序号，回落到 base 的选中序号色
 selected_translation = "#c4a4e5"           # 选中候选的翻译，回落到 translation，再回落到选中文字色的 62% 不透明度
+selected_translation_pos = "#e255a180"
+selected_translation_separator = "#c4a4e573"
 selected_bar = "#e08aa8"                   # 选中候选左侧的竖条，回落到 accent
 preedit_background = "rgba(224, 138, 168, 0.10)"  # 预编辑行底色，圆角同高亮圆角；不写时透明
 preedit_divider = "rgba(224, 138, 168, 0.30)"     # 预编辑行下方的 1px 分隔线；不写时没有
@@ -110,6 +114,8 @@ border = "rgba(176, 80, 110, 0.22)"
 text = "#1a1a1a"
 number = "rgba(26, 26, 26, 0.55)"
 translation = "#9065b0"
+translation_pos = "#ad1a7280"
+translation_separator = "#9065b073"
 show_selected_bar = true
 
 # 细分配色
@@ -119,6 +125,8 @@ preedit_caret = "#c45c7a"
 selected_text = "#1a1a1a"
 selected_number = "rgba(26, 26, 26, 0.55)"
 selected_translation = "#795594"
+selected_translation_pos = "#ad1a7280"
+selected_translation_separator = "#79559473"
 selected_bar = "#c45c7a"
 preedit_background = "rgba(196, 92, 122, 0.06)"
 preedit_divider = "rgba(176, 80, 110, 0.22)"

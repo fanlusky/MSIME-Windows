@@ -132,7 +132,15 @@ function RenderCandidateItems(root, items) {
     if (item.translation) {
       const translation = document.createElement('span');
       translation.className = 'cand-translation';
-      translation.textContent = item.translation;
+      // 词性与分隔符各包一层 span（.cand-pos / .cand-sep），其余片段是文本节点。
+      const parts = item.translationParts || [['', item.translation]];
+      translation.replaceChildren(...parts.map(([kind, text]) => {
+        if (!kind) return text;
+        const part = document.createElement('span');
+        part.className = kind;
+        part.textContent = text;
+        return part;
+      }));
       slot.append(translation);
     }
   });
@@ -471,10 +479,19 @@ void UpdateHtmlContentWithJavaScript(ComPtr<ICoreWebView2> webview, const std::w
         nlohmann::json candidateItems = nlohmann::json::array();
         for (const CandidateViewItem &item : content->page->page_views)
         {
+            nlohmann::json translationParts = nlohmann::json::array();
+            for (const auto &segment : FanyImeIpc::SegmentTranslationGloss(item.translation))
+            {
+                const char *kind = segment.kind == FanyImeIpc::TranslationSegmentKind::PartOfSpeech ? "cand-pos"
+                                   : segment.kind == FanyImeIpc::TranslationSegmentKind::Separator  ? "cand-sep"
+                                                                                                    : "";
+                translationParts.push_back(nlohmann::json::array({kind, segment.text}));
+            }
             candidateItems.push_back({{"text", item.text},
                                       {"annotation", item.annotation},
                                       {"badge", item.badge},
                                       {"translation", item.translation},
+                                      {"translationParts", std::move(translationParts)},
                                       {"fixedPosition", item.fixed_position}});
         }
         script.append(kRenderCandidateItemsScript);

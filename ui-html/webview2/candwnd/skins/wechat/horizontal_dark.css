@@ -199,3 +199,10 @@
     .container.preedit-hidden > .pinyin + .row-wrapper > .cand { border-top-left-radius: 5px; }
     .container > .row-wrapper:is(:last-child, .last-visible) > .cand { border-bottom-right-radius: 5px; }
     .container.preedit-hidden > .row-wrapper:is(:last-child, .last-visible) > .cand { border-top-right-radius: 5px; }
+    /* 翻译单词取 Notion Blue，词性（.cand-pos）用相邻的 Notion Green 再调淡，分隔符（.cand-sep）是单词色降不透明度；D2D 端同值见 candidate_presenter.cpp。 */
+    .cand-translation { color: #529cca; opacity: 1; }
+    .cand-translation .cand-pos { color: #4dab9a80; }
+    .cand-translation .cand-sep { color: #529cca73; }
+    .first .cand-translation { color: rgba(255, 255, 255, .8); }
+    .first .cand-translation .cand-pos { color: rgba(255, 220, 73, .85); }
+    .first .cand-translation .cand-sep { color: rgba(255, 255, 255, .36); }

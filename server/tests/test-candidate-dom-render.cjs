@@ -30,6 +30,12 @@ function element(tagName) {
   };
 }
 
+// Like Node.textContent: string children are text nodes.
+function textOf(node) {
+  if (typeof node === 'string') return node;
+  return node.children.length ? node.children.map(textOf).join('') : node.textContent;
+}
+
 test('candidate DOM renderer keeps text, order, style, badge, and translation', () => {
   const slots = Array.from({ length: 3 }, () => element('div'));
   const wrappers = slots.map((slot) => ({
@@ -60,7 +66,7 @@ test('candidate DOM renderer keeps text, order, style, badge, and translation', 
     items.map((item) => item.text + item.annotation + item.badge),
   );
   assert.deepEqual(
-    slots.slice(0, 2).map((slot) => slot.children[1].textContent),
+    slots.slice(0, 2).map((slot) => textOf(slot.children[1])),
     items.slice(0, 2).map((item) => item.translation),
   );
   assert.deepEqual(slots.slice(0, 2).map((slot) => slot.children[1].className), [
@@ -70,4 +76,28 @@ test('candidate DOM renderer keeps text, order, style, badge, and translation', 
   assert.equal(slots[0].children[0].style.color, '#379AD3');
   assert.equal(slots[1].children[0].style.color, undefined);
   assert.equal(slots[2].children[0].style.color, undefined);
+});
+
+test('candidate DOM renderer wraps part-of-speech labels and separators', () => {
+  const slot = element('div');
+  const root = {
+    querySelectorAll: () => [{ querySelector: () => slot }],
+  };
+  const items = [{
+    text: '笑',
+    annotation: '',
+    badge: '',
+    translation: 'adj. <a>; n. laugh',
+    translationParts: [['cand-pos', 'adj.'], ['', ' <a>'], ['cand-sep', ';'], ['', ' '], ['cand-pos', 'n.'], ['', ' laugh']],
+    fixedPosition: false,
+  }];
+  const context = { document: { createElement: element } };
+  vm.runInNewContext(match[1], context);
+  context.RenderCandidateItems(root, items);
+
+  const translation = slot.children[1];
+  assert.equal(translation.className, 'cand-translation');
+  const parts = translation.children.map((child) =>
+    typeof child === 'string' ? ['', child] : [child.className, child.textContent]);
+  assert.deepEqual(parts, items[0].translationParts);
 });

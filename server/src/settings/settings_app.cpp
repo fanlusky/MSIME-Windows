@@ -179,11 +179,19 @@ nlohmann::json CandidateColorsToJson(const CandidateSkinCatalog::CandidateColors
     if (colors.showSelectedBar.has_value())
         json["showSelectedBar"] = *colors.showSelectedBar;
     const std::pair<const char *, const std::string *> optional[] = {
-        {"candidateText", &colors.candidateText},   {"preeditText", &colors.preeditText},
-        {"preeditCaret", &colors.preeditCaret},     {"selectedText", &colors.selectedText},
-        {"selectedNumber", &colors.selectedNumber}, {"selectedTranslation", &colors.selectedTranslation},
-        {"selectedBar", &colors.selectedBar},       {"preeditBackground", &colors.preeditBackground},
+        {"candidateText", &colors.candidateText},
+        {"preeditText", &colors.preeditText},
+        {"preeditCaret", &colors.preeditCaret},
+        {"selectedText", &colors.selectedText},
+        {"selectedNumber", &colors.selectedNumber},
+        {"selectedTranslation", &colors.selectedTranslation},
+        {"selectedBar", &colors.selectedBar},
+        {"preeditBackground", &colors.preeditBackground},
         {"preeditDivider", &colors.preeditDivider},
+        {"translationPos", &colors.translationPos},
+        {"translationSeparator", &colors.translationSeparator},
+        {"selectedTranslationPos", &colors.selectedTranslationPos},
+        {"selectedTranslationSeparator", &colors.selectedTranslationSeparator},
     };
     for (const auto &[key, value] : optional)
     {

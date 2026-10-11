@@ -24,6 +24,18 @@ TEST_CASE(candidate_view_keeps_commas_and_private_use_characters)
                std::string("a,\xEF\x80\x80<span class=\"cand-translation\">b,\xEF\x80\x80</span>"));
 }
 
+// 词性与分隔符各包一层 span，皮肤靠 .cand-pos / .cand-sep 给它们单独配色；分段里的文本同样要转义。
+TEST_CASE(candidate_view_wraps_part_of_speech_and_separators_in_translation)
+{
+    CandidateViewItem item;
+    item.text = "笑";
+    item.translation = "adj. <spreading>; n. laugh";
+    REQUIRE_EQ(CandidateViewHtml(item), std::string("笑<span class=\"cand-translation\">"
+                                                    "<span class=\"cand-pos\">adj.</span> &lt;spreading&gt;"
+                                                    "<span class=\"cand-sep\">;</span> "
+                                                    "<span class=\"cand-pos\">n.</span> laugh</span>"));
+}
+
 TEST_CASE(candidate_page_signature_distinguishes_comma_split_between_items)
 {
     CandidateViewItem ab, c, a, bc;

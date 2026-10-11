@@ -622,6 +622,30 @@ void CandidateList::Render(DeviceResources &deviceResources)
             translationColor.a *= 0.62f;
         }
         ID2D1SolidColorBrush *translationBrush = deviceResources.GetSolidColorBrush(translationColor);
+        if (translationLayout)
+        {
+            // 布局按文本缓存、各行共用，所以每次绘制都先清掉上一次留下的分段画刷。
+            translationLayout->SetDrawingEffect(nullptr, {0, static_cast<UINT32>(item.translation.size())});
+        }
+        if (translationLayout && !item.translationRuns.empty())
+        {
+            // 选中行先看选中专用色，再看普通色，都没有就与本行翻译同色，对应 CSS 里
+            // .first .cand-pos → .cand-pos → 继承 .cand-translation。
+            const auto runColor = [&](const D2D1_COLOR_F &selectedColor, const D2D1_COLOR_F &normalColor) {
+                if (highlighted && selectedColor.a > 0.001f)
+                    return selectedColor;
+                return normalColor.a > 0.001f ? normalColor : translationColor;
+            };
+            ID2D1SolidColorBrush *secondaryBrush = deviceResources.GetSolidColorBrush(
+                runColor(appearance_.rowTranslationSecondarySelected, appearance_.translationSecondaryColor));
+            ID2D1SolidColorBrush *delimiterBrush = deviceResources.GetSolidColorBrush(
+                runColor(appearance_.rowTranslationDelimiterSelected, appearance_.translationDelimiterColor));
+            for (const TextRun &run : item.translationRuns)
+            {
+                translationLayout->SetDrawingEffect(
+                    run.role == TextRunRole::Delimiter ? delimiterBrush : secondaryBrush, {run.start, run.length});
+            }
+        }
         if (labelLayout && labelBrush)
         {
             target->DrawTextLayout(D2D1::Point2F(labelRect.x, labelRect.y), labelLayout.Get(), labelBrush,

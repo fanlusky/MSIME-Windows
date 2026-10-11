@@ -57,6 +57,45 @@ TEST_CASE(translation_gloss_drops_part_of_speech_labels)
     REQUIRE_EQ(bare[0], std::string("n."));
 }
 
+namespace
+{
+std::string DescribeSegments(const std::vector<FanyImeIpc::TranslationSegment> &segments)
+{
+    std::string out;
+    for (const auto &segment : segments)
+    {
+        const char tag = segment.kind == FanyImeIpc::TranslationSegmentKind::PartOfSpeech ? 'P'
+                         : segment.kind == FanyImeIpc::TranslationSegmentKind::Separator  ? 'S'
+                                                                                          : 'T';
+        out += tag;
+        out += '[' + segment.text + ']';
+    }
+    return out;
+}
+} // namespace
+
+// The candidate window colors part-of-speech labels and separators apart from the senses. The segments must
+// cover the gloss exactly, so the renderers can rebuild the displayed text and its offsets from them.
+TEST_CASE(translation_gloss_segments_mark_labels_and_separators)
+{
+    using FanyImeIpc::SegmentTranslationGloss;
+    REQUIRE_EQ(DescribeSegments(SegmentTranslationGloss("adj. spreading; n. sound of laughter")),
+               std::string("P[adj.]T[ spreading]S[;]T[ ]P[n.]T[ sound of laughter]"));
+    REQUIRE_EQ(DescribeSegments(SegmentTranslationGloss("proper n. Wanshan District")),
+               std::string("P[proper n.]T[ Wanshan District]"));
+    REQUIRE_EQ(DescribeSegments(SegmentTranslationGloss("苹果；家伙")), std::string("T[苹果]S[；]T[家伙]"));
+    // Unlabelled text, a bare label and a trailing separator.
+    REQUIRE_EQ(DescribeSegments(SegmentTranslationGloss("very peculiar")), std::string("T[very peculiar]"));
+    REQUIRE_EQ(DescribeSegments(SegmentTranslationGloss("n.")), std::string("T[n.]"));
+    REQUIRE_EQ(DescribeSegments(SegmentTranslationGloss("v. stoop;")), std::string("P[v.]T[ stoop]S[;]"));
+    REQUIRE(SegmentTranslationGloss("").empty());
+
+    std::string joined;
+    for (const auto &segment : SegmentTranslationGloss(" v. giggle ；；idiom. burst out; "))
+        joined += segment.text;
+    REQUIRE_EQ(joined, std::string(" v. giggle ；；idiom. burst out; "));
+}
+
 TEST_CASE(translation_gloss_keeps_a_single_sense_whole)
 {
     using FanyImeIpc::SplitTranslationGloss;

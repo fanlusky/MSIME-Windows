@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 
+#include "ipc/candidate_translation_policy.h"
+
 // Built once on the candidate worker. Renderers only adapt this presentation data;
 // they do not query dictionaries, derive helpcodes or decide which source gets a badge.
 struct CandidateViewItem
@@ -61,13 +63,36 @@ inline void ApplyFixedPositionBadge(CandidateViewItem &view, bool show, const st
         view.badge += " \xF0\x9F\x93\x8E"; // 📎
 }
 
+// 词性与分隔符各包一层 span，皮肤用 .cand-pos / .cand-sep 单独配色；没配时继承 .cand-translation。
+inline std::string CandidateTranslationHtml(const std::string &translation)
+{
+    std::string html = "<span class=\"cand-translation\">";
+    for (const auto &segment : FanyImeIpc::SegmentTranslationGloss(translation))
+    {
+        const std::string text = EscapeCandidateViewHtml(segment.text);
+        switch (segment.kind)
+        {
+        case FanyImeIpc::TranslationSegmentKind::PartOfSpeech:
+            html += "<span class=\"cand-pos\">" + text + "</span>";
+            break;
+        case FanyImeIpc::TranslationSegmentKind::Separator:
+            html += "<span class=\"cand-sep\">" + text + "</span>";
+            break;
+        default:
+            html += text;
+            break;
+        }
+    }
+    return html + "</span>";
+}
+
 inline std::string CandidateViewHtml(const CandidateViewItem &item)
 {
     std::string html = EscapeCandidateViewHtml(item.text + item.annotation + item.badge);
     if (item.fixed_position)
         html = "<span style=\"color:#379AD3\">" + html + "</span>";
     if (!item.translation.empty())
-        html += "<span class=\"cand-translation\">" + EscapeCandidateViewHtml(item.translation) + "</span>";
+        html += CandidateTranslationHtml(item.translation);
     return html;
 }
 
