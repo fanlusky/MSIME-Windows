@@ -176,6 +176,45 @@ TEST_CASE(config_merge_lets_new_defaults_win_for_untouched_keys)
                "[appearance]\npage_size = 9\nfont_size = 20\n");
 }
 
+// 0.10.0 把这些键的出厂值改成了新装用户的默认。从 0.9.5 升级上来、一直用着旧默认值的用户，升级后
+// 必须还是原来的行为：辅助码不能被关掉，横竖排和皮肤不能被换掉。
+TEST_CASE(shipped_fresh_install_defaults_do_not_flip_upgraded_users)
+{
+    std::ifstream input(MSIME_DEFAULT_CONFIG_PATH, std::ios::binary);
+    REQUIRE(static_cast<bool>(input));
+    const std::string installed((std::istreambuf_iterator<char>(input)), {});
+    const std::string previous_defaults = "[general]\nemoji_mixed_input = true\n"
+                                          "[input]\ndefault_ime_mode = \"english\"\n"
+                                          "[appearance]\ncandidate_window_layout = \"vertical\"\n"
+                                          "candidate_skin = \"willow_green\"\n"
+                                          "[helpcode]\nshuangpin_helpcode = true\nquanpin_helpcode = true\n"
+                                          "[utility]\nemoji_mode = true # Shift+E\nkaomoji_mode = true\n"
+                                          "[voice_input]\nvoice_input = true\ndoubao_enable_ddc = true\n"
+                                          "[ai_assistant]\nenabled = true\n"
+                                          "[tencent_tmt]\nenabled = true\n"
+                                          "[niutrans]\nenabled = false\n";
+
+    const auto upgraded = toml::parse(MergeConfigIntoTemplate(installed, previous_defaults, previous_defaults));
+    REQUIRE(upgraded["general"]["emoji_mixed_input"].value_or(false));
+    REQUIRE_EQ(upgraded["input"]["default_ime_mode"].value_or(std::string()), std::string("english"));
+    REQUIRE_EQ(upgraded["appearance"]["candidate_window_layout"].value_or(std::string()), std::string("vertical"));
+    REQUIRE_EQ(upgraded["appearance"]["candidate_skin"].value_or(std::string()), std::string("willow_green"));
+    REQUIRE(upgraded["helpcode"]["shuangpin_helpcode"].value_or(false));
+    REQUIRE(upgraded["helpcode"]["quanpin_helpcode"].value_or(false));
+    REQUIRE(upgraded["utility"]["emoji_mode"].value_or(false));
+    REQUIRE(upgraded["utility"]["kaomoji_mode"].value_or(false));
+    REQUIRE(upgraded["voice_input"]["voice_input"].value_or(false));
+    REQUIRE(upgraded["voice_input"]["doubao_enable_ddc"].value_or(false));
+    REQUIRE(upgraded["ai_assistant"]["enabled"].value_or(false));
+    REQUIRE(upgraded["tencent_tmt"]["enabled"].value_or(false));
+    REQUIRE(!upgraded["niutrans"]["enabled"].value_or(true));
+
+    // 新装用户拿到的是模板本身。
+    const auto fresh = toml::parse(installed);
+    REQUIRE_EQ(fresh["appearance"]["candidate_window_layout"].value_or(std::string()), std::string("horizontal"));
+    REQUIRE(!fresh["helpcode"]["shuangpin_helpcode"].value_or(true));
+}
+
 TEST_CASE(config_merge_drops_keys_and_sections_absent_from_template)
 {
     const std::string template_text = "[general]\nkept = true\n";
