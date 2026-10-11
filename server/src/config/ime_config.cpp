@@ -365,6 +365,7 @@ bool LoadImeConfig()
             return false;
         const std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
         auto tbl = toml::parse(text);
+        RevealStoredCredentials(tbl);
 
         const int page_size = tbl["appearance"]["page_size"].value_or(6);
         g_candidate_page_size = page_size >= 3 && page_size <= 9 ? page_size : 6;
@@ -1044,6 +1045,7 @@ void InitImeConfig()
         }
         PublishVoiceInput(std::move(voice));
         PersistSeededVoiceInputTokenSlots();
+        ProtectPlaintextCredentials();
 #ifdef FANY_DEBUG
         (void)0;
 #endif

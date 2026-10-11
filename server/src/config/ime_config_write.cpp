@@ -38,8 +38,12 @@ bool WriteConfiguredValues(const std::vector<ConfigValueUpdate> &updates)
 
     for (const auto &update : updates)
     {
-        if (!ReplaceTomlValuePreservingFormatting(text, update.section, update.key, update.value) &&
-            !InsertTomlValuePreservingFormatting(text, update.section, update.key, update.value))
+        // 所有凭证写入都经过这里，在此统一加密，不必让每个 setter 各自记得。
+        const auto value = ProtectCredentialLiteral(update.key, update.value);
+        if (!value)
+            return false;
+        if (!ReplaceTomlValuePreservingFormatting(text, update.section, update.key, *value) &&
+            !InsertTomlValuePreservingFormatting(text, update.section, update.key, *value))
         {
             return false;
         }

@@ -11,6 +11,7 @@
 #include <functional>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <string>
 #include <string_view>
@@ -281,6 +282,13 @@ bool TomlTextIsParseable(const std::string &text);
 void ForEachTomlAssignment(const std::string &text, const TomlAssignmentVisitor &visit);
 std::string MakeTomlAssignmentId(const std::string &section, const std::string &key);
 std::map<std::string, std::string> ParseTomlAssignments(const std::string &text);
+
+// ime_config_credentials.cpp
+bool IsCredentialKey(const std::string &key);
+// 凭证键的 TOML 字面量换成密文字面量；非凭证键、占位符和已加密的值原样返回。DPAPI 失败返回 nullopt。
+std::optional<std::string> ProtectCredentialLiteral(const std::string &key, const std::string &literal);
+void RevealStoredCredentials(toml::table &tbl);
+void ProtectPlaintextCredentials();
 
 // ime_config_template.cpp
 void RecoverLegacyAcpMangledConfig();

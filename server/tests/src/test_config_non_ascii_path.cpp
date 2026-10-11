@@ -1,5 +1,6 @@
 #include "tests/includes/test_framework.h"
 
+#include "config/credential_protection.h"
 #include "config/ime_config.h"
 #include "global/globals.h"
 
@@ -1243,6 +1244,73 @@ TEST_CASE(deepseek_thinking_levels_default_disabled_and_round_trip)
             REQUIRE_EQ(GetConfiguredAiAssistant().thinking, std::string(value));
             REQUIRE_EQ(GetConfiguredVoiceInput().polish_thinking, std::string(value));
         }
+    }
+
+    fs::remove_all(unique_root, ec);
+}
+
+TEST_CASE(credential_protection_round_trips_and_rejects_foreign_ciphertext)
+{
+    const std::string secret = "sk-测试-0123456789";
+    const auto cipher = CredentialProtection::Protect(secret);
+    REQUIRE(cipher.has_value());
+    REQUIRE(CredentialProtection::IsProtected(*cipher));
+    REQUIRE(cipher->find(secret) == std::string::npos);
+    REQUIRE_EQ(CredentialProtection::Unprotect(*cipher).value_or(""), secret);
+
+    REQUIRE_EQ(CredentialProtection::Unprotect("plain-token").value_or(""), std::string("plain-token"));
+    REQUIRE(!CredentialProtection::Unprotect("dpapi:AAAA").has_value());
+    REQUIRE(!CredentialProtection::Unprotect("dpapi:not base64!").has_value());
+}
+
+TEST_CASE(credentials_are_stored_encrypted_and_plaintext_is_migrated)
+{
+    namespace fs = std::filesystem;
+    const fs::path unique_root = MakeProfileRoot() / L"凭证";
+    const fs::path local_app_data = unique_root / L"本地";
+    const fs::path data_dir = local_app_data / L"metasequoiaime";
+    const fs::path config_path = data_dir / L"config.toml";
+
+    std::error_code ec;
+    fs::remove_all(unique_root, ec);
+    SeedTemplate(data_dir);
+
+    {
+        ScopedConfigLocation local_app_data_env(local_app_data);
+
+        // 出厂占位符保持明文，模板合并要靠它们识别「用户没填」。
+        InitImeConfig();
+        REQUIRE(ReadText(config_path).find("dpapi:") == std::string::npos);
+        REQUIRE(ReadText(config_path).find("FAKESECRET_") != std::string::npos);
+
+        // 设置页写入的凭证以密文落盘，重新加载后还原。
+        REQUIRE(SetConfiguredAiAssistantString("token", "sk-ai-明文-token"));
+        REQUIRE(ReadText(config_path).find("sk-ai-明文-token") == std::string::npos);
+        InitImeConfig();
+        REQUIRE_EQ(GetConfiguredAiAssistant().token, std::string("sk-ai-明文-token"));
+
+        // 旧版本留下的明文凭证在启动时被换成密文，值不变。
+        std::string text = ReadText(config_path);
+        const std::string placeholder = "secret_key = \"<YOUR_TENCENT_SECRET_KEY>\"";
+        const size_t at = text.find(placeholder);
+        REQUIRE(at != std::string::npos);
+        text.replace(at, placeholder.size(), "secret_key = \"legacy-plain-secret\"");
+        WriteText(config_path, text);
+        InitImeConfig();
+        REQUIRE(ReadText(config_path).find("legacy-plain-secret") == std::string::npos);
+        REQUIRE_EQ(GetConfiguredTencentTmt().secret_key, std::string("legacy-plain-secret"));
+        InitImeConfig();
+        REQUIRE_EQ(GetConfiguredTencentTmt().secret_key, std::string("legacy-plain-secret"));
+
+        // 解不开的密文（别的账户或机器写的）当作没填，不能把密文本身当 token 用。
+        text = ReadText(config_path);
+        const size_t key_at = text.find("secret_key = \"dpapi:");
+        REQUIRE(key_at != std::string::npos);
+        const size_t line_end = text.find('\n', key_at);
+        text.replace(key_at, line_end - key_at, "secret_key = \"dpapi:AAAA\"");
+        WriteText(config_path, text);
+        InitImeConfig();
+        REQUIRE(GetConfiguredTencentTmt().secret_key.empty());
     }
 
     fs::remove_all(unique_root, ec);
