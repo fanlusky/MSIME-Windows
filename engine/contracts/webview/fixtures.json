@@ -788,6 +788,27 @@
     "valid": false
   },
   {
+    "name": "neural model download",
+    "message": {
+      "type": "neuralModelDownload"
+    },
+    "direction": "client",
+    "surface": "settings",
+    "valid": true
+  },
+  {
+    "name": "neural model delete takes no model id",
+    "message": {
+      "type": "neuralModelDelete",
+      "data": {
+        "modelId": "neural-desktop"
+      }
+    },
+    "direction": "client",
+    "surface": "settings",
+    "valid": false
+  },
+  {
     "name": "default ime set request",
     "message": {
       "type": "defaultImeRequest",

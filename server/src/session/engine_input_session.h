@@ -9,6 +9,10 @@
 // engine_input_session.cpp，声明在此供测试钉住激活解析语义。
 std::string ResolveCollocationModelPath(const std::string &model_id);
 
+// 神经整句高精度档模型的路径：<DataDir>/models/neural-desktop/ 下已落位的文件，未下载时返回
+// 空串，引擎据此静默不重排。声明在此供测试钉住解析语义。
+std::string ResolveNeuralDesktopModelPath();
+
 class EngineInputSession : public IInputSession
 {
   public:

@@ -4,6 +4,7 @@
 #include "engine/core/data_path.h"
 #include "engine/core/sentence_association_options.h"
 #include "engine/quanpin/quanpin_utils.h"
+#include "settings/neural_model.h"
 
 #include <filesystem>
 
@@ -28,6 +29,17 @@ std::string ResolveCollocationModelPath(const std::string &model_id)
         return {};
     }
     return file.u8string();
+}
+
+std::string ResolveNeuralDesktopModelPath()
+{
+    const std::filesystem::path file = neural_model::ModelFile();
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(file, error) || error)
+    {
+        return {};
+    }
+    return metasequoia::path_to_utf8(file);
 }
 
 EngineInputSession::EngineInputSession(SchemeType scheme, const ShuangpinProfile &profile)
@@ -75,6 +87,8 @@ void EngineInputSession::ApplyConfiguration()
     association.word_lattice = GetConfiguredAssocSentenceWordLattice();
     association.google = GetConfiguredAssocSentenceGoogle();
     association.neural_desktop = GetConfiguredAssocSentenceNeuralDesktop();
+    // 高精度档模型按需下载：开关开着才去盘上找（每次击键都会走到这里），没下载时路径为空。
+    association.neural_desktop_model = association.neural_desktop ? ResolveNeuralDesktopModelPath() : std::string();
     association.neural_keyboard = GetConfiguredAssocSentenceNeuralKeyboard();
     association.show_next_on_duplicate = GetConfiguredAssocSentenceShowNextOnDuplicate();
     // octagram 语法模型总开关：开关关时连模型路径都不解析。引擎侧的加成分由 collocation_model

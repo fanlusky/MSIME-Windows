@@ -629,8 +629,28 @@
       </div>
       <div class="section-header frequency-option-row">
         <div>
+          <div class="section-title">神经网络模型（效果优先，需先下载）</div>
+          <div class="input-setting-description">效果优先模型不随安装包分发，下载后才能开启下面的整句开关，可随时删除。应用内下载较慢时，可点「浏览器下载」用浏览器下好，再点「导入」选中该 .safetensors 文件；也可以在「帮助」页设置网络代理</div>
+          <div class="collocation-model-list">
+            <div class="neural-model-row">
+              <div>
+                <div class="collocation-model-name">chinese-ime-lm 效果优先模型<span class="collocation-model-meta">约 25 MB · Apache-2.0</span><button type="button" class="collocation-model-link" id="neuralDesktopModelBrowserBtn" hidden>浏览器下载</button></div>
+                <div class="input-setting-description" id="neuralDesktopModelStatus">未下载</div>
+              </div>
+              <div class="collocation-model-actions">
+                <button type="button" class="restart-server-button" id="neuralDesktopModelDownloadBtn">下载</button>
+                <button type="button" class="restart-server-button" id="neuralDesktopModelImportBtn" title="选择用浏览器下载好的 .safetensors 文件">导入</button>
+                <button type="button" class="restart-server-button" id="neuralDesktopModelDeleteBtn" hidden>删除</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div></div>
+      </div>
+      <div class="section-header frequency-option-row neural-model-toggle-row">
+        <div>
           <div class="section-title">神经网络模型整句（效果优先）</div>
-          <div class="input-setting-description">结合已上屏的前文，从内部生成的最多 12 个备选句中选择，处理时间较长</div>
+          <div class="input-setting-description">下载模型后可用：结合已上屏的前文，从内部生成的最多 12 个备选句中选择，处理时间较长</div>
         </div>
         <div class="ftb-toggle-btn" id="sentenceNeuralDesktopToggleBtn" role="switch" aria-checked="false" tabindex="0">
           <div class="ftb-toggle-knob"></div>

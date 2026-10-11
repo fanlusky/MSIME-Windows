@@ -16,8 +16,9 @@ param(
     # 词格打分用的语言模型不随词库发布下发，而是由 scripts/build-language-model.ps1
     # 从钉住的上游语料现场转换到这个目录。
     [string]$LanguageModelDirectory = 'language-model',
-    # 神经整句模型（chinese-ime-lm 的 safetensors）从这个目录下发，与 sc.lm 同为资源根下的
-    # 只读文件。缺文件时引擎静默不出神经整句，但打包仍然必须带上，故这里断言存在。
+    # 神经整句速度档模型（chinese-ime-lm 的 safetensors）从这个目录下发，与 sc.lm 同为资源根下的
+    # 只读文件。缺文件时引擎静默不出神经整句，但打包仍然必须带上，故这里断言存在。效果档模型
+    # 不随包分发，由设置页按需下载到 <数据目录>\models\neural-desktop\。
     [string]$NeuralModelDirectory = 'neural-model',
     # THIRD_PARTY_NOTICES.txt used to sit next to the tip's sources. In the consolidated repository
     # the notice covers the whole product and lives at the root, one level above windows/, so where
@@ -81,7 +82,6 @@ $englishDb = Join-Path $RepoRoot (Join-Path $DictionaryDirectory 'out\english.db
 $othersDb = Join-Path $RepoRoot (Join-Path $DictionaryDirectory 'out\others.db')
 $languageModel = Join-Path $RepoRoot (Join-Path $LanguageModelDirectory 'sc.lm')
 $languageModelNotice = Join-Path $RepoRoot (Join-Path $LanguageModelDirectory 'NOTICE.md')
-$neuralModelDesktop = Join-Path $RepoRoot (Join-Path $NeuralModelDirectory 'sentence-model-desktop.safetensors')
 $neuralModelKeyboard = Join-Path $RepoRoot (Join-Path $NeuralModelDirectory 'sentence-model.safetensors')
 $neuralModelNotice = Join-Path $RepoRoot (Join-Path $NeuralModelDirectory 'NOTICE.md')
 
@@ -143,7 +143,6 @@ if 'weight' not in names or pk != ['word', 'display']:
     Assert-PathExists -LiteralPath $languageModel `
         -Description '词格整句语言模型 sc.lm（用 scripts\build-language-model.ps1 生成）'
     Assert-PathExists -LiteralPath $languageModelNotice -Description 'libime 语言模型授权声明 NOTICE.md'
-    Assert-PathExists -LiteralPath $neuralModelDesktop -Description '神经整句模型 sentence-model-desktop.safetensors'
     Assert-PathExists -LiteralPath $neuralModelKeyboard -Description '神经整句模型 sentence-model.safetensors'
     Assert-PathExists -LiteralPath $neuralModelNotice -Description 'chinese-ime-lm 授权声明 NOTICE.md'
 }
@@ -181,9 +180,8 @@ else {
     # 模型数据是 LGPL-2.1-or-later 的第三方作品，声明必须跟着二进制到用户磁盘上，
     # 理由同下面 rime-ice 那段。
     Copy-Item -LiteralPath $languageModelNotice -Destination (Join-Path $targetAppData 'libime-lm-NOTICE.md') -Force
-    # 神经整句模型与 sc.lm 一样落在资源目录根下，文件名由 engine/contracts/assets 清单声明。
+    # 神经整句速度档模型与 sc.lm 一样落在资源目录根下，文件名由 engine/contracts/assets 清单声明。
     # 缺文件时引擎静默不出神经整句候选（shared_sentence_model 返回 nullptr），不影响其它候选。
-    Copy-Item -LiteralPath $neuralModelDesktop -Destination (Join-Path $targetAppData 'sentence-model-desktop.safetensors') -Force
     Copy-Item -LiteralPath $neuralModelKeyboard -Destination (Join-Path $targetAppData 'sentence-model.safetensors') -Force
     # 权重是 Apache-2.0 的第三方作品，授权声明必须随二进制到用户磁盘上。
     Copy-Item -LiteralPath $neuralModelNotice -Destination (Join-Path $targetAppData 'chinese-ime-lm-NOTICE.md') -Force

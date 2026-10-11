@@ -1,5 +1,5 @@
 import { serializeHostMessage } from '../../../../shared/messages';
-import { applyDropdownValue, applyToggleState, setFuzzyRuleOptionsDisabled, setSmartPunctuationOptionsDisabled, setupDropdownMenu, setupToggleButton } from './shared';
+import { applyDropdownValue, applyToggleState, setFuzzyRuleOptionsDisabled, setSmartPunctuationOptionsDisabled, setupDropdownMenu, setupNeuralModelControls, setupToggleButton } from './shared';
 import { updateConfig } from './config-sync';
 import { updateCandidatePreviewHelpcode } from './appearance';
 import { setupCredentialTest } from './credential-test';
@@ -451,6 +451,8 @@ export function setupInput(): void {
   setupToggleButton('sentenceNeuralDesktopToggleBtn', (active) => {
     updateConfig('association.sentence_neural_desktop', active);
   });
+  // 效果优先模型的下载/导入/删除按钮；状态与开关置灰由 shared.applyNeuralModelStatus 随快照驱动。
+  setupNeuralModelControls();
   setupToggleButton('sentenceNeuralKeyboardToggleBtn', (active) => {
     updateConfig('association.sentence_neural_keyboard', active);
   });

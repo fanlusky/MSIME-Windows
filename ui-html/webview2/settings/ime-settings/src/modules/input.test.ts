@@ -9,6 +9,7 @@ vi.mock('./shared', () => ({
   setFuzzyRuleOptionsDisabled: vi.fn(),
   setSmartPunctuationOptionsDisabled: vi.fn(),
   setupDropdownMenu: vi.fn(),
+  setupNeuralModelControls: vi.fn(),
   setupToggleButton: (id: string, onChanged: (active: boolean) => void) => { toggles.set(id, onChanged); }
 }));
 vi.mock('./config-sync', () => ({ updateConfig: vi.fn() }));

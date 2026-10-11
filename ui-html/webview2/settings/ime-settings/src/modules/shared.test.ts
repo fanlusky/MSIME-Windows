@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyCollocationModelStatus, setupDropdownMenu } from './shared';
+import { applyCollocationModelStatus, applyNeuralModelStatus, setupDropdownMenu, setupNeuralModelControls } from './shared';
 
 vi.mock('./theme', () => ({ setSurfaceTheme: vi.fn(), setThemeMode: vi.fn() }));
 
@@ -397,5 +397,113 @@ describe('collocation model status gating', () => {
     applyCollocationModelStatus({ [RECOMMENDED_ID]: { state: 'absent' }, 'zh-moqi': { state: 'ready' } }, CATALOG, '');
     expect(importOf(rowById('zh-moqi')).hidden).toBe(true);
     expect(importOf(rowById(RECOMMENDED_ID)).disabled).toBe(false);
+  });
+});
+describe('neural desktop model status gating', () => {
+  const URL = 'https://github.com/metasequoiaime/chinese-ime-lm/releases/download/model-v1/sentence-model-desktop.safetensors';
+  const IDS = [
+    'neuralDesktopModelStatus', 'neuralDesktopModelDownloadBtn', 'neuralDesktopModelImportBtn',
+    'neuralDesktopModelDeleteBtn', 'neuralDesktopModelBrowserBtn', 'sentenceNeuralDesktopToggleBtn'
+  ];
+
+  class FakeElement {
+    textContent = '';
+    disabled = false;
+    hidden = false;
+    title = '';
+    tabIndex = 0;
+    dataset: Record<string, string> = {};
+    attributes = new Map<string, string>();
+    handlers = new Map<string, () => void>();
+    classes = new Set<string>();
+    classList = {
+      toggle: (name: string, on: boolean): boolean => {
+        if (on) this.classes.add(name);
+        else this.classes.delete(name);
+        return on;
+      }
+    };
+    addEventListener(type: string, handler: () => void): void {
+      this.handlers.set(type, handler);
+    }
+    setAttribute(name: string, value: string): void {
+      this.attributes.set(name, value);
+    }
+    getAttribute(name: string): string | null {
+      return this.attributes.get(name) ?? null;
+    }
+  }
+
+  let elements: Record<string, FakeElement>;
+  let toggleRow: FakeElement;
+  let postMessage: ReturnType<typeof vi.fn>;
+  const sent = () => postMessage.mock.calls.map((call) => JSON.parse(call[0] as string));
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    elements = Object.fromEntries(IDS.map((id) => [id, new FakeElement()]));
+    toggleRow = new FakeElement();
+    postMessage = vi.fn();
+    vi.stubGlobal('document', {
+      getElementById: (id: string) => elements[id] ?? null,
+      querySelectorAll: (selector: string) => (selector === '.neural-model-toggle-row' ? [toggleRow] : [])
+    });
+    vi.stubGlobal('window', { chrome: { webview: { postMessage } } });
+  });
+
+  afterEach(() => {
+    // 回到非忙碌态，清掉本组用例可能起的轮询。
+    applyNeuralModelStatus({ state: 'absent' }, URL);
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('greys out the switch until the model is downloaded, without changing its state', () => {
+    applyNeuralModelStatus(undefined, URL);
+    expect(elements.neuralDesktopModelStatus.textContent).toBe('未下载');
+    expect(elements.sentenceNeuralDesktopToggleBtn.getAttribute('aria-disabled')).toBe('true');
+    expect(elements.sentenceNeuralDesktopToggleBtn.tabIndex).toBe(-1);
+    expect(toggleRow.classes.has('is-disabled')).toBe(true);
+    expect(elements.neuralDesktopModelDownloadBtn.disabled).toBe(false);
+    expect(elements.neuralDesktopModelDeleteBtn.hidden).toBe(true);
+
+    applyNeuralModelStatus({ state: 'ready' }, URL);
+    expect(elements.neuralDesktopModelStatus.textContent).toBe('模型已就绪');
+    expect(elements.sentenceNeuralDesktopToggleBtn.getAttribute('aria-disabled')).toBe('false');
+    expect(toggleRow.classes.has('is-disabled')).toBe(false);
+    expect(elements.neuralDesktopModelDownloadBtn.disabled).toBe(true);
+    expect(elements.neuralDesktopModelImportBtn.hidden).toBe(true);
+    expect(elements.neuralDesktopModelBrowserBtn.hidden).toBe(true);
+    expect(elements.neuralDesktopModelDeleteBtn.hidden).toBe(false);
+  });
+
+  it('polls for a fresh snapshot only while downloading or importing', () => {
+    applyNeuralModelStatus({ state: 'downloading', progress: 40 }, URL);
+    expect(elements.neuralDesktopModelStatus.textContent).toBe('下载中 40%');
+    expect(elements.neuralDesktopModelDownloadBtn.disabled).toBe(true);
+    expect(elements.neuralDesktopModelImportBtn.disabled).toBe(true);
+    vi.advanceTimersByTime(2000);
+    expect(sent()).toMatchObject([{ type: 'neuralModelStatusRequest' }]);
+
+    applyNeuralModelStatus({ state: 'error', error: '文件校验和与 chinese-ime-lm model-v1 不符' }, URL);
+    expect(elements.neuralDesktopModelStatus.textContent).toBe('下载失败：文件校验和与 chinese-ime-lm model-v1 不符');
+    expect(elements.neuralDesktopModelDownloadBtn.disabled).toBe(false);
+    vi.advanceTimersByTime(4000);
+    expect(sent()).toHaveLength(1);
+  });
+
+  it('sends download, import, delete and browser requests without a model id', () => {
+    setupNeuralModelControls();
+    applyNeuralModelStatus({ state: 'absent' }, URL);
+    elements.neuralDesktopModelDownloadBtn.handlers.get('click')?.();
+    elements.neuralDesktopModelImportBtn.handlers.get('click')?.();
+    elements.neuralDesktopModelDeleteBtn.handlers.get('click')?.();
+    elements.neuralDesktopModelBrowserBtn.handlers.get('click')?.();
+    expect(sent()).toMatchObject([
+      { type: 'neuralModelDownload' },
+      { type: 'neuralModelImport' },
+      { type: 'neuralModelDelete' },
+      { type: 'openExternalUrl', data: URL }
+    ]);
   });
 });

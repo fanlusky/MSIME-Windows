@@ -191,9 +191,10 @@ class QuanpinDictionary
     // shared_ptr 持有：设置侧删除模型包 evict 缓存并清掉这里的引用后，映射即可
     // 释放，被删的文件能被物理清扫。
     std::shared_ptr<const gram::GramDb> collocation_db_ = nullptr;
-    // 神经整句模型（chinese-ime-lm），按资源路径进程内共享、只读。两档可同时参与打分；
+    // 神经整句模型（chinese-ime-lm），按路径进程内共享、只读。两档可同时参与打分；
     // 缺文件时对应的整句候选不出，不影响其它候选。对应开关第一次生效时才载入，
-    // 关着的那档不占内存。
+    // 关着的那档不占内存。快速档随安装包在资源目录；高精度档按需下载，路径由
+    // set_sentence_association 下发，未下载时为空。
     neural::LazySentenceModel neural_desktop_model_;
     neural::LazySentenceModel neural_keyboard_model_;
     // 整句候选来源与去重补位选项，默认全关；由 set_sentence_association 随请求更新。

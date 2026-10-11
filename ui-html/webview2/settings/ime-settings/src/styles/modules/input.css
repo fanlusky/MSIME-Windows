@@ -340,8 +340,9 @@
   pointer-events: none;
 }
 
-/* octagram .gram 未就绪：两个开关置灰并挡住点击，勾选状态按 aria-disabled 保留展示 */
-.collocation-toggle-row.is-disabled .ftb-toggle-btn {
+/* 模型未就绪：开关置灰并挡住点击，勾选状态按 aria-disabled 保留展示 */
+.collocation-toggle-row.is-disabled .ftb-toggle-btn,
+.neural-model-toggle-row.is-disabled .ftb-toggle-btn {
   opacity: 0.45;
   pointer-events: none;
 }
@@ -354,7 +355,9 @@
   gap: 10px;
 }
 
-.collocation-model-row {
+/* 神经模型行只复用外观，不复用类名：八股文脚本按 .collocation-model-row 全局遍历行。 */
+.collocation-model-row,
+.neural-model-row {
   display: flex;
   align-items: center;
   justify-content: space-between;

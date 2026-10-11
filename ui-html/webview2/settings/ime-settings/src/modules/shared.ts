@@ -198,6 +198,70 @@ export function applyCollocationModelStatus(
   }
 }
 
+// ---- 神经网络整句效果优先模型状态 ----
+
+let neuralModelPollTimer: ReturnType<typeof setInterval> | null = null;
+
+type NeuralModelMessageType = 'neuralModelDownload' | 'neuralModelImport' | 'neuralModelDelete';
+
+// 行是静态 HTML（只有一个模型），按钮只发消息，状态一律等下一份快照回放。
+export function setupNeuralModelControls(): void {
+  const wire = (id: string, type: NeuralModelMessageType) => {
+    document.getElementById(id)?.addEventListener('click', () => {
+      window.chrome?.webview?.postMessage(serializeHostMessage({ type }));
+    });
+  };
+  wire('neuralDesktopModelDownloadBtn', 'neuralModelDownload');
+  wire('neuralDesktopModelImportBtn', 'neuralModelImport');
+  wire('neuralDesktopModelDeleteBtn', 'neuralModelDelete');
+  const browser = document.getElementById('neuralDesktopModelBrowserBtn');
+  browser?.addEventListener('click', () => {
+    const url = browser.dataset.url;
+    if (url) window.chrome?.webview?.postMessage(serializeHostMessage({ type: 'openExternalUrl', data: url }));
+  });
+}
+
+// 与八股文模型同一套规则：模型没就绪时开关置灰但不替用户改勾选状态；下载或导入中每 2 秒
+// 拉一次快照，离开忙碌态自停。下载地址由宿主下发，页面不自持。
+export function applyNeuralModelStatus(status: CollocationModelStatus | undefined, url: string | undefined): void {
+  const state = status?.state ?? 'absent';
+  const busy = isCollocationBusy(state);
+  const text = document.getElementById('neuralDesktopModelStatus');
+  if (text) text.textContent = collocationStatusText(status);
+  const download = document.getElementById('neuralDesktopModelDownloadBtn') as HTMLButtonElement | null;
+  if (download) download.disabled = state === 'ready' || busy;
+  const importButton = document.getElementById('neuralDesktopModelImportBtn') as HTMLButtonElement | null;
+  if (importButton) {
+    importButton.hidden = state === 'ready';
+    importButton.disabled = busy;
+  }
+  const remove = document.getElementById('neuralDesktopModelDeleteBtn') as HTMLButtonElement | null;
+  if (remove) remove.hidden = state !== 'ready';
+  const browser = document.getElementById('neuralDesktopModelBrowserBtn');
+  if (browser && url) {
+    browser.dataset.url = url;
+    browser.title = url;
+    browser.hidden = state === 'ready';
+  }
+
+  const disabled = state !== 'ready';
+  const toggle = document.getElementById('sentenceNeuralDesktopToggleBtn');
+  toggle?.setAttribute('aria-disabled', String(disabled));
+  if (toggle) toggle.tabIndex = disabled ? -1 : 0;
+  document.querySelectorAll('.neural-model-toggle-row').forEach((row) => {
+    row.classList.toggle('is-disabled', disabled);
+  });
+
+  if (busy && neuralModelPollTimer === null) {
+    neuralModelPollTimer = setInterval(() => {
+      window.chrome?.webview?.postMessage(serializeHostMessage({ type: 'neuralModelStatusRequest' }));
+    }, 2000);
+  } else if (!busy && neuralModelPollTimer !== null) {
+    clearInterval(neuralModelPollTimer);
+    neuralModelPollTimer = null;
+  }
+}
+
 function nextPaint(): Promise<void> {
   return new Promise((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));

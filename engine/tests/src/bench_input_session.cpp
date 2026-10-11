@@ -6,7 +6,10 @@
 //   bench_input_session [repeats]
 // It only types and resets; it never selects a candidate, so it does not write
 // to the user journal. Still, point it at a copy of the data directory.
+#include "../../contracts/assets/assets.h"
+#include "../../core/data_path.h"
 #include "../../core/input_session.h"
+#include "../../core/runtime_paths.h"
 #include "../../core/sentence_association_options.h"
 
 #include <algorithm>
@@ -31,6 +34,10 @@ std::vector<Setting> settings()
     lattice.word_lattice = true;
     SentenceAssociationOptions lattice_google = lattice;
     lattice_google.google = true;
+    // The desktop model is downloaded on demand in the product; the bench reads the copy kept
+    // beside the other resources of the data directory it is pointed at.
+    lattice_google.neural_desktop_model = metasequoia::path_to_utf8(
+        metasequoia::RuntimePaths::legacy().resource(metasequoia::assets::neural_model_desktop));
     SentenceAssociationOptions neural_keyboard = lattice_google;
     neural_keyboard.neural_keyboard = true;
     SentenceAssociationOptions neural_desktop = lattice_google;

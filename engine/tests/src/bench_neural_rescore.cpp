@@ -124,6 +124,8 @@ bool run_case(const Case &item, int repeat, CallbackEvents &events)
     options.show_next_on_duplicate = true;
     options.neural_keyboard = item.source == CandidateSource::NeuralKeyboard;
     options.neural_desktop = item.source == CandidateSource::NeuralDesktop;
+    options.neural_desktop_model = metasequoia::path_to_utf8(
+        metasequoia::RuntimePaths::legacy().resource(metasequoia::assets::neural_model_desktop));
     session.set_sentence_association(options);
     session.set_rescoring_context(item.context);
 

@@ -457,6 +457,8 @@ int run_test()
         QuanpinDictionary dictionary;
         SentenceAssociationOptions options;
         options.neural_desktop = true;
+        options.neural_desktop_model =
+            metasequoia::path_to_utf8(paths.resource(metasequoia::assets::neural_model_desktop));
         options.neural_keyboard = true;
         dictionary.set_sentence_association(options);
         for (const char *query : {"nihaoshijie", "womenzaijianmian", "jintiantianqizhenhao"})

@@ -75,7 +75,7 @@ class LazySentenceModel
     {
         if (!resolved_)
         {
-            model_ = shared_sentence_model(path_);
+            model_ = path_.empty() ? nullptr : shared_sentence_model(path_);
             resolved_ = true;
         }
         return model_;

@@ -849,7 +849,7 @@ function IsCollocationModelDirectory(const FileName: String): Boolean;
 begin
   { octagram 语法模型包（目录首项为推荐包万象）在 <数据目录>\models\<id>，是设置页按需下载的
     约 390MB，安装包不携带，
-    也不是每次安装都会重写的东西。这份名单的语义恰好是「升级保留、卸载删除」——
+    也不是每次安装都会重写的东西。神经整句效果档模型同样按需下载在 models\neural-desktop。这份名单的语义恰好是「升级保留、卸载删除」——
     IsPreservedAppDataItem 只被 CleanAppDataExceptUserFiles（覆盖安装）与 RemoveDataDir
     （卸载/换目录）读——所以归这里，不能进 IsRuntimeAppDataItem：后者两条路径都删，
     覆盖安装会把模型一并清掉，用户得重下一次。}
@@ -885,7 +885,6 @@ begin
     (CompareText(FileName, 'others.db') = 0) or
     (CompareText(FileName, 'sc.lm') = 0) or
     (CompareText(FileName, 'libime-lm-NOTICE.md') = 0) or
-    (CompareText(FileName, 'sentence-model-desktop.safetensors') = 0) or
     (CompareText(FileName, 'sentence-model.safetensors') = 0) or
     (CompareText(FileName, 'chinese-ime-lm-NOTICE.md') = 0) or
     (CompareText(FileName, 'config.default.toml') = 0) or
@@ -920,9 +919,16 @@ end;
 { 数据目录不整个归我们时，只有这些名字允许删（#537）。html、logs 这种通用目录名
   由 DeleteKnownAppDataDir 只删输入法自己写进去的部分。log\、webview2\ 等只会出现在
   历史默认位置，那里整个目录归我们，不必列。}
+{ 旧版随包装进数据目录根下、现已不再分发的条目。留在名单里，覆盖安装与卸载才会继续清掉它们。
+  神经整句效果档模型改为设置页按需下载到 models\neural-desktop\（归 IsCollocationModelDirectory 保留）。}
+function IsRetiredAppDataItem(const FileName: String): Boolean;
+begin
+  Result := CompareText(FileName, 'sentence-model-desktop.safetensors') = 0;
+end;
+
 function IsKnownAppDataItem(const FileName: String): Boolean;
 begin
-  Result := IsShippedAppDataItem(FileName) or IsRuntimeAppDataItem(FileName);
+  Result := IsShippedAppDataItem(FileName) or IsRuntimeAppDataItem(FileName) or IsRetiredAppDataItem(FileName);
 end;
 
 function InitializeUninstall(): Boolean;

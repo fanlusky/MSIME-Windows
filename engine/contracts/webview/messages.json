@@ -82,6 +82,26 @@
         "settings"
       ]
     },
+    "neuralModelDownload": {
+      "surfaces": [
+        "settings"
+      ]
+    },
+    "neuralModelImport": {
+      "surfaces": [
+        "settings"
+      ]
+    },
+    "neuralModelDelete": {
+      "surfaces": [
+        "settings"
+      ]
+    },
+    "neuralModelStatusRequest": {
+      "surfaces": [
+        "settings"
+      ]
+    },
     "openHandwritingPanel": {
       "surfaces": [
         "settings"

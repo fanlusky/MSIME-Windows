@@ -55,7 +55,6 @@ ShuangpinDictionary::ShuangpinDictionary(const ShuangpinProfile &profile, metase
     : profile_(profile), paths_(std::move(paths)), decoder_(paths_.resource(metasequoia::assets::pinyin_model),
                                                             paths_.user(metasequoia::assets::pinyin_user_dictionary)),
       language_model_(&ngram::shared_language_model(paths_.resource(metasequoia::assets::language_model))),
-      neural_desktop_model_(metasequoia::path_to_utf8(paths_.resource(metasequoia::assets::neural_model_desktop))),
       neural_keyboard_model_(metasequoia::path_to_utf8(paths_.resource(metasequoia::assets::neural_model_keyboard))),
       helpcodes_(HelpcodeUtils::load_helpcode_keymap(paths_.resources, HelpcodeUtils::selected_helpcode_schema())),
       _kb_input_sequence(100), _cached_buffer(128), _cached_buffer_sgl(128), _cached_buffer_sgl_reversed(128),
@@ -1312,6 +1311,7 @@ void ShuangpinDictionary::set_sentence_association(const SentenceAssociationOpti
         sentence_association_.collocation_model.empty()
             ? nullptr
             : gram::shared_gram_db(metasequoia::path_from_utf8(sentence_association_.collocation_model.c_str()));
+    neural_desktop_model_ = neural::LazySentenceModel(sentence_association_.neural_desktop_model);
     // 开关变了就清缓存，否则打开/关闭要等缓存过期才见效。见 generateSeries 的整句块。
     reset_cache();
 }

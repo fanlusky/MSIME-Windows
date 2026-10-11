@@ -345,7 +345,6 @@ QuanpinDictionary::QuanpinDictionary(std::string db_path, metasequoia::RuntimePa
       paths_(std::move(paths)), decoder_(paths_.resource(metasequoia::assets::pinyin_model),
                                          paths_.user(metasequoia::assets::pinyin_user_dictionary)),
       language_model_(&ngram::shared_language_model(paths_.resource(metasequoia::assets::language_model))),
-      neural_desktop_model_(metasequoia::path_to_utf8(paths_.resource(metasequoia::assets::neural_model_desktop))),
       neural_keyboard_model_(metasequoia::path_to_utf8(paths_.resource(metasequoia::assets::neural_model_keyboard))),
       db_path_(db_path.empty() ? metasequoia::path_to_utf8(paths_.dictionary(metasequoia::assets::main_dictionary))
                                : std::move(db_path))
@@ -1628,6 +1627,9 @@ void QuanpinDictionary::set_sentence_association(const SentenceAssociationOption
         sentence_association_.collocation_model.empty()
             ? nullptr
             : gram::shared_gram_db(metasequoia::path_from_utf8(sentence_association_.collocation_model.c_str()));
+    // 高精度档模型的路径同样随选项下发（模型按需下载，不在资源目录）。重建句柄只是丢掉
+    // 已解析的指针，模型本身由 shared_sentence_model 按路径持有，重排线程手里的指针不失效。
+    neural_desktop_model_ = neural::LazySentenceModel(sentence_association_.neural_desktop_model);
     // 开关变了，之前缓存的候选列表按旧开关算出，必须清掉，否则打开/关闭后要到缓存过期
     // 才见效。整句候选都进这几个缓存，见 query_series / query_single_path。
     reset_cache();

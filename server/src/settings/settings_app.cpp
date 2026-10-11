@@ -6,6 +6,7 @@
 #include "settings/settings_launcher.h"
 #include "settings/api_credential_test.h"
 #include "settings/collocation_model.h"
+#include "settings/neural_model.h"
 #include "settings/default_input_method.h"
 #include "settings/settings_splash.h"
 #include "settings/dictionary_manager.h"
@@ -540,6 +541,12 @@ std::wstring BuildConfigMessage(bool refresh_skin_catalog)
            {{"sentence_wordlattice", GetConfiguredAssocSentenceWordLattice()},
             {"sentence_google", GetConfiguredAssocSentenceGoogle()},
             {"sentence_neural_desktop", GetConfiguredAssocSentenceNeuralDesktop()},
+            {"sentence_neural_desktop_model_status", [] {
+                 const auto status = neural_model::GetModelStatus();
+                 return nlohmann::json{
+                     {"state", status.state}, {"progress", status.progress}, {"error", status.error}};
+             }()},
+            {"sentence_neural_desktop_model_url", neural_model::SourceUrl()},
             {"sentence_neural_keyboard", GetConfiguredAssocSentenceNeuralKeyboard()},
             {"sentence_show_next_on_duplicate", GetConfiguredAssocSentenceShowNextOnDuplicate()},
             {"sentence_source_badge", GetConfiguredAssocSentenceSourceBadge()},
@@ -1460,6 +1467,28 @@ void HandleWebMessage(HWND hwnd, ICoreWebView2WebMessageReceivedEventArgs *args)
             PostConfig(false);
         }
         else if (type == "collocationModelStatusRequest")
+        {
+            PostConfig(false);
+        }
+        else if (type == "neuralModelDownload")
+        {
+            // 与八股文模型同一套：后台下载，进度随快照回放，页面在下载态轮询。
+            neural_model::StartDownload();
+            PostConfig(false);
+        }
+        else if (type == "neuralModelImport")
+        {
+            const std::filesystem::path source = neural_model::PromptForModelFile(hwnd);
+            if (!source.empty())
+                neural_model::ImportModel(source);
+            PostConfig(false);
+        }
+        else if (type == "neuralModelDelete")
+        {
+            neural_model::DeleteModel();
+            PostConfig(false);
+        }
+        else if (type == "neuralModelStatusRequest")
         {
             PostConfig(false);
         }

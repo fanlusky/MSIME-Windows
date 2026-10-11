@@ -58,8 +58,7 @@ try {
     & (Join-Path $installer 'Prepare-PackageFiles.ps1') -RepoRoot $fixture -TargetVersion '2026.9.1' -IncludeSymbols
     foreach ($file in @('app_data/html/webview2/shared/runtime.js', 'app_data/dictionary-manifest.json',
                          'app_data/sc.lm', 'app_data/libime-lm-NOTICE.md', 'app_data/dict_pinyin.dat',
-                         'app_data/sentence-model-desktop.safetensors', 'app_data/sentence-model.safetensors',
-                         'app_data/chinese-ime-lm-NOTICE.md',
+                         'app_data/sentence-model.safetensors', 'app_data/chinese-ime-lm-NOTICE.md',
                          'tsf_dll/32/MetasequoiaImeTsf.dll', 'tsf_dll/32/MetasequoiaImeTsf.pdb',
                          'tsf_dll/64/MetasequoiaImeTsf.dll', 'tsf_dll/64/MetasequoiaImeTsf.pdb',
                          'server_exe/MetasequoiaImeServer.pdb',
@@ -67,6 +66,10 @@ try {
                          'app_data/helpcodes/helpcode.txt', 'default_skins/fluent/skin.toml',
                          'THIRD_PARTY_NOTICES.txt', 'LICENSE.txt')) {
         if (-not (Test-Path (Join-Path $installer $file))) { throw "Missing packaged file: $file" }
+    }
+    # 神经整句效果档模型由设置页按需下载，仓库的 neural-model/ 里有它也不能进安装包。
+    if (Test-Path (Join-Path $installer 'app_data/sentence-model-desktop.safetensors')) {
+        throw 'The on-demand desktop neural model was packaged'
     }
     # 内置皮肤清单落在数据目录的 skins 下，那是用户目录（外部皮肤也在里面），卸载时不能删；
     # 它若经 app_data 暂存，就得进 IsShippedAppDataItem 名单，卸载会把整个 skins 带走。
@@ -161,8 +164,8 @@ try {
     try { & (Join-Path $installer 'Prepare-PackageFiles.ps1') -RepoRoot $fixture } catch { $rejected = $_.Exception.Message -match 'dict_pinyin\.dat' }
     if (-not $rejected) { throw 'Missing pinyin decoder model was accepted' }
     [IO.File]::WriteAllText($pinyinModelFixture, 'fixture')
-    # 神经整句模型同理：缺文件时 shared_sentence_model 返回 nullptr，设置页开关能开但不出候选。
-    $neuralModelFixture = Join-Path $fixture 'neural-model/sentence-model-desktop.safetensors'
+    # 随包的神经整句速度档模型同理：缺文件时 shared_sentence_model 返回 nullptr，设置页开关能开但不出候选。
+    $neuralModelFixture = Join-Path $fixture 'neural-model/sentence-model.safetensors'
     Remove-Item $neuralModelFixture -Force
     $rejected = $false
     try { & (Join-Path $installer 'Prepare-PackageFiles.ps1') -RepoRoot $fixture } catch { $rejected = $_.Exception.Message -match 'safetensors' }

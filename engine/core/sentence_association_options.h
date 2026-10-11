@@ -20,6 +20,10 @@ struct SentenceAssociationOptions
     bool neural_keyboard = false;        // 用快速档的神经模型重排词格整句
     bool show_next_on_duplicate = false; // 某来源首选被去重时，显示该来源下一条不同结果
 
+    // 高精度档模型不随安装包分发，由宿主按需下载后把 .safetensors 路径（UTF-8）传入；
+    // 空 = 模型缺席，neural_desktop 开着也静默不重排，与 collocation_model 的降级范式一致。
+    std::string neural_desktop_model;
+
     // 万象语法模型（octagram .gram）。宿主按模型包解析出 .gram 的路径传入，空 = 关闭；
     // 路径无效时词格静默退回无搭配打分，与其他整句来源的降级范式一致。
     // additive 在词格解码里逐边叠加字级搭配分（weight 缩放到 log10 域）；
@@ -42,8 +46,8 @@ struct SentenceAssociationOptions
     {
         return word_lattice == other.word_lattice && google == other.google && neural_desktop == other.neural_desktop &&
                neural_keyboard == other.neural_keyboard && show_next_on_duplicate == other.show_next_on_duplicate &&
-               collocation_model == other.collocation_model && collocation_weight == other.collocation_weight &&
-               collocation_rerank == other.collocation_rerank &&
+               neural_desktop_model == other.neural_desktop_model && collocation_model == other.collocation_model &&
+               collocation_weight == other.collocation_weight && collocation_rerank == other.collocation_rerank &&
                collocation_rerank_weight == other.collocation_rerank_weight;
     }
     bool operator!=(const SentenceAssociationOptions &other) const
