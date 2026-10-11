@@ -75,6 +75,7 @@ set(TEST_SOURCE_FILES
     "${CMAKE_SOURCE_DIR}/src/statistics/stats_aggregate.cpp"
     "${CMAKE_SOURCE_DIR}/src/statistics/stats_overview.cpp"
     "${CMAKE_SOURCE_DIR}/src/statistics/stats_store.cpp"
+    "${CMAKE_SOURCE_DIR}/src/config/credential_protection.cpp"
     "${CMAKE_SOURCE_DIR}/src/config/ime_config.cpp"
     "${CMAKE_SOURCE_DIR}/src/session/engine_input_session.cpp"
     "${CMAKE_SOURCE_DIR}/src/utils/common_utils.cpp"

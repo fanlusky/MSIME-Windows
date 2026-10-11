@@ -1,5 +1,6 @@
 #include "window/ui_backend_policy.h"
 #include "ime_config.h"
+#include "config/credential_protection.h"
 #include <fmt/xchar.h>
 #include <Windows.h>
 #include <algorithm>
@@ -662,6 +663,40 @@ bool IsCredentialKey(const std::string &key)
     return key.rfind("token_", 0) == 0 || key.rfind("asr_token_", 0) == 0 || key.rfind("polish_token_", 0) == 0;
 }
 
+// TOML 字面量是否是一条还没加密的真实凭证；是就返回明文。占位符和空值保持明文，模板合并靠它们识别「用户没填」。
+std::optional<std::string> UnprotectedCredential(const std::string &literal)
+{
+    try
+    {
+        const toml::table parsed = toml::parse("v = " + literal);
+        const auto value = parsed["v"].value<std::string>();
+        if (value && !VoiceInput::IsPlaceholderToken(*value) && !CredentialProtection::IsProtected(*value))
+            return value;
+    }
+    catch (const toml::parse_error &)
+    {
+    }
+    return std::nullopt;
+}
+
+// 落盘的凭证是密文，解析后就地还原成明文，后面的读取代码照旧取值。解不开（配置被拷到别的账户或机器）就当作没填，
+// 免得把密文当 token 发出去。
+void RevealStoredCredentials(toml::table &tbl)
+{
+    for (auto &&[section_name, section_node] : tbl)
+    {
+        toml::table *section = section_node.as_table();
+        if (!section)
+            continue;
+        for (auto &&[key, node] : *section)
+        {
+            toml::value<std::string> *value = node.as_string();
+            if (value && IsCredentialKey(std::string(key.str())))
+                value->get() = CredentialProtection::Unprotect(value->get()).value_or(std::string());
+        }
+    }
+}
+
 // 剥掉单行 TOML 字符串两侧的引号。凭证值从不跨行，够用了。
 std::string UnquoteTomlScalar(const std::string &value)
 {
@@ -934,6 +969,7 @@ bool LoadImeConfig()
             return false;
         const std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
         auto tbl = toml::parse(text);
+        RevealStoredCredentials(tbl);
 
         const int page_size = tbl["appearance"]["page_size"].value_or(6);
         g_candidate_page_size = page_size >= 3 && page_size <= 9 ? page_size : 6;
@@ -1404,8 +1440,20 @@ bool WriteConfiguredValues(const std::vector<ConfigValueUpdate> &updates)
 
     for (const auto &update : updates)
     {
-        if (!ReplaceTomlValuePreservingFormatting(text, update.section, update.key, update.value) &&
-            !InsertTomlValuePreservingFormatting(text, update.section, update.key, update.value))
+        // 所有凭证写入都经过这里，在此统一加密，不必让每个 setter 各自记得。
+        std::string value = update.value;
+        if (IsCredentialKey(update.key))
+        {
+            if (const auto plaintext = UnprotectedCredential(update.value))
+            {
+                const auto cipher = CredentialProtection::Protect(*plaintext);
+                if (!cipher)
+                    return false;
+                value = EscapeTomlBasicString(*cipher);
+            }
+        }
+        if (!ReplaceTomlValuePreservingFormatting(text, update.section, update.key, value) &&
+            !InsertTomlValuePreservingFormatting(text, update.section, update.key, value))
         {
             return false;
         }
@@ -1456,6 +1504,21 @@ void PersistSeededVoiceInputTokenSlots()
             WriteConfiguredValue("voice_input", key, EscapeTomlBasicString(voice.polish_tokens[id]));
         g_persist_polish_token_slot = false;
     }
+}
+
+// 旧版本写下的、或用户手工填进 config.toml 的明文凭证，启动时就地换成密文，不用重新填。
+void ProtectPlaintextCredentials()
+{
+    std::vector<ConfigValueUpdate> updates;
+    for (const auto &[id, literal] : ParseTomlAssignments(ReadFileText(g_config_path)))
+    {
+        const size_t separator = id.find('\x01');
+        const std::string key = id.substr(separator + 1);
+        if (IsCredentialKey(key) && UnprotectedCredential(literal))
+            updates.push_back({id.substr(0, separator), key, literal});
+    }
+    if (!updates.empty())
+        WriteConfiguredValues(updates);
 }
 
 void MigrateLegacyVoiceInputConfig()
@@ -1657,6 +1720,7 @@ void InitImeConfig()
         }
         PublishVoiceInput(std::move(voice));
         PersistSeededVoiceInputTokenSlots();
+        ProtectPlaintextCredentials();
 #ifdef FANY_DEBUG
         (void)0;
 #endif
