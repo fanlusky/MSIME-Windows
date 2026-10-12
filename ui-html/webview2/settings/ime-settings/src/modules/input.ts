@@ -200,6 +200,11 @@ function translationTestConfig(): Record<string, string> {
   return { secretId: inputValue('tencentTmtSecretId'), secretKey: inputValue('tencentTmtSecretKey') };
 }
 
+// AI 服务不随请求带凭据，过时判断改看 AI 辅助页的当前配置。
+function translationTestSnapshot(): Record<string, string> {
+  return activeTranslationProvider() === 'ai' ? { ...getAiAssistantState() } : translationTestConfig();
+}
+
 function syncCandidateTranslationWarning(): void {
   const warning = document.getElementById('candidateTranslationApiWarning');
   if (!warning) return;
@@ -454,7 +459,8 @@ export function setupInput(): void {
     'candidateTranslationTestButton',
     'candidateTranslationTestStatus',
     () => `translation.${activeTranslationProvider()}`,
-    translationTestConfig
+    translationTestConfig,
+    translationTestSnapshot
   );
   setupToggleButton('cloudCandidatesToggleBtn', (active) => {
     updateConfig('general.cloud_candidates', active);

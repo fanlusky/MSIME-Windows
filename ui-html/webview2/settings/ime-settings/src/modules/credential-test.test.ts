@@ -22,7 +22,10 @@ beforeEach(() => {
   vi.stubGlobal('document', {
     getElementById: (id: string) => id === 'testButton' ? button : status
   });
+  vi.useFakeTimers();
   vi.stubGlobal('window', {
+    setTimeout: (handler: () => void, ms: number) => setTimeout(handler, ms),
+    clearTimeout: (id: number) => clearTimeout(id),
     chrome: { webview: {
       postMessage,
       addEventListener: (_type: string, listener: (event: Event & { data?: unknown }) => void) => {
@@ -37,7 +40,16 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+function reply(requestId: string, ok: boolean, message: string): void {
+  hostListener?.({ data: {
+    type: 'apiCredentialTestResult', requestId, ok, message
+  } } as Event & { data?: unknown });
+}
 
 it('posts current field values and renders the matching result', async () => {
   const { setupCredentialTest } = await import('./credential-test');
@@ -55,6 +67,7 @@ it('posts current field values and renders the matching result', async () => {
     type: 'apiCredentialTest',
     data: { service: 'ai.assistant', config: { token: 'current-token', model: 'current-model' } }
   });
+  expect(Object.keys(request.data).sort()).toEqual(['config', 'requestId', 'service']);
 
   hostListener?.({ data: {
     type: 'apiCredentialTestResult', requestId: request.data.requestId,
@@ -119,10 +132,48 @@ it('accepts unchanged values regardless of config key order', async () => {
   button.dispatchEvent(new Event('click'));
   const request = JSON.parse(postMessage.mock.calls[0]![0]);
   config = { model: 'test-model', token: 'test-token' };
-  hostListener?.({ data: {
-    type: 'apiCredentialTestResult', requestId: request.data.requestId,
-    ok: true, message: '连接成功'
-  } } as Event & { data?: unknown });
+  reply(request.data.requestId, true, '连接成功');
   expect(status.textContent).toBe('连接成功');
   expect(status.dataset.kind).toBe('success');
+});
+
+it('uses the separate snapshot when the request carries no credentials', async () => {
+  const { setupCredentialTest } = await import('./credential-test');
+  const aiState = { provider: 'deepseek', token: 'old-token' };
+  setupCredentialTest('testButton', 'testStatus', () => 'translation.ai', () => ({}), () => ({ ...aiState }));
+  button.dispatchEvent(new Event('click'));
+  const request = JSON.parse(postMessage.mock.calls[0]![0]);
+  expect(request.data.config).toEqual({});
+  aiState.token = 'new-token';
+  reply(request.data.requestId, true, '连接成功');
+  expect(status.textContent).toBe('配置已变更，请重新测试');
+  expect(status.dataset.kind).toBeUndefined();
+});
+
+it('releases the button when the Server never replies', async () => {
+  const { setupCredentialTest, CREDENTIAL_TEST_TIMEOUT_MS } = await import('./credential-test');
+  setupCredentialTest('testButton', 'testStatus', () => 'ai.assistant', () => ({ token: 'test-token' }));
+  button.dispatchEvent(new Event('click'));
+  const request = JSON.parse(postMessage.mock.calls[0]![0]);
+  vi.advanceTimersByTime(CREDENTIAL_TEST_TIMEOUT_MS);
+  expect(button.disabled).toBe(false);
+  expect(button.textContent).toBe('测试配置');
+  expect(status.textContent).toBe('测试超时，请重试');
+  expect(status.dataset.kind).toBe('error');
+
+  // 超时后迟到的旧回复不能覆盖状态，也不能挡住新的测试
+  reply(request.data.requestId, true, '连接成功');
+  expect(status.textContent).toBe('测试超时，请重试');
+  button.dispatchEvent(new Event('click'));
+  expect(postMessage).toHaveBeenCalledTimes(2);
+});
+
+it('does not time out after a reply arrives', async () => {
+  const { setupCredentialTest, CREDENTIAL_TEST_TIMEOUT_MS } = await import('./credential-test');
+  setupCredentialTest('testButton', 'testStatus', () => 'ai.assistant', () => ({ token: 'test-token' }));
+  button.dispatchEvent(new Event('click'));
+  const request = JSON.parse(postMessage.mock.calls[0]![0]);
+  reply(request.data.requestId, true, '连接成功');
+  vi.advanceTimersByTime(CREDENTIAL_TEST_TIMEOUT_MS);
+  expect(status.textContent).toBe('连接成功');
 });
