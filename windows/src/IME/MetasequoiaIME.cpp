@@ -773,7 +773,8 @@ STDAPI CMetasequoiaIME::ActivateEx(ITfThreadMgr *pThreadMgr, TfClientId tfClient
 
     _tfClientId = tfClientId;
     _dwActivateFlags = dwFlags;
-    Global::HostUiLessMode = _IsUiLessMode() ? true : false;
+    Global::current_process_name = GetCurrentProcessName();
+    Global::HostUiLessMode = _IsUiLessMode() && !Global::IsUiLessIgnoredProcess(Global::current_process_name);
     Global::CandidateUiLessMode = false;
     // Match Weasel's activation-time recovery: switching to this TIP is an
     // explicit user request, so revive a missing Server immediately. Merely
@@ -802,8 +803,6 @@ STDAPI CMetasequoiaIME::ActivateEx(ITfThreadMgr *pThreadMgr, TfClientId tfClient
     // InitIpc();
     // TODO: 去掉共享内存，只保留命名管道
     // InitNamedpipe();
-
-    Global::current_process_name = GetCurrentProcessName();
 
     if (!_InitThreadMgrEventSink())
     {

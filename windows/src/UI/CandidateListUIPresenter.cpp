@@ -1267,7 +1267,11 @@ HRESULT CCandidateListUIPresenter::BeginUIElement()
     // Hosts that activate with TF_TMF_UIELEMENTENABLEDONLY (typical for games)
     // must never get an IME-owned candidate HWND, even if BeginUIElement left
     // pbShow TRUE.
-    if (_pTextService->_IsUiLessMode())
+    if (Global::IsUiLessIgnoredProcess(Global::current_process_name))
+    {
+        _isShowMode = TRUE;
+    }
+    else if (_pTextService->_IsUiLessMode())
     {
         _isShowMode = FALSE;
     }
