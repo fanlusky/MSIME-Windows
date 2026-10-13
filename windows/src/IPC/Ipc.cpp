@@ -1120,6 +1120,43 @@ void DebugTsfIssue47(const wchar_t *stage, uint64_t requestId, UINT code, WCHAR 
     QueueTsfDiagnosticLog(message);
 }
 
+namespace
+{
+std::wstring DescribeWindowForDiagnostic(HWND hwnd)
+{
+    if (!hwnd)
+    {
+        return L"null";
+    }
+    WCHAR className[128] = {};
+    GetClassNameW(hwnd, className, ARRAYSIZE(className));
+    RECT rect{};
+    GetWindowRect(hwnd, &rect);
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    return fmt::format(L"{:#x}[{} pid={} visible={} rect=({},{},{},{})]", reinterpret_cast<uintptr_t>(hwnd), className,
+                       pid, IsWindowVisible(hwnd) ? 1 : 0, rect.left, rect.top, rect.right, rect.bottom);
+}
+} // namespace
+
+void QueueTsfHostWindowDiagnostic(_In_z_ const wchar_t *event, const std::wstring &detail)
+{
+    if (!Global::TsfDiagnosticLogEnabled.load(std::memory_order_relaxed))
+    {
+        return;
+    }
+    GUITHREADINFO gui{};
+    gui.cbSize = sizeof(gui);
+    const BOOL haveGui = GetGUIThreadInfo(GetCurrentThreadId(), &gui);
+    QueueTsfDiagnosticLog(fmt::format(
+        L"[host-window] {} {} process={} fg={} focus={} active={} caret_hwnd={} caret=({},{},{},{}) gui_flags={:#x}",
+        event, detail, Global::current_process_name, DescribeWindowForDiagnostic(GetForegroundWindow()),
+        DescribeWindowForDiagnostic(haveGui ? gui.hwndFocus : nullptr),
+        DescribeWindowForDiagnostic(haveGui ? gui.hwndActive : nullptr),
+        DescribeWindowForDiagnostic(haveGui ? gui.hwndCaret : nullptr), gui.rcCaret.left, gui.rcCaret.top,
+        gui.rcCaret.right, gui.rcCaret.bottom, gui.flags));
+}
+
 void QueueTsfDiagnosticLog(const std::wstring &line)
 {
     if (!Global::TsfDiagnosticLogEnabled.load(std::memory_order_relaxed))

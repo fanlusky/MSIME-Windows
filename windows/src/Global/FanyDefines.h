@@ -16,9 +16,10 @@ inline LONG INVALID_Y = -100000;
 // 往左偏一格。微信输入法同样把 Excel 排除在这个功能之外。
 inline const wchar_t *const PAIRED_PUNCTUATION_EXCLUDED_APPS[] = {L"EXCEL.EXE"};
 
-// 起源 2 引擎的 Valve 游戏以 UI-less 激活 TSF，却只替 imemanager.dll 白名单（按 profile 名称全等比对）
-// 里的输入法画候选；不在名单里的，候选落到系统默认 IME 窗口（左上角只显示编码的小框），等于没有候选。
-// 这些宿主不理会 UI-less 声明，照常弹我们自己的候选窗。
+// 起源 2 引擎的 Valve 游戏：BeginUIElement 回 pbShow=FALSE 声称自己画候选，但 imemanager.dll 只替白名单
+// （按 profile 名称全等比对）里的输入法画；不在名单里的，组合落到系统默认组合窗（左上角只显示编码的小框），
+// 等于没有候选。这些宿主不理会该声明，照常弹我们自己的候选窗——除非设置页开了游戏兼容名称
+// （Global::ReadGameCompatProfileName），那时游戏会自己画，见 MetasequoiaIME::ActivateEx。
 inline const wchar_t *const UILESS_IGNORED_APPS[] = {L"cs2.exe", L"dota2.exe"};
 
 template <size_t N> inline bool IsProcessInList(const std::wstring &processName, const wchar_t *const (&apps)[N])

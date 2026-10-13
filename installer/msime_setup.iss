@@ -1737,6 +1737,9 @@ begin
   if CurUninstallStep = usUninstall then
   begin
     ClearOurInputMethodOverride;
+    { 设置页「游戏兼容」记下的登记名称。升级时要留着（TSF DLL 注册时读它），卸载时不能留：
+      否则日后重装会悄悄沿用别名。}
+    RegDeleteValue(HKLM, 'Software\Metasequoia\MetasequoiaIME', 'GameCompatProfileName');
     DeleteWatchdogLogonTask;
     RegDeleteValue(
       HKLM,

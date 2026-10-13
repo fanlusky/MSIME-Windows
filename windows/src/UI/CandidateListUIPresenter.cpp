@@ -1258,16 +1258,18 @@ HRESULT CCandidateListUIPresenter::BeginUIElement()
 
     ITfUIElementMgr *pUIElementMgr = nullptr;
     hr = pThreadMgr->QueryInterface(IID_ITfUIElementMgr, (void **)&pUIElementMgr);
+    HRESULT beginHr = E_NOINTERFACE;
     if (hr == S_OK)
     {
-        pUIElementMgr->BeginUIElement(this, &_isShowMode, &_uiElementId);
+        beginHr = pUIElementMgr->BeginUIElement(this, &_isShowMode, &_uiElementId);
         pUIElementMgr->Release();
     }
+    const BOOL hostShow = _isShowMode;
 
     // Hosts that activate with TF_TMF_UIELEMENTENABLEDONLY (typical for games)
     // must never get an IME-owned candidate HWND, even if BeginUIElement left
     // pbShow TRUE.
-    if (Global::IsUiLessIgnoredProcess(Global::current_process_name))
+    if (Global::IgnoreHostUiLess)
     {
         _isShowMode = TRUE;
     }
@@ -1276,6 +1278,12 @@ HRESULT CCandidateListUIPresenter::BeginUIElement()
         _isShowMode = FALSE;
     }
     Global::CandidateUiLessMode = (_isShowMode == FALSE);
+    QueueTsfHostWindowDiagnostic(
+        L"begin-ui-element",
+        fmt::format(L"hr={:#x} host_pbShow={} element_id={} activate_flags={:#x} uielement_enabled_only={} "
+                    L"uiless_ignored={} final_show={} host_uiless={}",
+                    static_cast<unsigned>(beginHr), hostShow, _uiElementId, _pTextService->_dwActivateFlags,
+                    _pTextService->_IsUiLessMode(), Global::IgnoreHostUiLess, _isShowMode, Global::HostUiLessMode));
 
 Exit:
     return hr;
@@ -1304,6 +1312,7 @@ HRESULT CCandidateListUIPresenter::EndUIElement()
     Global::CandidateUiLessMode = false;
     // The next candidate session may talk to a restarted Server, whose generations start over.
     _lastUiLessGeneration = 0;
+    QueueTsfHostWindowDiagnostic(L"end-ui-element", fmt::format(L"hr={:#x}", static_cast<unsigned>(hr)));
 
 Exit:
     return hr;

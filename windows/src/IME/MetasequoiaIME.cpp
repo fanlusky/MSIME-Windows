@@ -19,6 +19,7 @@
 #include "Ipc.h"
 #include "CommonUtils.h"
 #include "Global/FanyDefines.h"
+#include "Global/GameCompat.h"
 #include "Utils/FanyUtils.h"
 #include "../Utils/PerfTimer.h"
 #include "MetasequoiaIMEInternal.h"
@@ -774,7 +775,11 @@ STDAPI CMetasequoiaIME::ActivateEx(ITfThreadMgr *pThreadMgr, TfClientId tfClient
     _tfClientId = tfClientId;
     _dwActivateFlags = dwFlags;
     Global::current_process_name = GetCurrentProcessName();
-    Global::HostUiLessMode = _IsUiLessMode() && !Global::IsUiLessIgnoredProcess(Global::current_process_name);
+    // With the Valve compatibility name registered the game does draw the candidates; showing ours as well would
+    // give two lists.
+    Global::IgnoreHostUiLess =
+        Global::IsUiLessIgnoredProcess(Global::current_process_name) && Global::ReadGameCompatProfileName().empty();
+    Global::HostUiLessMode = _IsUiLessMode() && !Global::IgnoreHostUiLess;
     Global::CandidateUiLessMode = false;
     // Match Weasel's activation-time recovery: switching to this TIP is an
     // explicit user request, so revive a missing Server immediately. Merely

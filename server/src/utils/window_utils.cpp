@@ -399,8 +399,27 @@ bool IsForegroundD3DExclusiveFullscreen()
     {
         return lastAnswer;
     }
+    // While a game drops out of exclusive mode or re-enters it, the shell reports QUNS_BUSY for a second or so with
+    // the same window in front; a frame shown then is what makes the mode switch back and forth. Treat that gap as
+    // still exclusive for the window that was last seen exclusive.
+    constexpr ULONGLONG kTransitionGraceMs = 5000;
+    static HWND lastExclusiveWindow = nullptr;
+    static ULONGLONG lastExclusiveTick = 0;
+
     QUERY_USER_NOTIFICATION_STATE state{};
-    lastAnswer = SUCCEEDED(SHQueryUserNotificationState(&state)) && state == QUNS_RUNNING_D3D_FULL_SCREEN;
+    const bool queried = SUCCEEDED(SHQueryUserNotificationState(&state));
+    const HWND foreground = GetForegroundWindow();
+    if (queried && state == QUNS_RUNNING_D3D_FULL_SCREEN)
+    {
+        lastExclusiveWindow = foreground;
+        lastExclusiveTick = now;
+        lastAnswer = true;
+    }
+    else
+    {
+        lastAnswer = queried && state == QUNS_BUSY && foreground != nullptr && foreground == lastExclusiveWindow &&
+                     now - lastExclusiveTick < kTransitionGraceMs;
+    }
     lastProbeTick = now;
     return lastAnswer;
 }
