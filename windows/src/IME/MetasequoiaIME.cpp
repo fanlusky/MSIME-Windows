@@ -347,7 +347,6 @@ CMetasequoiaIME::~CMetasequoiaIME()
         _pCandidateListUIPresenter = nullptr;
     }
     _DrainPendingCandidatePresenterCleanup();
-    DllRelease();
 
     /* 处理线程的清理 */
     if (_pIpcThread)
@@ -376,6 +375,8 @@ CMetasequoiaIME::~CMetasequoiaIME()
     }
     // The owner-aware unbind above already cleared the TLS copies.
     _CloseIpcWakeEvents();
+    // Last: once the count drops, another thread may unload this DLL while code above is still running.
+    DllRelease();
 }
 
 uint64_t CMetasequoiaIME::_CaptureFocusSessionToken() const

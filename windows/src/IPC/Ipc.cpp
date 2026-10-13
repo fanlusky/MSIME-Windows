@@ -72,12 +72,18 @@ void ScheduleDiagnosticFlushLocked()
     {
         return;
     }
+    // A loader reference, not DllAddRef: the host can unload this TIP without asking DllCanUnloadNow, and a callback
+    // sleeping in here would then return into whatever was mapped at this address next (CS2 crashed in SDL3 that way).
+    HMODULE self = PinThisModuleForCallback();
+    if (!self)
+    {
+        return;
+    }
     diagnosticFlushScheduled = true;
-    DllAddRef();
-    if (!TrySubmitThreadpoolCallback(FlushTsfDiagnosticLogs, nullptr, nullptr))
+    if (!TrySubmitThreadpoolCallback(FlushTsfDiagnosticLogs, self, nullptr))
     {
         diagnosticFlushScheduled = false;
-        DllRelease();
+        FreeLibrary(self);
     }
 }
 
@@ -115,8 +121,10 @@ bool SendDiagnosticBatch(const FanyImeTsfDiagnosticBatchHeader &header, const st
     return writeResult && bytesWritten == frame.size();
 }
 
-void CALLBACK FlushTsfDiagnosticLogs(PTP_CALLBACK_INSTANCE, PVOID)
+void CALLBACK FlushTsfDiagnosticLogs(PTP_CALLBACK_INSTANCE instance, PVOID context)
 {
+    // Released by the thread pool after this function has fully returned.
+    FreeLibraryWhenCallbackReturns(instance, static_cast<HMODULE>(context));
     Sleep(DiagnosticFlushDelayMs);
 
     FanyImeTsfDiagnosticBatchHeader header;
@@ -163,7 +171,6 @@ void CALLBACK FlushTsfDiagnosticLogs(PTP_CALLBACK_INSTANCE, PVOID)
     }
     if (loggingDisabled)
     {
-        DllRelease();
         return;
     }
 
@@ -187,7 +194,6 @@ void CALLBACK FlushTsfDiagnosticLogs(PTP_CALLBACK_INSTANCE, PVOID)
             ScheduleDiagnosticFlushLocked();
         }
     }
-    DllRelease();
 }
 // These tokens fence messages that can outlive a CMetasequoiaIME instance.
 // Per-instance counters can collide after HWND/HANDLE reuse during a rapid
