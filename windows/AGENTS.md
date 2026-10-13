@@ -123,6 +123,9 @@
 - 语言配置（profile）图标：安装器把 `image/msime.ico` 装成 DLL 上一级目录的 `MetasequoiaImeTip.ico`，
   `RegisterProfiles` 发现它就注册这个固定路径，否则退回 DLL 内嵌的 `IDIS_METASEQUOIAIME`。不要改回总是
   注册 DLL 路径：版本目录每次升级都变，任务栏会在换目录时取图标失败，改显示「简体」直到资源管理器重启。
+- 安装器把 DLL 装到 `System32\IME\MetasequoiaIME\msime_v*\`（x86 在 `SysWOW64` 下同名目录），不要挪回
+  Program Files：CS2 等开启 Trusted Mode 的游戏只放行「位于系统目录且有代码签名」的第三方 in-proc DLL，
+  否则输入法在游戏里根本切不出来。用 `linstall.ps1` 从构建目录注册的开发版不满足这一条，游戏内不可用。
 - 生产日志不得记录用户原始按键、预编辑、候选词或提交文本。性能与 IPC 诊断记录耗时、请求 ID、
   token、状态和错误码即可；调试日志也应尽量避免持久化用户输入。
 
