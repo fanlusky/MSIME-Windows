@@ -824,6 +824,19 @@ LRESULT CALLBACK CMetasequoiaIME_WindowProc(HWND hWnd, UINT message, WPARAM wPar
             }
             break;
         }
+        if (receivedData->msg_type == Global::DataFromServerMsgType::UiLessComposition)
+        {
+            // For a host that draws the candidates, the reply to a paging or highlight key is the new page: without
+            // it the host keeps showing page one while Space commits from the page the Server turned to.
+            CCandidateListUIPresenter *presenter = pIME->_pCandidateListUIPresenter;
+            if (Global::IsUiLessMode() && presenter && !presenter->_IsAsyncCleanupPending() &&
+                presenter->_ApplyUiLessPayload(FanyImeUiLessPage::Parse(receivedData->candidate_string)))
+            {
+                presenter->_NotifyUiLessHost();
+            }
+            pIME->_CompleteDeferredKeyReplay(request.deferredReplayToken);
+            break;
+        }
         if (navigationOnly)
         {
             // The Server never commits for these keys, so the reply (or the

@@ -831,14 +831,11 @@ void CCandidateListUIPresenter::_SetText(_In_ CMetasequoiaImeArray<CCandidateLis
     {
         // Prefer the synchronous UiLessComposition pipe payload (already applied
         // via _ApplyUiLessCandidatePage). Fall back to shared memory if needed.
+        // Never to pCandidateList: that is the local engine's placeholder, not the Server's candidates, and a host
+        // draws it as one garbled entry.
         if (_candidateState.GetCount() == 0)
         {
             _LoadUiLessCandidatesFromSharedMemory();
-        }
-        if (_candidateState.GetCount() == 0 && pCandidateList != nullptr && pCandidateList->Count() != 0)
-        {
-            AddCandidateToCandidateListUI(pCandidateList, isAddFindKeyCode);
-            SetPageIndexWithScrollInfo(pCandidateList);
         }
         _NotifyUiLessHost();
         return;
@@ -907,6 +904,8 @@ void CCandidateListUIPresenter::SetPageIndexWithScrollInfo(       //
 void CCandidateListUIPresenter::_ClearList()
 {
     _candidateState.Clear();
+    // An emptied list must reload even when the Server's page text is unchanged.
+    _lastUiLessCandidatePage.clear();
 }
 
 //+---------------------------------------------------------------------------
