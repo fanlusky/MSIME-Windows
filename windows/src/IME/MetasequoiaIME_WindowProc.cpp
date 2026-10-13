@@ -620,6 +620,25 @@ LRESULT CALLBACK CMetasequoiaIME_WindowProc(HWND hWnd, UINT message, WPARAM wPar
     case WM_CancelVoiceComposition:
         pIME->_DispatchUnsolicitedVoiceText(wParam, FUNCTION_CANCEL_VOICE_COMPOSITION);
         break;
+    case WM_ApplyUiLessCandidates: {
+        CMetasequoiaIME::WorkerCandidateCommit request;
+        if (!pIME->_TakeServerCandidateCommit(static_cast<UINT>(wParam), request))
+        {
+            break;
+        }
+        CCandidateListUIPresenter *presenter = pIME->_pCandidateListUIPresenter;
+        if (!pIME->_IsFocusSessionCurrent(request.focusToken) ||
+            !pIME->_IsCompositionEpochCurrent(request.compositionEpoch) || !Global::IsUiLessMode() || !presenter ||
+            presenter->_IsAsyncCleanupPending())
+        {
+            break;
+        }
+        if (presenter->_ApplyUiLessPayload(FanyImeUiLessPage::Parse(request.text)))
+        {
+            presenter->_NotifyUiLessHost();
+        }
+        break;
+    }
     case WM_AsyncFinalizeCandidate: {
         CMetasequoiaIME::AsyncKeyRequest request;
         if (!pIME->_TakeAsyncKeyRequest(WM_AsyncFinalizeCandidate, static_cast<UINT>(wParam), request))

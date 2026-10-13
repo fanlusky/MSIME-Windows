@@ -1302,6 +1302,8 @@ HRESULT CCandidateListUIPresenter::EndUIElement()
     }
 
     Global::CandidateUiLessMode = false;
+    // The next candidate session may talk to a restarted Server, whose generations start over.
+    _lastUiLessGeneration = 0;
 
 Exit:
     return hr;
@@ -1371,7 +1373,6 @@ void CCandidateListUIPresenter::_RecordSentCaretPoint(bool sent)
 
 void CCandidateListUIPresenter::_ReplaceCandidateListFromPage(_In_ const std::wstring &page)
 {
-    const UINT previousSelection = _candidateState.GetSelection();
     _candidateState.Clear();
     _lastUiLessCandidatePage = page;
 
@@ -1406,7 +1407,9 @@ void CCandidateListUIPresenter::_ReplaceCandidateListFromPage(_In_ const std::ws
         pageIndexSource.Append();
     }
     SetPageIndexWithScrollInfo(&pageIndexSource);
-    _candidateState.SetSelectionSilently(previousSelection < count ? static_cast<int>(previousSelection) : 0);
+    // A different page means the Server rebuilt it, and every rebuild highlights the first item. Keeping the old
+    // index would show the host one highlight while Space commits another.
+    _candidateState.SetSelectionSilently(0);
 }
 
 void CCandidateListUIPresenter::_ApplyUiLessCandidatePage(_In_ const std::wstring &page, int selectedIndex)
@@ -1432,29 +1435,24 @@ bool CCandidateListUIPresenter::_ConsumeUiLessCompositionReply(uint64_t requestI
         return false;
     }
 
-    const std::wstring payload(receivedData->candidate_string);
-    std::wstring page;
-    int selection = 0;
-    const size_t firstTab = payload.find(L'\t');
-    if (firstTab == std::wstring::npos)
+    if (_ApplyUiLessPayload(FanyImeUiLessPage::Parse(receivedData->candidate_string)))
     {
-        page = payload;
+        _NotifyUiLessHost();
     }
-    else
+    return true;
+}
+
+bool CCandidateListUIPresenter::_ApplyUiLessPayload(_In_ const FanyImeUiLessPage::Payload &payload)
+{
+    if (!FanyImeUiLessPage::IsCurrent(payload.generation, _lastUiLessGeneration))
     {
-        const size_t secondTab = payload.find(L'\t', firstTab + 1);
-        if (secondTab == std::wstring::npos)
-        {
-            page = payload.substr(firstTab + 1);
-        }
-        else
-        {
-            page = payload.substr(firstTab + 1, secondTab - firstTab - 1);
-            selection = _wtoi(payload.c_str() + secondTab + 1);
-        }
+        return false;
     }
-    _ApplyUiLessCandidatePage(page, selection);
-    _NotifyUiLessHost();
+    if (payload.generation != 0)
+    {
+        _lastUiLessGeneration = payload.generation;
+    }
+    _ApplyUiLessCandidatePage(payload.page, payload.selection);
     return true;
 }
 
