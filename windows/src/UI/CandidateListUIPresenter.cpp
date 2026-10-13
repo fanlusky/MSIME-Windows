@@ -1312,6 +1312,7 @@ HRESULT CCandidateListUIPresenter::EndUIElement()
     Global::CandidateUiLessMode = false;
     // The next candidate session may talk to a restarted Server, whose generations start over.
     _lastUiLessGeneration = 0;
+    _serverUiLessPageSeen = false;
     QueueTsfHostWindowDiagnostic(L"end-ui-element", fmt::format(L"hr={:#x}", static_cast<unsigned>(hr)));
 
 Exit:
@@ -1461,6 +1462,7 @@ bool CCandidateListUIPresenter::_ApplyUiLessPayload(_In_ const FanyImeUiLessPage
     {
         _lastUiLessGeneration = payload.generation;
     }
+    _serverUiLessPageSeen = _serverUiLessPageSeen || payload.hasPage;
     _ApplyUiLessCandidatePage(payload.page, payload.selection);
     return true;
 }
@@ -1475,7 +1477,7 @@ void CCandidateListUIPresenter::_NotifyUiLessHost()
 void CCandidateListUIPresenter::_LoadUiLessCandidatesFromSharedMemory()
 {
     std::wstring page;
-    if (!TryReadCandidatePageFromSharedMemory(&page) || page == _lastUiLessCandidatePage)
+    if (!_serverUiLessPageSeen || !TryReadCandidatePageFromSharedMemory(&page) || page == _lastUiLessCandidatePage)
     {
         return;
     }

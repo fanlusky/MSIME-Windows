@@ -165,4 +165,7 @@ class CCandidateListUIPresenter : public CTfTextLayoutSink,
     // Generation of the Server page shown to a UI-less host. The worker push and the key reply arrive on
     // different pipes, so a page may land after a newer one.
     std::uint64_t _lastUiLessGeneration = 0;
+    // Shared memory only holds a plain word list once the Server treats this session as UI-less; before that it is
+    // the Server's own HTML page (helpcodes, translation spans), which a host would show as garbage.
+    bool _serverUiLessPageSeen = false;
 };

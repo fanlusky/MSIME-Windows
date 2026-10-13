@@ -778,9 +778,12 @@ STDAPI CMetasequoiaIME::ActivateEx(ITfThreadMgr *pThreadMgr, TfClientId tfClient
     Global::current_process_name = GetCurrentProcessName();
     // With the Valve compatibility name registered the game does draw the candidates; showing ours as well would
     // give two lists.
-    Global::IgnoreHostUiLess =
-        Global::IsUiLessIgnoredProcess(Global::current_process_name) && Global::ReadGameCompatProfileName().empty();
-    Global::HostUiLessMode = _IsUiLessMode() && !Global::IgnoreHostUiLess;
+    const bool valveGame = Global::IsUiLessIgnoredProcess(Global::current_process_name);
+    const bool gameCompatName = valveGame && !Global::ReadGameCompatProfileName().empty();
+    Global::IgnoreHostUiLess = valveGame && !gameCompatName;
+    // These games only say so in BeginUIElement, which runs after the first key of a composition has already gone to
+    // the Server without the UI-less flag; that key would then get the Server's HTML candidate page. Known upfront.
+    Global::HostUiLessMode = (_IsUiLessMode() && !Global::IgnoreHostUiLess) || gameCompatName;
     Global::CandidateUiLessMode = false;
     // Match Weasel's activation-time recovery: switching to this TIP is an
     // explicit user request, so revive a missing Server immediately. Merely

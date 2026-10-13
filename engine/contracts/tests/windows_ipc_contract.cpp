@@ -222,6 +222,7 @@ int main()
         const auto full = FanyImeUiLessPage::Parse(FanyImeUiLessPage::Format(L"ni hao", L"你好,拟好", 1, 42));
         CHECK(full.preedit == L"ni hao" && full.page == L"你好,拟好" && full.selection == 1 && full.generation == 42);
         // A Server predating the generation field.
+        CHECK(full.hasPage && !FanyImeUiLessPage::Parse(L"ni hao").hasPage);
         const auto legacy = FanyImeUiLessPage::Parse(L"\t你好,拟好\t1");
         CHECK(legacy.page == L"你好,拟好" && legacy.selection == 1 && legacy.generation == 0);
         // A DLL predating the field reads selection with _wtoi, which must stop at the third tab.

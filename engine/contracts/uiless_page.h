@@ -23,6 +23,8 @@ struct Payload
     std::wstring page;
     int selection = 0;
     std::uint64_t generation = 0;
+    // The payload carried a page and selection, i.e. it was built for a UI-less client.
+    bool hasPage = false;
 };
 
 inline std::wstring Format(const std::wstring &preedit, const std::wstring &page, int selection,
@@ -48,6 +50,7 @@ inline Payload Parse(const std::wstring &payload)
         return result;
     }
     result.page = payload.substr(firstTab + 1, secondTab - firstTab - 1);
+    result.hasPage = true;
     result.selection = static_cast<int>(std::wcstol(payload.c_str() + secondTab + 1, nullptr, 10));
     const std::size_t thirdTab = payload.find(L'\t', secondTab + 1);
     if (thirdTab != std::wstring::npos)
