@@ -521,6 +521,7 @@ FanyImeIpc::EnglishPlacement CurrentEnglishPlacement(const std::vector<WordItem>
     FanyImeIpc::EnglishPlacement placement;
     // 每页候选数没有英文时也要给：混输 emoji 的首个靠它放到首页末位。
     placement.page_size = static_cast<size_t>(EnglishSlotMaximum()) + 1;
+    placement.first_page_count = static_cast<size_t>(GetConfiguredEnglishMixedInputFirstPageCount());
     // 没有英文候选就用不上，省掉一次用户库查询。
     if (!g_inputSession || std::none_of(items.begin(), items.end(), [](const WordItem &item) {
             return item.source == CandidateSource::EnglishDictionary;

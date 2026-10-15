@@ -107,12 +107,14 @@ inline size_t IndexAfterLocalCandidates(const std::vector<WordItem> &items, size
 //                  候选；没有精确匹配时由最前的补全词（zai → zaire）占槽位，默认退到首页末位。
 //   input          小写的当前输入，用来认精确匹配。
 //   page_size      每页候选数，给补全词的默认位置、槽位上限和首个 emoji 的位置用；0 表示不限。
+//   first_page_count 首页英文组最多显示几个词；默认仍为一个，不挤掉中文首选或首页 emoji。
 struct EnglishPlacement
 {
     std::optional<size_t> slot;
     bool require_exact = false;
     std::string input;
     size_t page_size = 0;
+    size_t first_page_count = 1;
 };
 
 inline bool IsExactEnglishMatch(const WordItem &item, const EnglishPlacement &placement)
@@ -153,6 +155,7 @@ inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, size_t lo
 {
     std::vector<WordItem> local_candidates;
     std::vector<WordItem> english_candidates;
+    std::vector<WordItem> fixed_english_candidates;
     std::vector<WordItem> emoji_candidates;
     std::vector<WordItem> kaomoji_candidates;
     std::vector<WordItem> date_time_candidates;
@@ -174,7 +177,12 @@ inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, size_t lo
                 ai_candidate = std::move(item);
             break;
         case CandidateSource::EnglishDictionary:
-            english_candidates.push_back(std::move(item));
+            // 固定词不占可移动英文组的预算。否则它在第二次归一化时已经位于组里，
+            // 会挤掉上次显示的另一条补全词，异步结果回来时首页就会反复跳动。
+            if (english_placement.first_page_count > 1 && item.fixed_position > 0)
+                fixed_english_candidates.push_back(std::move(item));
+            else
+                english_candidates.push_back(std::move(item));
             break;
         case CandidateSource::Emoji:
             emoji_candidates.push_back(std::move(item));
@@ -244,9 +252,37 @@ inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, size_t lo
         first_page_emoji = std::move(emoji_candidates.front());
         emoji_candidates.erase(emoji_candidates.begin());
     }
-    const size_t english_slot_maximum = english_placement.page_size > 0
-                                            ? english_placement.page_size - (first_page_emoji ? 2 : 1)
-                                            : (std::numeric_limits<size_t>::max)();
+    // 额外英文也从已经排好序的真实词库结果取，不生成词形。保留至少一个中文槽位，
+    // 以及首页 emoji 的槽位；每页太小时回到单个英文的原有行为。未知页大小也沿用原行为。
+    const size_t page_end = english_placement.page_size - (first_page_emoji ? 1 : 0);
+    const size_t protected_prefix = english_index && !english_placement.slot ? *english_index : 1;
+    const size_t english_capacity = page_end > protected_prefix ? page_end - protected_prefix : 1;
+    const size_t requested_count =
+        english_placement.page_size > 0
+            ? (std::min)(std::clamp(english_placement.first_page_count, size_t{1}, size_t{3}), english_capacity)
+            : 1;
+    std::vector<WordItem> first_page_english;
+    if (english_index && requested_count > 1)
+    {
+        std::vector<std::string> selected_keys{items[*english_index].pinyin};
+        for (auto candidate = english_candidates.begin();
+             candidate != english_candidates.end() && selected_keys.size() < requested_count;)
+        {
+            if (std::find(selected_keys.begin(), selected_keys.end(), candidate->pinyin) != selected_keys.end())
+            {
+                ++candidate;
+                continue;
+            }
+            selected_keys.push_back(candidate->pinyin);
+            first_page_english.push_back(std::move(*candidate));
+            candidate = english_candidates.erase(candidate);
+        }
+    }
+    const size_t english_group_size = english_takes_slot ? first_page_english.size() + 1 : 0;
+    const size_t english_slot_maximum =
+        english_placement.page_size > 0
+            ? english_placement.page_size - (std::max)(size_t{1}, english_group_size) - (first_page_emoji ? 1 : 0)
+            : (std::numeric_limits<size_t>::max)();
 
     for (auto &candidate : english_candidates)
         items.push_back(std::move(candidate));
@@ -266,9 +302,21 @@ inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, size_t lo
     if (english_index && target && items[*english_index].fixed_position == 0)
     {
         target = (std::min)(*target, english_slot_maximum);
+        if (!english_placement.slot)
+            target = (std::max)(*target, protected_prefix);
         WordItem candidate = std::move(items[*english_index]);
         items.erase(items.begin() + static_cast<std::ptrdiff_t>(*english_index));
-        insert_at(*target == 0 ? IndexAfterLocalCandidates(items, 0) : *target, std::move(candidate));
+        english_index = (std::min)(*target == 0 ? IndexAfterLocalCandidates(items, 0) : *target, items.size());
+        insert_at(*english_index, std::move(candidate));
+    }
+
+    // 首个英文仍服从原有精确匹配/按输入调频，选中的其余英文紧随其后；所有手工固定位置
+    // 在最后重新应用，仍有最高优先级。重复归一化和候选扩展不会改变英文组内部的顺序。
+    if (english_index)
+    {
+        size_t next = *english_index + 1;
+        for (auto &candidate : first_page_english)
+            insert_at(next++, std::move(candidate));
     }
 
     // 英文挪完再放 emoji，英文的下标不会被它挤动；列表不满一页时它就落在末尾。用户固定了位置的英文
@@ -276,7 +324,6 @@ inline void NormalizeMixedCandidateOrder(std::vector<WordItem> &items, size_t lo
     if (first_page_emoji)
         insert_at(english_placement.page_size - 1, std::move(*first_page_emoji));
 
-    std::vector<WordItem> fixed_english_candidates;
     for (auto candidate = items.begin(); candidate != items.end();)
     {
         if (candidate->source == CandidateSource::EnglishDictionary && candidate->fixed_position > 0)
