@@ -17,6 +17,7 @@
 
 namespace
 {
+constexpr std::size_t kEnglishCandidateLimit = 5;
 // emoji 和颜文字从第二个字母起才查，单独一个首字母匹配面太大，会把候选刷满。
 constexpr std::size_t kExpressiveMinimumPrefixLength = 2;
 constexpr int kExpressiveCandidateLimit = 3;
@@ -95,7 +96,9 @@ void WorkerLoop()
         {
             const std::string prefix = EnglishPrefix(request.input);
             if (prefix.size() >= (std::max)(std::size_t{1}, request.english_min_prefix))
-                result.english = english_dictionary.query_mixed_prefix(prefix);
+                result.english = request.english_first_page_count > 1
+                                     ? english_dictionary.query_mixed_prefix(prefix)
+                                     : english_dictionary.query_prefix(prefix, kEnglishCandidateLimit);
             if (IsStale(observed_generation))
                 continue;
         }

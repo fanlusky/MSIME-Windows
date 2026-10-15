@@ -788,6 +788,7 @@ void PrepareCandidateList(uint64_t client_id, uint64_t activation_epoch)
     {
         mixed.english = GetConfiguredEnglishCandidatesEnabled();
         mixed.english_min_prefix = static_cast<size_t>(GetConfiguredEnglishMixedInputMinChars());
+        mixed.english_first_page_count = static_cast<size_t>(GetConfiguredEnglishMixedInputFirstPageCount());
         mixed.emoji = GetConfiguredEmojiMixedInputEnabled();
         mixed.kaomoji = GetConfiguredKaomojiMixedInputEnabled();
         if (GetConfiguredDateTimeCandidatesEnabled() && g_inputSession->prefix_end() == current_input.size())

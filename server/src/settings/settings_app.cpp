@@ -1099,12 +1099,7 @@ bool ApplyConfigUpdate(const json::object &data)
     if (path == "general.cn_en_mixed_input_min_chars")
         return SetConfiguredEnglishMixedInputMinChars(static_cast<int>(data.at("value").as_int64()));
     if (path == "general.cn_en_mixed_input_first_page_count")
-    {
-        const auto count = data.at("value").as_int64();
-        if (count < 1 || count > 3)
-            return false;
-        return SetConfiguredEnglishMixedInputFirstPageCount(static_cast<int>(count));
-    }
+        return SetConfiguredEnglishMixedInputFirstPageCount(static_cast<int>(data.at("value").as_int64()));
     if (path == "general.emoji_mixed_input")
         return SetConfiguredEmojiMixedInputEnabled(json::value_to<bool>(data.at("value")));
     if (path == "general.kaomoji_mixed_input")

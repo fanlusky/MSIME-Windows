@@ -146,6 +146,74 @@ TEST_CASE(MixedEnglishFirstPageCountDoesNotSplitQuickPhraseGroupsOrDisplaceTheCh
     }
 }
 
+TEST_CASE(MixedEnglishFirstPageCountIncludesFixedEnglishAndKeepsTheEmojiSlot)
+{
+    auto items = MixedEnglishItems();
+    items.back().fixed_position = 2;
+    items.emplace_back("work", "😀", 0, CandidateSource::Emoji);
+    FanyImeIpc::EnglishPlacement placement;
+    placement.page_size = 6;
+    placement.first_page_count = 3;
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    REQUIRE_EQ(EnglishOnFirstPage(items, 6), size_t{3});
+    REQUIRE_EQ(items.front().word, std::string("中文0"));
+    REQUIRE_EQ(items[1].word, std::string("workplace"));
+    REQUIRE_EQ(items[5].source, CandidateSource::Emoji);
+}
+
+TEST_CASE(MixedEnglishFixedFirstWordLeavesTheSlotToTheNextUnfixedWord)
+{
+    auto items = MixedEnglishItems();
+    items[12].fixed_position = 1; // 词库排第一的 work
+    FanyImeIpc::EnglishPlacement placement;
+    placement.page_size = 6;
+    placement.first_page_count = 2;
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    REQUIRE_EQ(items.front().word, std::string("work"));
+    REQUIRE_EQ(EnglishOnFirstPage(items, 6), size_t{2});
+    const auto slotted = FanyImeIpc::SlottedEnglishIndex(items);
+    REQUIRE(slotted.has_value());
+    REQUIRE_EQ(items[*slotted].word, std::string("works"));
+}
+
+TEST_CASE(MixedEnglishSingleCompletionStillMovesAheadOfAsyncCandidates)
+{
+    auto items = MixedEnglishItems();
+    items.emplace_back("work", "日期", 0, CandidateSource::DateTime);
+    items.emplace_back("work", "云", 0, CandidateSource::CloudSuggestion);
+    items.emplace_back("work", "AI", 0, CandidateSource::AiSuggestion);
+    items.emplace_back("work", "😀", 0, CandidateSource::Emoji);
+    FanyImeIpc::EnglishPlacement placement;
+    placement.page_size = 5;
+    placement.require_exact = true;
+    placement.input = "wor";
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    REQUIRE_EQ(items[3].word, std::string("work"));
+    REQUIRE_EQ(items[4].source, CandidateSource::Emoji);
+}
+
+TEST_CASE(MixedEnglishLearnedSlotDoesNotPushCloudOrAiOffTheFirstPage)
+{
+    auto items = MixedEnglishItems();
+    items.emplace_back("work", "云", 0, CandidateSource::CloudSuggestion);
+    items.emplace_back("work", "AI", 0, CandidateSource::AiSuggestion);
+    items.emplace_back("work", "😀", 0, CandidateSource::Emoji);
+    FanyImeIpc::EnglishPlacement placement;
+    placement.page_size = 6;
+    placement.first_page_count = 3;
+    placement.slot = 1;
+    FanyImeIpc::NormalizeMixedCandidateOrder(items, 1, placement);
+    REQUIRE_EQ(items.front().word, std::string("中文0"));
+    REQUIRE_EQ(items[1].word, std::string("work"));
+    const auto on_first_page = [&](CandidateSource source) {
+        return std::any_of(items.begin(), items.begin() + 6,
+                           [&](const WordItem &item) { return item.source == source; });
+    };
+    REQUIRE(on_first_page(CandidateSource::CloudSuggestion));
+    REQUIRE(on_first_page(CandidateSource::AiSuggestion));
+    REQUIRE_EQ(items[5].source, CandidateSource::Emoji);
+}
+
 TEST_CASE(MixedEnglishFirstPageCountUsesDifferentWordsRatherThanCaseVariants)
 {
     auto items = MixedEnglishItems();
