@@ -77,7 +77,7 @@ void AdaptSharedBase(Package &package)
     {
         return;
     }
-    // 所有使用方（含设置预览）仍按本地 CSS / D2D 的 Fluent 结构处理，不能去查不存在的共享 CSS。
+    // 所有使用方（含设置预览）仍按 Fluent 的结构处理。
     package.base = "fluent";
     if (!base->theme)
     {
@@ -235,7 +235,8 @@ bool ReadResource(const toml::table &table, const char *key, std::string &out)
     return !table.contains(key) || (ReadString(table, key, out, 256, true) && IsSafeRelativeResource(out));
 }
 
-// 皮肤颜色会被拼进 WebView2 的 CSS 声明，只放行颜色值会用到的字符，挡住 `;`、`{}` 之类能跳出声明的写法。
+// 颜色按 CSS 颜色写法解析，只放行颜色值会用到的字符，挡住 `;`、`{}` 之类的写法：同一份 skin.toml
+// 在各平台通用，这里不能比别处宽松。
 bool ReadCssColor(const toml::table &table, const char *key, std::string &out)
 {
     return ReadString(table, key, out, 80, false) && std::all_of(out.begin(), out.end(), [](unsigned char ch) {
@@ -292,7 +293,7 @@ bool ReadColors(const toml::table *table, CandidateColors &out)
     return true;
 }
 
-// 字体族会被拼进 WebView2 的 font-family（加引号）与脚本字符串，挡住引号、反斜杠、分号、花括号、尖括号和控制字符；
+// 字体族挡住引号、反斜杠、分号、花括号、尖括号和控制字符，与各平台共用的 skin.toml 规则一致；
 // 字体名可以是中文，所以非 ASCII 字节一律放行。
 bool ReadFontFamily(const toml::table &table, const char *key, std::string &out)
 {

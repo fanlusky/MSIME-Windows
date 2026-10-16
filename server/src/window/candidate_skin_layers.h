@@ -24,7 +24,7 @@ struct NineSlice
     // 源图像素：stretch_dip 给出时用它，否则用 slice_dip。
     Edges slice;
     // 屏幕上的边宽（DIP）：width_dip 给出时用它，否则取切片数值当 DIP（CSS border-image-width 缺省即 border-width，
-    // 原 WebView2 渲染把 border-width 设成切片数值）。
+    // v2 规定 border-width 等于切片数值）。
     Edges width;
     bool fill = true;
 };

@@ -189,7 +189,7 @@ TEST_CASE(candidate_skin_catalog_rejects_invalid_toolbar_tables)
     REQUIRE(LoadFails(L"tb-not-table", window + "[[toolbar]]\n"));
     REQUIRE(LoadFails(L"tb-theme-not-table", window + "[toolbar]\ndark = \"pink\"\n"));
     REQUIRE(LoadFails(L"tb-color-type", window + "[toolbar.dark]\nhandle = 7\n"));
-    // Toolbar colours are pasted into the WebView2 page's CSS, so anything that could end the declaration is refused.
+    // Toolbar colours use the same CSS colour rules, so anything that could end a declaration is refused.
     REQUIRE(LoadFails(L"tb-color-inject", window + "[toolbar.light]\nicon = \"red; } body { display: none\"\n"));
     REQUIRE(LoadFails(L"tb-radius", window + "[toolbar]\ncorner_radius_dip = 40\n"));
     REQUIRE(LoadFails(L"tb-radius-type", window + "[toolbar]\ncorner_radius_dip = \"8px\"\n"));

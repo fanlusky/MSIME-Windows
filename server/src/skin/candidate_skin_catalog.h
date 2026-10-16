@@ -47,7 +47,7 @@ struct CandidateColors
     std::string menuHover;
 };
 
-// 悬浮工具栏的配色覆盖，D2D 与 WebView2 两个渲染器都读这一份。留空的项沿用基础皮肤。
+// 悬浮工具栏的配色覆盖。留空的项沿用基础皮肤。
 struct ToolbarColors
 {
     std::string background;
@@ -174,7 +174,7 @@ struct ScanResult
     std::vector<Issue> issues;
 };
 
-// 内置皮肤的设置清单：<skinsRoot>/default/<id>/skin.toml。外观仍由内置 CSS 与 D2D 配色决定，
+// 内置皮肤的设置清单：<skinsRoot>/default/<id>/skin.toml。外观仍由内置的 D2D 配色决定，
 // 清单只承载皮肤级的开关；外部皮肤没写的开关沿用它 base 的这份清单。
 struct DefaultSkin
 {

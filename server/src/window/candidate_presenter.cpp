@@ -69,8 +69,7 @@ int AlignHostPixels(int value)
 }
 
 // Recompute half-screen DIP limits against `scale` when it differs from the
-// monitor-derived scale, so clamping and window sizing stay on one scale
-// (mirrors the webview path's rasterization-scale composition).
+// monitor-derived scale, so clamping and window sizing stay on one scale.
 HalfScreenDipLimits ApplyScaleToHalfScreenLimits(POINT pt, FLOAT scale)
 {
     HalfScreenDipLimits limits = QueryHalfScreenDipLimitsForPoint(pt);
@@ -153,8 +152,7 @@ struct CandSkinTokens
 constexpr float kTranslationPosAlpha = 0x80 / 255.0f;
 constexpr float kTranslationSeparatorAlpha = 0x73 / 255.0f;
 
-// 内置皮肤的翻译配色取自 Notion 调色板（https://docs.super.so/notion-colors），与
-// ui-html/webview2/candwnd/skins/<skin>/*.css 里的 .cand-translation 同值。词性用相邻的另一个色相再调淡，
+// 内置皮肤的翻译配色取自 Notion 调色板（https://docs.super.so/notion-colors）。词性用相邻的另一个色相再调淡，
 // 和英文单词区分开；分隔符是单词色降不透明度。
 void SetTranslationColors(CandSkinTokens &tokens, UINT rgb, UINT posRgb)
 {
@@ -193,7 +191,6 @@ void ApplyPackageColors(const CandidateSkinCatalog::CandidateColors &colors, Can
     apply(colors.selectedText, tokens.rowTextSelected);
     apply(colors.selectedNumber, tokens.rowLabelSelected);
     // 包换了翻译色就不再用基础皮肤的词性/分隔符配色：普通行回到与翻译同色，选中行跟随 selected_translation。
-    // 与 WebView2 端的 `color: inherit` 重置一致。
     if (!colors.translation.empty())
     {
         tokens.translationPos = D2D1::ColorF(0, 0.0f);
@@ -273,8 +270,7 @@ msimeui::HorizontalAlignment DecorationAlignment(const std::string &align)
 }
 // Below this fraction of the kept extent, the page really got smaller (fewer or
 // shorter candidates) and the card follows it; above it, the difference is a
-// late addition coming or going and the card keeps its size. Mirrors
-// kStickyShrinkRatio in the WebView2 candidate script.
+// late addition coming or going and the card keeps its size.
 constexpr float kStickyCardShrinkRatio = 0.7f;
 
 float StickyCardExtent(float kept, float natural)
@@ -569,7 +565,7 @@ void CandidatePresenter::ApplySkin()
         tokens.menuHover = ColorFromRgb(0xECECEC);
     }
     const std::wstring skinsRoot = AssetRoot() + L"\\skins";
-    // 外部皮肤用声明支持当前布局与主题的那一份；不支持或读不出来就回退 fluent，和 WebView2 端同一条规则。
+    // 外部皮肤用声明支持当前布局与主题的那一份；不支持或读不出来就回退 fluent。
     const std::string candidateLayout = GetConfiguredCandidateWindowLayout();
     const std::string candidateTheme = candLight ? "light" : "dark";
     std::optional<CandidateSkinCatalog::Package> package;
@@ -578,13 +574,10 @@ void CandidatePresenter::ApplySkin()
         package = CandidateSkinCatalog::LoadSupported(std::filesystem::path(skinsRoot), skinId, candidateLayout,
                                                       candidateTheme);
     }
-    // 自定义包的几何取自它的 base 皮肤，与 WebView2 端注入 base 皮肤 CSS 一致；颜色随后由包覆盖。
+    // 自定义包的几何取自它的 base 皮肤；颜色随后由包覆盖。
     const std::string baseSkin =
         package ? package->base : (CandidateSkinCatalog::IsBuiltIn(skinId) ? skinId : std::string("fluent"));
-    // Built-in skin palettes mirror ui-html/webview2/candwnd/skins/<skin>/;
-    // the WebView2 CSS is the reference for both the light and dark values.
-    // 横排时高亮内缩于外框，首项、尾项落在卡片四角上的那几个角与卡片同 R，其余角保持
-    // itemRadius，对应 CSS 横排的 .pinyin + .row-wrapper / .last-visible 规则。
+    // 横排时高亮内缩于外框，首项、尾项落在卡片四角上的那几个角与卡片同 R，其余角保持 itemRadius。
     const bool horizontalLayout = candidateLayout == "horizontal";
     // 翻页箭头改变的是场景结构（竖排多一行、横排多一列），开关或排列方式变了就整棵重建，
     // 再往下套用配色与尺寸。重建会清掉指纹，这里补回去。
@@ -778,7 +771,7 @@ void CandidatePresenter::ApplySkin()
     }
     else if (baseSkin == "microsoft")
     {
-        // 几何随字号缩放，对应 CSS 里以 em 写的尺寸（ui-html/webview2/candwnd/skins/microsoft/）。
+        // 几何随字号缩放（按 em 比例）。
         tokens.borderWidth = 1.0f;
         tokens.radius = 8.0f;
         tokens.containerPad = std::round(fontSize * 0.3f);
@@ -867,11 +860,10 @@ void CandidatePresenter::ApplySkin()
     tokens.surface = palette.surface;
     tokens.border = palette.border;
     tokens.text = palette.text;
-    // 阴影跟皮肤走，与 WebView2 端同一参照：四套内置皮肤与自定义包共用的皮肤 CSS
-    // （ui-html/webview2/candwnd/skins/*/horizontal_*.css）带同一对 box-shadow——
+    // 阴影跟皮肤走：四套内置皮肤与自定义包共用同一对阴影——
     // light `8px 10px 24px rgba(0,0,0,.18), 2px 3px 8px rgba(0,0,0,.10)`，dark α .34/.22；
-    // σ = blur ÷ 2。默认皮肤（webview 端只有 body HTML，无 box-shadow）直接关阴影。
-    // v2 面板贴图：有它时卡片自己的底色、描边、圆角和阴影都让给贴图，与原 WebView2 的 border-image 规则一致。
+    // σ = blur ÷ 2。默认皮肤直接关阴影。
+    // v2 面板贴图：有它时卡片自己的底色、描边、圆角和阴影都让给贴图（同 CSS border-image）。
     const bool panelImage =
         package && package->schemaVersion >= 2 && package->borderImage && !package->borderImage->source.empty();
     const bool canvasBase = CandidateSkinCatalog::IsCanvasBase(baseSkin);
@@ -883,7 +875,7 @@ void CandidatePresenter::ApplySkin()
         const bool shadowOn = shadow != "none" && !(canvasBase && shadow.empty()) && !panelImage;
         if (shadowOn)
         {
-            // 外部皮肤的 shadow = soft / strong 按同一系数缩放两层不透明度，与 WebView2 端一致。
+            // 外部皮肤的 shadow = soft / strong 按同一系数缩放两层不透明度。
             const float scale = ShadowAlphaScale(shadow);
             const auto alpha = [scale](float value) { return (std::min)(value * scale, 1.0f); };
             const std::vector<msimeui::ShadowPass> shadowPasses = {
@@ -917,7 +909,7 @@ void CandidatePresenter::ApplySkin()
     const float preeditSize = static_cast<float>((std::max)(12, GetConfiguredCandidateWindowPreeditFontSize()));
     msimeui::CandidateList::Appearance appearance;
     appearance.fontFamily = string_to_wstring(ResolveSystemFontFamilyForCss(GetConfiguredCandidateEnglishFont()));
-    // 皮肤的 font_family 排在最前，用户配置的字体整体退为回退，与 WebView2 端的 font-family 列表同序。
+    // 皮肤的 font_family 排在最前，用户配置的字体整体退为回退。
     if (package && !package->fontFamily.empty())
     {
         appearance.fallbackFontFamilies.push_back(appearance.fontFamily);
@@ -1068,7 +1060,7 @@ void CandidatePresenter::ApplySkin()
                                                ? msimeui::HorizontalAlignment::Stretch
                                                : msimeui::HorizontalAlignment::Leading);
 
-    // 装饰图与 WebView2 端的 .containerParent::before 同一几何：宽 width_dip、高 top_inset_dip 的盒子
+    // 装饰图是宽 width_dip、高 top_inset_dip 的盒子，
     // 底边贴着卡片顶边、不与卡片重叠，按 align 贴卡片左/中/右，图片在盒内等比居中（contain）。
     decorationTopDip_ = 0.0f;
     decorationWidthDip_ = 0.0f;
@@ -1191,7 +1183,7 @@ std::uint64_t CandidatePresenter::FillItemsFromUi()
         item.annotation = string_to_wstring(view.annotation);
         if (translationsEnabled)
         {
-            // 逐段转成 UTF-16 再拼起来，区间按拼出来的串计，与 WebView2 的 .cand-pos / .cand-sep 同一切法。
+            // 逐段转成 UTF-16 再拼起来，区间按拼出来的串计。
             for (const auto &segment : FanyImeIpc::SegmentTranslationGloss(view.translation))
             {
                 const std::wstring text = string_to_wstring(segment.text);
