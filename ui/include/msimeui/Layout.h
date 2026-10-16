@@ -467,13 +467,6 @@ class Card : public Panel
     // Like CSS border-image it is not clipped to the corner radius. Replaces SetBackgroundImage.
     // Animated images play, though a panel is usually best left still.
     void SetBackgroundNineSlice(std::wstring filePath, const NineSlice &nineSlice, float opacity = 1.0f);
-    // Former form: borders as wide as their slices, middle filled.
-    void SetBackgroundImageNineSlice(std::wstring filePath, float left, float top, float right, float bottom,
-                                     float opacity = 1.0f)
-    {
-        const Thickness slice = {left, top, right, bottom};
-        SetBackgroundNineSlice(std::move(filePath), NineSlice{slice, slice, true}, opacity);
-    }
 
     SizeF Measure(const SizeF &availableSize) override;
     void Arrange(const RectF &finalRect) override;
