@@ -93,6 +93,27 @@ preedit_text = "#ffc4dc"
 selected_text = "#ffffff"
 selected_bar = "#ffd27a"
 
+# 悬浮工具栏跟候选窗同一套紫夜配色：底色取面板的紫，边框取面板的粉边，拖动条用主题粉，图标同候选文字。
+# 面板在深浅两套主题下都是深色，工具栏也一样。
+[toolbar]
+corner_radius_dip = 10             # 与面板圆角一致（面板图 20 像素圆角，2 倍图）
+
+[toolbar.dark]
+background = "#211838"
+border = "rgba(255, 170, 205, 0.55)"
+handle = "#ff8fb8"
+divider = "rgba(255, 143, 184, 0.28)"
+icon = "#f5ecff"
+hover = "rgba(255, 143, 184, 0.18)"
+
+[toolbar.light]
+background = "#211838"
+border = "rgba(255, 170, 205, 0.55)"
+handle = "#ff8fb8"
+divider = "rgba(255, 143, 184, 0.28)"
+icon = "#f5ecff"
+hover = "rgba(255, 143, 184, 0.18)"
+
 [license]
 code = "MIT"
 assets = "MIT"
