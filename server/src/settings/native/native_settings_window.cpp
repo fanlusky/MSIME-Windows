@@ -38,6 +38,9 @@ constexpr UINT_PTR kToastTimer = 0x4E54;
 // Next frame of an animated skin image (APNG / GIF) in a preview. msimeui::Window does not
 // time an adopted HWND's frames, so the window does it from the same deadline.
 constexpr UINT_PTR kImageFrameTimer = 0x4E55;
+// Lifts the launch splash if no configSnapshot arrives, so a failed config load still
+// leaves a usable window.
+constexpr UINT_PTR kSplashTimer = 0x4E56;
 
 // 系统「显示动画」关闭时预览里的动图只显示首帧，与候选窗同一个开关；读不到时按开启处理。
 bool SystemAnimationsEnabled()
@@ -954,6 +957,145 @@ class ModalLayer : public msimeui::Visual
 };
 
 // ---------------------------------------------------------------------------------
+// Splash: the Settings app's launch screen, a large gear in the middle of the window,
+// shown until the first configSnapshot has filled in the controls (otherwise their
+// defaults show for a frame, e.g. 全拼 before the configured 双拼), then faded out.
+// ---------------------------------------------------------------------------------
+class SplashView : public msimeui::Visual
+{
+  public:
+    // Covers the page (the title bar stays usable) until Dismiss; fully covered, nothing
+    // under it needs drawing.
+    bool Covers() const
+    {
+        return !dismissed_;
+    }
+
+    bool Visible() const
+    {
+        return !finished_;
+    }
+
+    // Off: a brief plain cover in the window color, no gear and no fade.
+    void SetAnimated(bool animated)
+    {
+        animated_ = animated;
+        if (window_)
+            window_->Invalidate();
+    }
+
+    void Dismiss()
+    {
+        if (dismissed_)
+            return;
+        dismissed_ = true;
+        dismissedMs_ = msimeui::NowMs();
+        if (animated_ && !SystemAnimationsEnabled())
+            finished_ = true;
+        if (window_)
+        {
+            window_->RequestAnimationFrame();
+            window_->Invalidate();
+        }
+    }
+
+    SizeF Measure(const SizeF &availableSize) override
+    {
+        return availableSize;
+    }
+
+    void Arrange(const RectF &finalRect) override
+    {
+        bounds_ = finalRect;
+    }
+
+    void Render(msimeui::DeviceResources &dr) override
+    {
+        if (finished_)
+            return;
+        const double now = window_ ? window_->GetFrameTime() : msimeui::NowMs();
+        if (shownMs_ <= 0.0)
+            shownMs_ = now;
+        float t = 0.0f;
+        if (dismissed_)
+        {
+            // The cover stays at least its minimum even when the config is there at once,
+            // so it reads as a launch screen rather than a flicker; the plain one then
+            // goes in one step.
+            const double fadeStart = std::max(dismissedMs_, shownMs_ + (animated_ ? kMinimumMs : kPlainMs));
+            t = animated_ ? static_cast<float>(std::clamp((now - fadeStart) / kFadeMs, 0.0, 1.0))
+                          : (now >= fadeStart ? 1.0f : 0.0f);
+            if (t >= 1.0f)
+            {
+                finished_ = true;
+                if (window_)
+                    window_->RefreshHover();
+                return;
+            }
+            if (window_)
+                window_->RequestAnimationFrame();
+        }
+        const Palette &p = CurrentPalette();
+        if (!animated_)
+        {
+            FillRect(dr, bounds_, p.chromeBg);
+            return;
+        }
+        const float eased = msimeui::Easing::EaseOut()(t);
+        const float opacity = 1.0f - eased;
+        FillRect(dr, bounds_, WithAlpha(p.chromeBg, opacity));
+
+        // U+E713 Settings; the gear grows a little as it fades, like the system's launch.
+        TextStyle style;
+        style.family = IconFontFamily();
+        style.size = kGlyphSize;
+        style.lineHeight = 1.0f;
+        const float scale = 1.0f + 0.12f * eased;
+        const PointF center = {bounds_.x + bounds_.width * 0.5f, bounds_.y + bounds_.height * 0.5f};
+        ID2D1RenderTarget *target = dr.GetRenderTarget();
+        D2D1_MATRIX_3X2_F previous;
+        target->GetTransform(&previous);
+        target->SetTransform(D2D1::Matrix3x2F::Scale(scale, scale, D2D1::Point2F(center.x, center.y)) * previous);
+        const float box = kGlyphSize * 2.0f;
+        DrawTextInRect(dr, L"\xE713", style, {center.x - box * 0.5f, center.y - box * 0.5f, box, box},
+                       WithAlpha(p.text, opacity), true);
+        target->SetTransform(previous);
+    }
+
+    msimeui::Visual *FindVisualAt(const PointF &point) override
+    {
+        return Visible() && Contains(bounds_, point) ? this : nullptr;
+    }
+
+    msimeui::Visual *FindFocusableAt(const PointF &) override
+    {
+        return nullptr;
+    }
+
+    bool OnMouseDown(const POINT &, WPARAM) override
+    {
+        return Visible();
+    }
+
+    bool OnMouseWheel(const POINT &, short, WPARAM) override
+    {
+        return Visible();
+    }
+
+  private:
+    static constexpr float kGlyphSize = 64.0f;
+    static constexpr double kMinimumMs = 200.0;
+    static constexpr double kPlainMs = 80.0;
+    static constexpr double kFadeMs = 140.0;
+
+    double shownMs_ = 0.0;
+    double dismissedMs_ = 0.0;
+    bool animated_ = true;
+    bool dismissed_ = false;
+    bool finished_ = false;
+};
+
+// ---------------------------------------------------------------------------------
 // Root: title bar, sidebar, content and the overlays, laid out like `.main`.
 // ---------------------------------------------------------------------------------
 class RootPanel : public msimeui::Panel
@@ -961,15 +1103,16 @@ class RootPanel : public msimeui::Panel
   public:
     RootPanel(std::shared_ptr<TitleBar> titleBar, std::shared_ptr<msimeui::ScrollViewer> sidebar,
               std::shared_ptr<msimeui::ScrollViewer> content, std::shared_ptr<ModalLayer> modal,
-              std::shared_ptr<ToastView> toast)
+              std::shared_ptr<ToastView> toast, std::shared_ptr<SplashView> splash)
         : titleBar_(std::move(titleBar)), sidebar_(std::move(sidebar)), content_(std::move(content)),
-          modal_(std::move(modal)), toast_(std::move(toast))
+          modal_(std::move(modal)), toast_(std::move(toast)), splash_(std::move(splash))
     {
         AddChild(titleBar_);
         AddChild(sidebar_);
         AddChild(content_);
         AddChild(toast_);
         AddChild(modal_);
+        AddChild(splash_);
         content_->SetVerticalAlignment(msimeui::VerticalAlignment::Stretch);
         sidebar_->SetVerticalAlignment(msimeui::VerticalAlignment::Stretch);
     }
@@ -982,6 +1125,7 @@ class RootPanel : public msimeui::Panel
         content_->MeasureInLayout({c.contentWidth, c.bodyHeight - 2.0f});
         modal_->MeasureInLayout({availableSize.width, c.bodyHeight});
         toast_->MeasureInLayout(availableSize);
+        splash_->MeasureInLayout({availableSize.width, c.bodyHeight});
         return availableSize;
     }
 
@@ -996,6 +1140,7 @@ class RootPanel : public msimeui::Panel
                                    std::max(c.bodyHeight - 2.0f, 0.0f)});
         modal_->ArrangeInLayout({finalRect.x, finalRect.y + kTitleBarHeight, finalRect.width, c.bodyHeight});
         toast_->ArrangeInLayout(finalRect);
+        splash_->ArrangeInLayout({finalRect.x, finalRect.y + kTitleBarHeight, finalRect.width, c.bodyHeight});
     }
 
     void Render(msimeui::DeviceResources &dr) override
@@ -1003,12 +1148,16 @@ class RootPanel : public msimeui::Panel
         // The page content gets ClearType like in the browser, where it is painted into
         // the opaque root layer; the sidebar, title bar and overlays are composited
         // layers of their own there and get grayscale text.
-        content_->Render(dr);
+        const bool covered = splash_->Covers();
+        if (!covered)
+            content_->Render(dr);
         ScopedTextAntialias grayscale(dr, D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-        sidebar_->Render(dr);
+        if (!covered)
+            sidebar_->Render(dr);
         titleBar_->Render(dr);
         toast_->Render(dr);
         modal_->Render(dr);
+        splash_->Render(dr);
         titleBar_->RenderOverlay(dr);
     }
 
@@ -1016,6 +1165,8 @@ class RootPanel : public msimeui::Panel
     {
         if (point.y < kTitleBarHeight)
             return titleBar_->FindVisualAt(point);
+        if (msimeui::Visual *hit = splash_->FindVisualAt(point))
+            return hit;
         if (msimeui::Visual *hit = modal_->FindVisualAt(point))
             return hit;
         if (msimeui::Visual *hit = toast_->FindVisualAt(point))
@@ -1029,6 +1180,8 @@ class RootPanel : public msimeui::Panel
 
     msimeui::Visual *FindFocusableAt(const PointF &point) override
     {
+        if (splash_->Visible())
+            return nullptr;
         if (modal_->IsOpen())
             return point.y >= kTitleBarHeight ? modal_->FindFocusableAt(point) : nullptr;
         if (msimeui::Visual *hit = sidebar_->FindFocusableAt(point))
@@ -1057,6 +1210,7 @@ class RootPanel : public msimeui::Panel
     std::shared_ptr<msimeui::ScrollViewer> content_;
     std::shared_ptr<ModalLayer> modal_;
     std::shared_ptr<ToastView> toast_;
+    std::shared_ptr<SplashView> splash_;
 };
 
 bool IsCaptionButton(WPARAM hit)
@@ -1110,7 +1264,8 @@ class SettingsWindowImpl : public HostServices
         contentScroll_->SetAppearance(WebKitScrollbar(kScrollbarWidth));
         modal_ = std::make_shared<ModalLayer>();
         toast_ = std::make_shared<ToastView>();
-        root_ = std::make_shared<RootPanel>(titleBar_, sidebarScroll_, contentScroll_, modal_, toast_);
+        splash_ = std::make_shared<SplashView>();
+        root_ = std::make_shared<RootPanel>(titleBar_, sidebarScroll_, contentScroll_, modal_, toast_, splash_);
 
         sidebar_->SetOnSelect([this](size_t index) { ShowPageIndex(index, false); });
 
@@ -1123,6 +1278,10 @@ class SettingsWindowImpl : public HostServices
                      SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
         model_.Post("configRequest");
         ShowPage(initialPage.empty() ? std::string("input") : initialPage);
+        if (model_.HasConfig())
+            splash_->Dismiss();
+        else
+            SetTimer(hwnd_, kSplashTimer, 1500, nullptr);
     }
 
     ~SettingsWindowImpl() override
@@ -1131,6 +1290,7 @@ class SettingsWindowImpl : public HostServices
         KillTimer(hwnd_, kToolTipTimer);
         KillTimer(hwnd_, kToastTimer);
         KillTimer(hwnd_, kImageFrameTimer);
+        KillTimer(hwnd_, kSplashTimer);
     }
 
     // HostServices
@@ -1268,6 +1428,11 @@ class SettingsWindowImpl : public HostServices
     void OnHostMessage(const std::wstring &message)
     {
         model_.Receive(wstring_to_string(message));
+        if (model_.HasConfig() && splash_->Covers())
+        {
+            KillTimer(hwnd_, kSplashTimer);
+            splash_->Dismiss();
+        }
         window_->Invalidate();
     }
 
@@ -1281,6 +1446,11 @@ class SettingsWindowImpl : public HostServices
         sidebarScroll_->SetAppearance(WebKitScrollbar(0.0f));
         contentScroll_->SetAppearance(WebKitScrollbar(kScrollbarWidth));
         window_->Invalidate();
+    }
+
+    void SetLaunchAnimation(bool enabled)
+    {
+        splash_->SetAnimated(enabled);
     }
 
     void ResetTransientState()
@@ -1335,6 +1505,13 @@ class SettingsWindowImpl : public HostServices
             if (wParam == kToastTimer)
             {
                 toast_->Hide();
+                result = 0;
+                return true;
+            }
+            if (wParam == kSplashTimer)
+            {
+                KillTimer(hwnd_, kSplashTimer);
+                splash_->Dismiss();
                 result = 0;
                 return true;
             }
@@ -1536,6 +1713,7 @@ class SettingsWindowImpl : public HostServices
     std::shared_ptr<msimeui::ScrollViewer> contentScroll_;
     std::shared_ptr<ModalLayer> modal_;
     std::shared_ptr<ToastView> toast_;
+    std::shared_ptr<SplashView> splash_;
     std::shared_ptr<RootPanel> root_;
     std::map<size_t, VisualPtr> pageCache_;
     size_t current_ = static_cast<size_t>(-1);
@@ -1588,6 +1766,11 @@ void SettingsWindow::OnHostMessage(const std::wstring &message)
 void SettingsWindow::SetLightTheme(bool light)
 {
     impl_->SetLightTheme(light);
+}
+
+void SettingsWindow::SetLaunchAnimation(bool enabled)
+{
+    impl_->SetLaunchAnimation(enabled);
 }
 
 void SettingsWindow::ShowPage(const std::string &pageId)
