@@ -363,15 +363,20 @@ std::string BuildCurrentCandidatePage()
         view.fixed_position = item.fixed_position > 0;
         ApplyFixedPositionBadge(view, show_fixed_badge, fixed_badge_style);
         std::string raw_translation;
+        bool dictionary_translation = false;
         EnglishIme::TranslationQuery translation_query;
         if (!translation_page && BuildTranslationQuery(item, translation_query))
         {
             const auto gloss = g_candidate_translation_glosses.find(TranslationIdentity(translation_query));
             if (gloss != g_candidate_translation_glosses.end())
-                raw_translation = gloss->second;
+            {
+                raw_translation = gloss->second.text;
+                dictionary_translation = gloss->second.from_dictionary;
+            }
         }
-        view.translation = FanyImeIpc::FormatTranslationGlossForDisplay(raw_translation, show_translation_pos,
-                                                                        single_translation_sense);
+        view.translation = FanyImeIpc::FormatTranslationGlossForDisplay(
+            raw_translation, show_translation_pos, single_translation_sense,
+            single_translation_sense && dictionary_translation);
         const std::string visible = view.text + view.annotation + view.badge;
         const int display_length = static_cast<int>(utf8::distance(visible.begin(), visible.end()));
         candidate_string += CandidateViewHtml(view);

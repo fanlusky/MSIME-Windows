@@ -173,3 +173,21 @@ TEST_CASE(translation_display_single_sense_keeps_only_the_first_sense)
     // Off by default: the existing two-argument callers keep every sense.
     REQUIRE_EQ(FormatTranslationGlossForDisplay(raw, true), raw);
 }
+
+TEST_CASE(translation_display_first_synonym_cuts_dictionary_commas_outside_parentheses)
+{
+    using FanyImeIpc::FormatTranslationGlossForDisplay;
+    REQUIRE_EQ(FormatTranslationGlossForDisplay("v. teach, instruct; n. religion", true, true, true),
+               std::string("v. teach"));
+    REQUIRE_EQ(FormatTranslationGlossForDisplay("v. hand over, intersect; n. friendship", false, true, true),
+               std::string("hand over"));
+    REQUIRE_EQ(FormatTranslationGlossForDisplay("n. one (for coffins, corpses, etc.)", true, true, true),
+               std::string("n. one (for coffins, corpses, etc.)"));
+    REQUIRE_EQ(FormatTranslationGlossForDisplay("num. one (door, window), single", true, true, true),
+               std::string("num. one (door, window)"));
+    // A comma after the first sense never pulls a later sense in.
+    REQUIRE_EQ(FormatTranslationGlossForDisplay("n. apple; v. pick, pluck", true, true, true), std::string("n. apple"));
+    REQUIRE_EQ(FormatTranslationGlossForDisplay("苹果；家伙", true, true, true), std::string("苹果"));
+    // Cloud sentences are passed without first_synonym and keep their punctuation.
+    REQUIRE_EQ(FormatTranslationGlossForDisplay("Hello, world", true, true), std::string("Hello, world"));
+}
