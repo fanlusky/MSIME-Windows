@@ -1,6 +1,7 @@
 #include "settings/native/native_settings_window.h"
 
 #include "settings/native/native_page_help_widgets.h"
+#include "settings/native/native_page_skin_common.h"
 #include "settings/native/native_settings_controls.h"
 #include "settings/native/native_settings_model.h"
 #include "settings/native/native_settings_pages.h"
@@ -60,9 +61,9 @@ msimeui::ScrollViewer::Appearance WebKitScrollbar(float reserved)
     appearance.thumbColor = p.scrollbarThumb;
     appearance.thumbHoverColor = p.scrollbarThumbHover;
     appearance.hoverThumbOnly = true;
-    // Shorter than Chrome's 100px notch: the glide below carries the motion instead.
-    appearance.wheelStep = 60.0f;
-    appearance.smoothScrollMs = 160.0;
+    // Chrome's 100px notch, gliding about as long as its wheel animation.
+    appearance.wheelStep = 100.0f;
+    appearance.smoothScrollMs = 260.0;
     return appearance;
 }
 
@@ -1095,6 +1096,7 @@ class SettingsWindowImpl : public HostServices
         window_->SetBackgroundColor(CurrentPalette().chromeBg);
         window_->StartCaretTimer();
         window_->GetDeviceResources().SetAnimationsEnabled(SystemAnimationsEnabled());
+        skinpreview::SetImageLoadWindow(hwnd_);
 
         titleBar_ = std::make_shared<TitleBar>();
         sidebar_ = std::make_shared<Sidebar>();
@@ -1125,6 +1127,7 @@ class SettingsWindowImpl : public HostServices
 
     ~SettingsWindowImpl() override
     {
+        skinpreview::SetImageLoadWindow(nullptr);
         KillTimer(hwnd_, kToolTipTimer);
         KillTimer(hwnd_, kToastTimer);
         KillTimer(hwnd_, kImageFrameTimer);
