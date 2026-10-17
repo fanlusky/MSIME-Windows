@@ -282,6 +282,7 @@ std::string BuildCurrentCandidatePage()
     const bool show_sentence_source_badge = GetConfiguredAssocSentenceSourceBadge();
     const bool show_autocorrect_marker = GetConfiguredQuanpinAutocorrectMarker();
     const bool show_translation_pos = GetConfiguredCandidateTranslationShowPos();
+    const bool single_translation_sense = GetConfiguredCandidateTranslationSingleSense();
     // 徽标开启时才解析模型包的来源标签，每次组页解析一次，不逐候选查。标签由目录条目
     // 自己声明（万象/八股/墨奇），各家互不冒名；激活值留空时不产生整句候选，徽章分支
     // 不会被走到。
@@ -369,7 +370,8 @@ std::string BuildCurrentCandidatePage()
             if (gloss != g_candidate_translation_glosses.end())
                 raw_translation = gloss->second;
         }
-        view.translation = FanyImeIpc::FormatTranslationGlossForDisplay(raw_translation, show_translation_pos);
+        view.translation = FanyImeIpc::FormatTranslationGlossForDisplay(raw_translation, show_translation_pos,
+                                                                        single_translation_sense);
         const std::string visible = view.text + view.annotation + view.badge;
         const int display_length = static_cast<int>(utf8::distance(visible.begin(), visible.end()));
         candidate_string += CandidateViewHtml(view);

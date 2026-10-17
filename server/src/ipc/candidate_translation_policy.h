@@ -104,16 +104,20 @@ inline std::vector<TranslationSegment> SegmentTranslationGloss(std::string_view 
 
 // Display-only formatting. Keep the original gloss for caching and Ctrl+Enter;
 // unlike splitting commit candidates, hiding labels preserves every separator.
-inline std::string FormatTranslationGlossForDisplay(std::string_view gloss, bool show_pos)
+// `single_sense` keeps only the first sense, dropping the first separator and
+// everything after it.
+inline std::string FormatTranslationGlossForDisplay(std::string_view gloss, bool show_pos, bool single_sense = false)
 {
-    if (show_pos)
+    if (show_pos && !single_sense)
         return std::string(gloss);
 
     std::string displayed;
     bool after_label = false;
     for (const auto &segment : SegmentTranslationGloss(gloss))
     {
-        if (segment.kind == TranslationSegmentKind::PartOfSpeech)
+        if (single_sense && segment.kind == TranslationSegmentKind::Separator)
+            break;
+        if (!show_pos && segment.kind == TranslationSegmentKind::PartOfSpeech)
         {
             after_label = true;
             continue;
@@ -124,6 +128,8 @@ inline std::string FormatTranslationGlossForDisplay(std::string_view gloss, bool
         displayed += text;
         after_label = false;
     }
+    if (single_sense)
+        displayed.erase((std::min)(displayed.find_last_not_of(" \t\r\n") + 1, displayed.size()));
     return displayed;
 }
 

@@ -156,3 +156,20 @@ TEST_CASE(translation_display_toggle_preserves_raw_gloss_and_commit_senses)
         REQUIRE(SplitTranslationGloss(display) == expected);
     }
 }
+
+TEST_CASE(translation_display_single_sense_keeps_only_the_first_sense)
+{
+    using FanyImeIpc::FormatTranslationGlossForDisplay;
+    const std::string raw = "adj. spreading ; n. sound of laughter；v. giggle";
+    REQUIRE_EQ(FormatTranslationGlossForDisplay(raw, true, true), std::string("adj. spreading"));
+    REQUIRE_EQ(FormatTranslationGlossForDisplay(raw, false, true), std::string("spreading"));
+    REQUIRE_EQ(FormatTranslationGlossForDisplay("苹果；家伙", true, true), std::string("苹果"));
+    REQUIRE_EQ(FormatTranslationGlossForDisplay("string; trail", false, true), std::string("string"));
+    // A cloud gloss is a single sentence without separators and stays whole.
+    REQUIRE_EQ(FormatTranslationGlossForDisplay("今天天气不错，我们出去走走", true, true),
+               std::string("今天天气不错，我们出去走走"));
+    for (const std::string text : {"", " \t\r\n", "；；;"})
+        REQUIRE_EQ(FormatTranslationGlossForDisplay(text, true, true), std::string());
+    // Off by default: the existing two-argument callers keep every sense.
+    REQUIRE_EQ(FormatTranslationGlossForDisplay(raw, true), raw);
+}
