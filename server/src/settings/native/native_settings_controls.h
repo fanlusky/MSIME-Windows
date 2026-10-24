@@ -287,6 +287,11 @@ class Hideable : public msimeui::Container
     {
         return visible_;
     }
+    // How something outside the user's click can open this, e.g. the expander that owns it.
+    // Without a handler the Hideable stays hidden when asked to reveal: its visibility then
+    // follows a setting, and showing it would contradict that setting.
+    void SetOnReveal(std::function<void()> handler);
+    void Reveal();
 
     SizeF Measure(const SizeF &availableSize) override;
     void Arrange(const RectF &finalRect) override;
@@ -297,6 +302,7 @@ class Hideable : public msimeui::Container
 
   private:
     bool visible_ = true;
+    std::function<void()> onReveal_;
     // The margin given to the Hideable, taken over as inner spacing so that it disappears
     // with the child: `display: none` takes no room, margins included.
     Thickness spacing_ = {};
@@ -395,6 +401,8 @@ class SettingRow : public msimeui::Panel
     {
         return searchDescription_;
     }
+    // Pulses an accent highlight behind the row, so the eye finds the row a search jumped to.
+    void Flash();
 
     SizeF Measure(const SizeF &availableSize) override;
     void Arrange(const RectF &finalRect) override;
@@ -407,7 +415,14 @@ class SettingRow : public msimeui::Panel
     SizeF controlSize_ = {};
     std::wstring searchTitle_;
     std::wstring searchDescription_;
+    // Start of the running flash in NowMs time; negative while there is none.
+    double flashStartMs_ = -1.0;
+    bool flashReducedMotion_ = false;
 };
+
+// Opens every collapsed group between `visual` and the page root that can be opened, so a row
+// found by search is on screen. Returns false when some ancestor stays hidden.
+bool RevealInAncestors(msimeui::Visual &visual);
 
 // Title (+ description) block used on the left of a SettingRow.
 VisualPtr MakeTitleBlock(std::wstring title, std::wstring description = {}, bool subItem = false);
@@ -924,6 +939,10 @@ class Expander : public msimeui::Visual
     msimeui::Tween rotation_{0.0f};
     std::function<void(bool)> onToggled_;
 };
+
+// Wires an expander to the details it opens: a click toggles them, and a search hit inside
+// them expands both, so the chevron never disagrees with what is shown.
+void BindExpander(const std::shared_ptr<Expander> &expander, const std::shared_ptr<Hideable> &details);
 
 // `.shortcut-keys` / <kbd>: key caps joined by "+".
 class KeyCaps : public msimeui::Visual

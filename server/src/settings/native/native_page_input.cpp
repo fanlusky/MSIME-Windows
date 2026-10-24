@@ -1505,11 +1505,7 @@ ToggleSection MakeToggleSection(std::wstring title, VisualPtr detailsContent)
     section.expander = std::make_shared<Expander>(std::move(title));
     detailsContent->SetMargin({18.0f, 4.0f, 0.0f, 0.0f});
     section.details = std::make_shared<Hideable>(detailsContent, false);
-    std::weak_ptr<Hideable> details = section.details;
-    section.expander->SetOnToggled([details](bool expanded) {
-        if (auto box = details.lock())
-            box->SetVisible(expanded);
-    });
+    BindExpander(section.expander, section.details);
     return section;
 }
 } // namespace

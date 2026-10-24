@@ -102,7 +102,7 @@ ToggleSection MakeToggleSection(PageContext &context, const std::wstring &title,
     section.details->SetMargin({18.0f, 4.0f, 0.0f, 0.0f});
     auto details = std::make_shared<Hideable>(section.details, false);
     section.body->Add(details);
-    expander->SetOnToggled([details](bool expanded) { details->SetVisible(expanded); });
+    BindExpander(expander, details);
     hintOut = std::make_shared<Hideable>(MakeDisabledHint(), false);
     std::weak_ptr<Hideable> hint = hintOut;
     SettingsModel *model = &context.model;

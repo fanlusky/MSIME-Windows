@@ -1005,6 +1005,33 @@ void Hideable::SetVisible(bool visible)
     InvalidateVisual();
 }
 
+void Hideable::SetOnReveal(std::function<void()> handler)
+{
+    onReveal_ = std::move(handler);
+}
+
+void Hideable::Reveal()
+{
+    if (visible_ || !onReveal_)
+        return;
+    const auto handler = onReveal_;
+    handler();
+}
+
+bool RevealInAncestors(msimeui::Visual &visual)
+{
+    bool shown = true;
+    for (msimeui::Visual *ancestor = visual.GetParentVisual(); ancestor; ancestor = ancestor->GetParentVisual())
+    {
+        if (auto *hideable = dynamic_cast<Hideable *>(ancestor))
+        {
+            hideable->Reveal();
+            shown = shown && hideable->IsVisible();
+        }
+    }
+    return shown;
+}
+
 SizeF Hideable::Measure(const SizeF &availableSize)
 {
     // MeasureInLayout already took a margin set since the last pass off `availableSize`
@@ -1218,8 +1245,56 @@ void SettingRow::Arrange(const RectF &finalRect)
     }
 }
 
+namespace
+{
+// Two soft pulses, like the highlight Windows Settings puts on the card a search opened.
+constexpr double kFlashPulseMs = 700.0;
+constexpr int kFlashPulses = 2;
+// With animations turned off the highlight holds still for this long, then goes in one step.
+constexpr double kFlashStillMs = 1200.0;
+constexpr float kFlashFillAlpha = 0.16f;
+constexpr float kFlashStrokeAlpha = 0.55f;
+} // namespace
+
+void SettingRow::Flash()
+{
+    BOOL animations = TRUE;
+    SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &animations, 0);
+    flashReducedMotion_ = !animations;
+    flashStartMs_ = window_ ? window_->GetFrameTime() : msimeui::NowMs();
+    if (window_)
+        window_->RequestAnimationFrame();
+    InvalidateVisual();
+}
+
 void SettingRow::Render(msimeui::DeviceResources &dr)
 {
+    if (flashStartMs_ >= 0.0)
+    {
+        const double now = window_ ? window_->GetFrameTime() : msimeui::NowMs();
+        const double elapsed = std::max(0.0, now - flashStartMs_);
+        const double duration = flashReducedMotion_ ? kFlashStillMs : kFlashPulseMs * kFlashPulses;
+        if (elapsed >= duration)
+        {
+            flashStartMs_ = -1.0;
+        }
+        else
+        {
+            // Raised cosine per pulse: starts and ends at nothing, peaks halfway.
+            const float strength =
+                flashReducedMotion_
+                    ? 1.0f
+                    : static_cast<float>(0.5 - 0.5 * std::cos(2.0 * 3.14159265358979 * elapsed / kFlashPulseMs));
+            // Reaches into the section padding so the highlight frames the row instead of
+            // touching its text.
+            const RectF box = {bounds_.x - 12.0f, bounds_.y - 4.0f, bounds_.width + 24.0f, bounds_.height + 8.0f};
+            const Palette &p = CurrentPalette();
+            FillRounded(dr, box, 6.0f, WithAlpha(p.accent, kFlashFillAlpha * strength));
+            StrokeRounded(dr, box, 6.0f, WithAlpha(p.accent, kFlashStrokeAlpha * strength), 1.0f);
+            if (window_)
+                window_->RequestAnimationFrame();
+        }
+    }
     for (const auto &child : children_)
         child->Render(dr);
 }
@@ -3425,6 +3500,24 @@ bool Expander::OnMouseUp(const POINT &point, WPARAM)
 HCURSOR Expander::GetCursor() const
 {
     return LoadCursor(nullptr, IDC_HAND);
+}
+
+void BindExpander(const std::shared_ptr<Expander> &expander, const std::shared_ptr<Hideable> &details)
+{
+    // Weak both ways: each handler lives on the other visual, and strong captures would keep
+    // the pair alive after the page drops them.
+    std::weak_ptr<Hideable> weakDetails = details;
+    std::weak_ptr<Expander> weakExpander = expander;
+    expander->SetOnToggled([weakDetails](bool expanded) {
+        if (auto box = weakDetails.lock())
+            box->SetVisible(expanded);
+    });
+    details->SetOnReveal([weakExpander, weakDetails]() {
+        if (auto header = weakExpander.lock())
+            header->SetExpanded(true);
+        if (auto box = weakDetails.lock())
+            box->SetVisible(true);
+    });
 }
 
 // ---------------------------------------------------------------------------------

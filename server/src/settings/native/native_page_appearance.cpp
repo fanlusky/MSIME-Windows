@@ -664,7 +664,7 @@ VisualPtr BuildAppearancePage(PageContext &context)
         // .theme-surface-details { margin: 4px 0 0 18px }
         details->SetMargin({18.0f, 4.0f, 0.0f, 0.0f});
         auto hideable = std::make_shared<Hideable>(details, false);
-        expander->SetOnToggled([hideable](bool expanded) { hideable->SetVisible(expanded); });
+        BindExpander(expander, hideable);
         column->Add(hideable);
         page.AddSection(column);
     }

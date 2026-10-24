@@ -203,3 +203,38 @@ TEST_CASE(SettingsButtonIgnoresDisabledAndOutsideClicks)
     REQUIRE(button.OnKeyDown(VK_SPACE, 0));
     REQUIRE_EQ(calls, 3);
 }
+
+// A search hit inside a collapsed toggle section ("emoji 混输" under 候选混输) has to open the
+// section, chevron included, or the jump lands on a row that is not on screen.
+TEST_CASE(SettingsSearchRevealOpensCollapsedExpander)
+{
+    using namespace native_settings;
+    auto row = MakeRow(L"emoji 混输", L"", nullptr, true);
+    auto details = std::make_shared<Column>(0.0f);
+    details->Add(row);
+    auto hideable = std::make_shared<Hideable>(details, false);
+    auto expander = std::make_shared<Expander>(L"候选混输");
+    BindExpander(expander, hideable);
+    auto section = std::make_shared<Column>(0.0f);
+    section->Add(std::make_shared<SettingRow>(expander, nullptr));
+    section->Add(hideable);
+
+    REQUIRE(!hideable->IsVisible());
+    REQUIRE(RevealInAncestors(*row));
+    REQUIRE(hideable->IsVisible());
+    REQUIRE(expander->IsExpanded());
+}
+
+// A group whose visibility follows a setting has no reveal handler and must stay hidden; the
+// caller is told so it does not scroll to a row that takes no room.
+TEST_CASE(SettingsSearchRevealLeavesSettingDrivenGroupsHidden)
+{
+    using namespace native_settings;
+    auto row = MakeRow(L"英文触发字符数", L"", nullptr, true);
+    auto hideable = std::make_shared<Hideable>(row, false);
+    auto page = std::make_shared<Column>(0.0f);
+    page->Add(hideable);
+
+    REQUIRE(!RevealInAncestors(*row));
+    REQUIRE(!hideable->IsVisible());
+}
