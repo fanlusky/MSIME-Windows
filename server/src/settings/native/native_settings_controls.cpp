@@ -766,14 +766,18 @@ TextStyle CaptionStyle()
     return style;
 }
 
-std::shared_ptr<Label> MakeTitle(std::wstring text)
+std::shared_ptr<Label> MakeTitle(std::wstring text, std::wstring searchDescription)
 {
-    return std::make_shared<Label>(std::move(text), SectionTitleStyle());
+    auto label = std::make_shared<Label>(text, SectionTitleStyle());
+    IndexSettingTitle(label, std::move(text), std::move(searchDescription));
+    return label;
 }
 
-std::shared_ptr<Label> MakeSubTitle(std::wstring text)
+std::shared_ptr<Label> MakeSubTitle(std::wstring text, std::wstring searchDescription)
 {
-    return std::make_shared<Label>(std::move(text), SubItemTitleStyle());
+    auto label = std::make_shared<Label>(text, SubItemTitleStyle());
+    IndexSettingTitle(label, std::move(text), std::move(searchDescription));
+    return label;
 }
 
 std::shared_ptr<Label> MakeDescription(std::wstring text)
@@ -1210,12 +1214,6 @@ SettingRow::SettingRow(VisualPtr left, VisualPtr control) : left_(std::move(left
         AddChild(control_);
 }
 
-void SettingRow::SetSearchText(std::wstring title, std::wstring description)
-{
-    searchTitle_ = std::move(title);
-    searchDescription_ = std::move(description);
-}
-
 SizeF SettingRow::Measure(const SizeF &availableSize)
 {
     constexpr float kGap = 10.0f;
@@ -1245,56 +1243,8 @@ void SettingRow::Arrange(const RectF &finalRect)
     }
 }
 
-namespace
-{
-// Two soft pulses, like the highlight Windows Settings puts on the card a search opened.
-constexpr double kFlashPulseMs = 700.0;
-constexpr int kFlashPulses = 2;
-// With animations turned off the highlight holds still for this long, then goes in one step.
-constexpr double kFlashStillMs = 1200.0;
-constexpr float kFlashFillAlpha = 0.16f;
-constexpr float kFlashStrokeAlpha = 0.55f;
-} // namespace
-
-void SettingRow::Flash()
-{
-    BOOL animations = TRUE;
-    SystemParametersInfoW(SPI_GETCLIENTAREAANIMATION, 0, &animations, 0);
-    flashReducedMotion_ = !animations;
-    flashStartMs_ = window_ ? window_->GetFrameTime() : msimeui::NowMs();
-    if (window_)
-        window_->RequestAnimationFrame();
-    InvalidateVisual();
-}
-
 void SettingRow::Render(msimeui::DeviceResources &dr)
 {
-    if (flashStartMs_ >= 0.0)
-    {
-        const double now = window_ ? window_->GetFrameTime() : msimeui::NowMs();
-        const double elapsed = std::max(0.0, now - flashStartMs_);
-        const double duration = flashReducedMotion_ ? kFlashStillMs : kFlashPulseMs * kFlashPulses;
-        if (elapsed >= duration)
-        {
-            flashStartMs_ = -1.0;
-        }
-        else
-        {
-            // Raised cosine per pulse: starts and ends at nothing, peaks halfway.
-            const float strength =
-                flashReducedMotion_
-                    ? 1.0f
-                    : static_cast<float>(0.5 - 0.5 * std::cos(2.0 * 3.14159265358979 * elapsed / kFlashPulseMs));
-            // Reaches into the section padding so the highlight frames the row instead of
-            // touching its text.
-            const RectF box = {bounds_.x - 12.0f, bounds_.y - 4.0f, bounds_.width + 24.0f, bounds_.height + 8.0f};
-            const Palette &p = CurrentPalette();
-            FillRounded(dr, box, 6.0f, WithAlpha(p.accent, kFlashFillAlpha * strength));
-            StrokeRounded(dr, box, 6.0f, WithAlpha(p.accent, kFlashStrokeAlpha * strength), 1.0f);
-            if (window_)
-                window_->RequestAnimationFrame();
-        }
-    }
     for (const auto &child : children_)
         child->Render(dr);
 }
@@ -1302,7 +1252,7 @@ void SettingRow::Render(msimeui::DeviceResources &dr)
 VisualPtr MakeTitleBlock(std::wstring title, std::wstring description, bool subItem)
 {
     auto column = std::make_shared<Column>(0.0f);
-    column->Add(subItem ? MakeSubTitle(std::move(title)) : MakeTitle(std::move(title)));
+    column->Add(subItem ? MakeSubTitle(std::move(title), description) : MakeTitle(std::move(title), description));
     if (!description.empty())
     {
         auto desc = MakeDescription(std::move(description));
@@ -1325,17 +1275,18 @@ struct RowCollectorState
 thread_local std::vector<RowCollectorState> g_rowCollectorStack;
 } // namespace
 
-std::shared_ptr<SettingRow> MakeRow(std::wstring title, std::wstring description, VisualPtr control, bool subItem)
+void IndexSettingTitle(const std::shared_ptr<msimeui::Visual> &title, std::wstring text, std::wstring description)
 {
-    auto row = std::make_shared<SettingRow>(MakeTitleBlock(title, description, subItem), std::move(control));
-    // Search text is kept on the row because the index is built from it later; the labels above
-    // only own their own copies.
-    row->SetSearchText(std::move(title), std::move(description));
-    if (!g_rowCollectorStack.empty() && g_rowCollectorStack.back().collector)
-        g_rowCollectorStack.back().collector({row->SearchTitle(), row->SearchDescription(), row});
-    return row;
+    if (!title || text.empty() || g_rowCollectorStack.empty() || !g_rowCollectorStack.back().collector)
+        return;
+    g_rowCollectorStack.back().collector({std::move(text), std::move(description), title});
 }
 
+std::shared_ptr<SettingRow> MakeRow(std::wstring title, std::wstring description, VisualPtr control, bool subItem)
+{
+    return std::make_shared<SettingRow>(MakeTitleBlock(std::move(title), std::move(description), subItem),
+                                        std::move(control));
+}
 SettingsIndexScope::SettingsIndexScope(std::string pageId, std::function<void(const Row &)> collector)
 {
     g_rowCollectorStack.push_back({std::move(pageId), std::move(collector)});
@@ -3500,6 +3451,13 @@ bool Expander::OnMouseUp(const POINT &point, WPARAM)
 HCURSOR Expander::GetCursor() const
 {
     return LoadCursor(nullptr, IDC_HAND);
+}
+
+std::shared_ptr<Expander> MakeExpander(std::wstring title, bool subItem)
+{
+    auto expander = std::make_shared<Expander>(title, subItem);
+    IndexSettingTitle(expander, std::move(title));
+    return expander;
 }
 
 void BindExpander(const std::shared_ptr<Expander> &expander, const std::shared_ptr<Hideable> &details)

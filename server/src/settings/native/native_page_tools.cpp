@@ -54,7 +54,7 @@ class TopAlignedRow : public msimeui::Panel
 VisualPtr QuickTitleBlock(const std::wstring &title, const std::wstring &description)
 {
     auto column = std::make_shared<Column>(0.0f);
-    column->Add(MakeTitle(title));
+    column->Add(MakeTitle(title, description));
     auto desc = MakeDescription(description);
     desc->SetMaxWidth(52.0f * kFontCaption);
     column->Add(desc);
@@ -93,7 +93,7 @@ ToggleSection MakeToggleSection(PageContext &context, const std::wstring &title,
 {
     ToggleSection section;
     section.body = std::make_shared<Column>(0.0f);
-    auto expander = std::make_shared<Expander>(title, false);
+    auto expander = MakeExpander(title);
     auto master = BindToggle(context, masterPath);
     section.body->Add(std::make_shared<SettingRow>(expander, master));
     section.details = std::make_shared<Column>(0.0f);

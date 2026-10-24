@@ -1455,7 +1455,7 @@ class SidebarSearch : public msimeui::Panel
             return false;
         for (size_t i = 0; i < other.size(); ++i)
         {
-            if (other[i].pageId != results_[i].pageId || other[i].row.lock() != results_[i].row.lock())
+            if (other[i].pageId != results_[i].pageId || other[i].target.lock() != results_[i].target.lock())
                 return false;
         }
         return true;
@@ -2246,6 +2246,103 @@ class SplashView : public msimeui::Visual
     bool finished_ = false;
 };
 
+// What a search hit highlights: the SettingRow its title belongs to, or, for a title that heads a
+// block of its own (a form field, a heading over a list of options), that block.
+msimeui::Visual *HighlightTarget(msimeui::Visual &title)
+{
+    for (msimeui::Visual *visual = &title; visual; visual = visual->GetParentVisual())
+    {
+        if (dynamic_cast<SettingRow *>(visual))
+            return visual;
+    }
+    msimeui::Visual *parent = title.GetParentVisual();
+    return parent ? parent : &title;
+}
+
+// The accent pulse on the setting a search jumped to, like the highlight Windows Settings puts on
+// the card a search opened. It is drawn over the page by the root rather than by the setting, so
+// any target works, and it follows the target's bounds while the page scrolls.
+class SearchHighlight : public msimeui::Visual
+{
+  public:
+    // `title` keeps the target's page alive for the check; `target` is its row or block.
+    void Start(const std::shared_ptr<msimeui::Visual> &title, msimeui::Visual *target)
+    {
+        title_ = title;
+        target_ = target;
+        reducedMotion_ = !SystemAnimationsEnabled();
+        startMs_ = msimeui::NowMs();
+        if (window_)
+            window_->RequestAnimationFrame();
+    }
+
+    // The page it was on went away; its bounds no longer mean anything on screen.
+    void Stop()
+    {
+        startMs_ = -1.0;
+        target_ = nullptr;
+        title_.reset();
+    }
+
+    void RenderOver(msimeui::DeviceResources &dr, const RectF &clip)
+    {
+        if (startMs_ < 0.0)
+            return;
+        const double now = window_ ? window_->GetFrameTime() : msimeui::NowMs();
+        const double elapsed = std::max(0.0, now - startMs_);
+        const double duration = reducedMotion_ ? kStillMs : kPulseMs * kPulses;
+        if (elapsed >= duration || title_.expired())
+        {
+            startMs_ = -1.0;
+            target_ = nullptr;
+            return;
+        }
+        // Raised cosine per pulse: starts and ends at nothing, peaks halfway. With animations
+        // turned off it holds still, then goes in one step.
+        const float strength =
+            reducedMotion_ ? 1.0f
+                           : static_cast<float>(0.5 - 0.5 * std::cos(2.0 * 3.14159265358979 * elapsed / kPulseMs));
+        // Reaches into the section padding so the highlight frames the setting instead of
+        // touching its text.
+        const RectF bounds = target_->GetBounds();
+        const RectF box = {bounds.x - 12.0f, bounds.y - 4.0f, bounds.width + 24.0f, bounds.height + 8.0f};
+        const Palette &p = CurrentPalette();
+        dr.PushClip(clip);
+        FillRounded(dr, box, 6.0f, WithAlpha(p.accent, kFillAlpha * strength));
+        StrokeRounded(dr, box, 6.0f, WithAlpha(p.accent, kStrokeAlpha * strength), 1.0f);
+        dr.PopClip();
+        if (window_)
+            window_->RequestAnimationFrame();
+    }
+
+    SizeF Measure(const SizeF &) override
+    {
+        return {};
+    }
+
+    void Arrange(const RectF &finalRect) override
+    {
+        bounds_ = finalRect;
+    }
+
+    void Render(msimeui::DeviceResources &) override
+    {
+    }
+
+  private:
+    static constexpr double kPulseMs = 700.0;
+    static constexpr int kPulses = 2;
+    static constexpr double kStillMs = 1200.0;
+    // Over the content, so the fill stays faint enough to read the text through.
+    static constexpr float kFillAlpha = 0.12f;
+    static constexpr float kStrokeAlpha = 0.6f;
+
+    std::weak_ptr<msimeui::Visual> title_;
+    msimeui::Visual *target_ = nullptr;
+    double startMs_ = -1.0;
+    bool reducedMotion_ = false;
+};
+
 // ---------------------------------------------------------------------------------
 // Root: title bar, sidebar, content and the overlays, laid out like `.main`.
 // ---------------------------------------------------------------------------------
@@ -2254,9 +2351,11 @@ class RootPanel : public msimeui::Panel
   public:
     RootPanel(std::shared_ptr<TitleBar> titleBar, std::shared_ptr<msimeui::ScrollViewer> sidebar,
               std::shared_ptr<msimeui::ScrollViewer> content, std::shared_ptr<ModalLayer> modal,
-              std::shared_ptr<ToastView> toast, std::shared_ptr<SplashView> splash)
+              std::shared_ptr<ToastView> toast, std::shared_ptr<SplashView> splash,
+              std::shared_ptr<SearchHighlight> highlight)
         : titleBar_(std::move(titleBar)), sidebar_(std::move(sidebar)), content_(std::move(content)),
-          modal_(std::move(modal)), toast_(std::move(toast)), splash_(std::move(splash))
+          modal_(std::move(modal)), toast_(std::move(toast)), splash_(std::move(splash)),
+          highlight_(std::move(highlight))
     {
         AddChild(titleBar_);
         AddChild(sidebar_);
@@ -2264,6 +2363,8 @@ class RootPanel : public msimeui::Panel
         AddChild(toast_);
         AddChild(modal_);
         AddChild(splash_);
+        // Not laid out: it draws over the content at the bounds of whatever it highlights.
+        AddChild(highlight_);
         content_->SetVerticalAlignment(msimeui::VerticalAlignment::Stretch);
         sidebar_->SetVerticalAlignment(msimeui::VerticalAlignment::Stretch);
     }
@@ -2301,7 +2402,10 @@ class RootPanel : public msimeui::Panel
         // layers of their own there and get grayscale text.
         const bool covered = splash_->Covers();
         if (!covered)
+        {
             content_->Render(dr);
+            highlight_->RenderOver(dr, content_->GetBounds());
+        }
         ScopedTextAntialias grayscale(dr, D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
         if (!covered)
             sidebar_->Render(dr);
@@ -2362,6 +2466,7 @@ class RootPanel : public msimeui::Panel
     std::shared_ptr<ModalLayer> modal_;
     std::shared_ptr<ToastView> toast_;
     std::shared_ptr<SplashView> splash_;
+    std::shared_ptr<SearchHighlight> highlight_;
 };
 
 bool IsCaptionButton(WPARAM hit)
@@ -2416,7 +2521,9 @@ class SettingsWindowImpl : public HostServices
         modal_ = std::make_shared<ModalLayer>();
         toast_ = std::make_shared<ToastView>();
         splash_ = std::make_shared<SplashView>();
-        root_ = std::make_shared<RootPanel>(titleBar_, sidebarScroll_, contentScroll_, modal_, toast_, splash_);
+        highlight_ = std::make_shared<SearchHighlight>();
+        root_ =
+            std::make_shared<RootPanel>(titleBar_, sidebarScroll_, contentScroll_, modal_, toast_, splash_, highlight_);
 
         sidebar_->SetOnSelect([this](size_t index) { ShowPageIndex(index, false); });
         sidebar_->SetOnActivateEntry([this](const SettingsIndexEntry &entry) { ActivateSearchEntry(entry); });
@@ -2558,6 +2665,7 @@ class SettingsWindowImpl : public HostServices
         if (index >= pages.size() || index == current_)
             return;
         current_ = index;
+        highlight_->Stop();
         window_->GetScene()->ClearPopups(true);
         modal_->Close();
         auto &page = pageCache_[index];
@@ -2590,7 +2698,17 @@ class SettingsWindowImpl : public HostServices
         VisualPtr built;
         {
             SettingsIndexScope scope(pageId, [slice, pageId, pageTitle](const SettingsIndexScope::Row &row) {
-                slice->push_back({pageId, pageTitle, row.title, row.description, row.row});
+                // A page that heads a block with the same words as the row under it ("联想模式"
+                // over the 联想模式 row) would list the setting twice; the first one stays.
+                for (SettingsIndexEntry &existing : *slice)
+                {
+                    if (existing.title != row.title)
+                        continue;
+                    if (existing.description.empty())
+                        existing.description = row.description;
+                    return;
+                }
+                slice->push_back({pageId, pageTitle, row.title, row.description, row.target});
             });
             built = pages[index].build(context_);
         }
@@ -2613,7 +2731,7 @@ class SettingsWindowImpl : public HostServices
         {
             for (const SettingsIndexEntry &entry : *pageEntries)
             {
-                if (!entry.row.expired())
+                if (!entry.target.expired())
                     flat->push_back(entry);
             }
         }
@@ -2655,21 +2773,22 @@ class SettingsWindowImpl : public HostServices
             // The sidebar follows, as if its item had been clicked.
             sidebar_->Select(i, current_ != static_cast<size_t>(-1));
             ShowPageIndex(i, false);
-            auto row = entry.row.lock();
-            if (!row)
+            auto title = entry.target.lock();
+            if (!title)
                 return;
-            const bool shown = RevealInAncestors(*row);
+            const bool shown = RevealInAncestors(*title);
             // Expanding a group moves everything under it: lay out again before reading where
-            // the row now is.
+            // the setting now is.
             window_->Relayout();
             if (!shown)
                 return;
-            const RectF target = row->GetBounds();
+            msimeui::Visual *setting = HighlightTarget(*title);
+            const RectF target = setting->GetBounds();
             const RectF view = contentScroll_->GetBounds();
             contentScroll_->SetScrollOffset(contentScroll_->GetScrollOffset() + (target.y + target.height * 0.5f) -
                                             (view.y + view.height * 0.5f));
             window_->Relayout();
-            row->Flash();
+            highlight_->Start(title, setting);
             window_->RefreshHover();
             return;
         }
@@ -3004,6 +3123,7 @@ class SettingsWindowImpl : public HostServices
     std::shared_ptr<msimeui::ScrollViewer> sidebarScroll_;
     std::shared_ptr<msimeui::Container> pageHost_;
     std::shared_ptr<msimeui::ScrollViewer> contentScroll_;
+    std::shared_ptr<SearchHighlight> highlight_;
     std::shared_ptr<ModalLayer> modal_;
     std::shared_ptr<ToastView> toast_;
     std::shared_ptr<SplashView> splash_;

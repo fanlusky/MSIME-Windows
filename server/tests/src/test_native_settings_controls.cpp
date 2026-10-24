@@ -225,6 +225,29 @@ TEST_CASE(SettingsSearchRevealOpensCollapsedExpander)
     REQUIRE(expander->IsExpanded());
 }
 
+// Search used to index only rows built by MakeRow, so a toggle-section header (智能标点) and the
+// sub items a page assembles from MakeSubTitle into its own SettingRow were not findable. Titles
+// are indexed where they are made now; MakeRow still counts once.
+TEST_CASE(SettingsIndexCoversTitlesHoweverTheRowIsBuilt)
+{
+    using namespace native_settings;
+    std::vector<SettingsIndexScope::Row> rows;
+    {
+        SettingsIndexScope scope("input", [&rows](const SettingsIndexScope::Row &row) { rows.push_back(row); });
+        auto header = std::make_shared<SettingRow>(MakeExpander(L"智能标点"), nullptr);
+        auto left = std::make_shared<Column>(0.0f);
+        left->Add(MakeSubTitle(L"数字后直出", L"数字后输入 , . : 直接输出英文标点"));
+        auto handBuilt = std::make_shared<SettingRow>(left, nullptr);
+        auto row = MakeRow(L"成对标点自动补全", L"输入左侧符号时自动补全右侧符号", nullptr);
+    }
+    REQUIRE_EQ(rows.size(), static_cast<size_t>(3));
+    REQUIRE(rows[0].title == L"智能标点");
+    REQUIRE(rows[1].title == L"数字后直出");
+    REQUIRE(rows[1].description == L"数字后输入 , . : 直接输出英文标点");
+    REQUIRE(rows[2].title == L"成对标点自动补全");
+    REQUIRE(rows[2].description == L"输入左侧符号时自动补全右侧符号");
+}
+
 // A group whose visibility follows a setting has no reveal handler and must stay hidden; the
 // caller is told so it does not scroll to a row that takes no room.
 TEST_CASE(SettingsSearchRevealLeavesSettingDrivenGroupsHidden)

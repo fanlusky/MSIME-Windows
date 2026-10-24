@@ -196,8 +196,10 @@ TextStyle BodyStyle();         // 14px text in the page font
 TextStyle ControlStyle();      // 14px form-control text in the system font (no `font: inherit`)
 TextStyle CaptionStyle();      // the shared *-description rule
 
-std::shared_ptr<Label> MakeTitle(std::wstring text);
-std::shared_ptr<Label> MakeSubTitle(std::wstring text);
+// Setting titles. Both enter the search index (see IndexSettingTitle); `searchDescription` is the
+// text shown under the title, matched as a secondary hit.
+std::shared_ptr<Label> MakeTitle(std::wstring text, std::wstring searchDescription = {});
+std::shared_ptr<Label> MakeSubTitle(std::wstring text, std::wstring searchDescription = {});
 // Muted 12px / 1.6 description that wraps.
 std::shared_ptr<Label> MakeDescription(std::wstring text);
 
@@ -388,22 +390,6 @@ class SettingRow : public msimeui::Panel
     // `left` is usually a Column of title + description; `control` may be null.
     SettingRow(VisualPtr left, VisualPtr control);
 
-    // Searchable text of this row: the title, and the description as secondary matches. Set by
-    // MakeRow, which is where every settings row is built; pages that hand-build a SettingRow are
-    // simply not indexed. Kept here rather than read back out of the title labels so the index
-    // does not depend on how a row happens to lay out its left column.
-    void SetSearchText(std::wstring title, std::wstring description);
-    const std::wstring &SearchTitle() const
-    {
-        return searchTitle_;
-    }
-    const std::wstring &SearchDescription() const
-    {
-        return searchDescription_;
-    }
-    // Pulses an accent highlight behind the row, so the eye finds the row a search jumped to.
-    void Flash();
-
     SizeF Measure(const SizeF &availableSize) override;
     void Arrange(const RectF &finalRect) override;
     void Render(msimeui::DeviceResources &dr) override;
@@ -413,11 +399,6 @@ class SettingRow : public msimeui::Panel
     VisualPtr control_;
     SizeF leftSize_ = {};
     SizeF controlSize_ = {};
-    std::wstring searchTitle_;
-    std::wstring searchDescription_;
-    // Start of the running flash in NowMs time; negative while there is none.
-    double flashStartMs_ = -1.0;
-    bool flashReducedMotion_ = false;
 };
 
 // Opens every collapsed group between `visual` and the page root that can be opened, so a row
@@ -430,10 +411,17 @@ VisualPtr MakeTitleBlock(std::wstring title, std::wstring description = {}, bool
 std::shared_ptr<SettingRow> MakeRow(std::wstring title, std::wstring description, VisualPtr control,
                                     bool subItem = false);
 
-// Scope that tells MakeRow which page is being built, so every row it creates lands in that
-// page's slice of the search index. Set by the window around a PageInfo::build call; nested
-// scopes restore the previous one. Without it rows still build, they are just not indexed, which
-// is what happens in the control tests.
+// Puts a setting title into the search index of the page being built. `title` is the visual that
+// shows it; a search hit scrolls to and highlights the SettingRow around it, or its block when it
+// heads one of its own. MakeTitle, MakeSubTitle and MakeExpander call this, so a setting built from
+// them is searchable however its row is put together; a page that draws a title some other way
+// calls it directly.
+void IndexSettingTitle(const std::shared_ptr<msimeui::Visual> &title, std::wstring text, std::wstring description = {});
+
+// Scope that tells IndexSettingTitle which page is being built, so every title created in it lands
+// in that page's slice of the search index. Set by the window around a PageInfo::build call;
+// nested scopes restore the previous one. Without it titles still build, they are just not indexed,
+// which is what happens in the control tests.
 class SettingsIndexScope
 {
   public:
@@ -441,10 +429,10 @@ class SettingsIndexScope
     {
         std::wstring title;
         std::wstring description;
-        std::weak_ptr<SettingRow> row;
+        std::weak_ptr<msimeui::Visual> target;
     };
 
-    // `collector` is called once per row created inside the scope, in build order.
+    // `collector` is called once per title created inside the scope, in build order.
     SettingsIndexScope(std::string pageId, std::function<void(const Row &)> collector);
     ~SettingsIndexScope();
     SettingsIndexScope(const SettingsIndexScope &) = delete;
@@ -939,6 +927,9 @@ class Expander : public msimeui::Visual
     msimeui::Tween rotation_{0.0f};
     std::function<void(bool)> onToggled_;
 };
+
+// An expander whose title is indexed for search.
+std::shared_ptr<Expander> MakeExpander(std::wstring title, bool subItem = false);
 
 // Wires an expander to the details it opens: a click toggles them, and a search hit inside
 // them expands both, so the chevron never disagrees with what is shown.

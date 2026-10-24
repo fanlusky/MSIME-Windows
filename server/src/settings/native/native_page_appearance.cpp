@@ -648,7 +648,7 @@ VisualPtr BuildAppearancePage(PageContext &context)
     // 主题模式
     {
         auto column = std::make_shared<Column>(0.0f);
-        auto expander = std::make_shared<Expander>(L"主题模式");
+        auto expander = MakeExpander(L"主题模式");
         column->Add(std::make_shared<SettingRow>(
             expander, BindDropdown(context, "appearance.theme_mode",
                                    Options({{"dark", L"深色"}, {"light", L"浅色"}, {"system", L"跟随系统"}}))));
