@@ -31,6 +31,7 @@ import hashlib
 import shutil
 import sqlite3
 import struct
+import sys
 from contextlib import closing
 from pathlib import Path
 
@@ -144,6 +145,10 @@ def dump_japanese(path: Path, tokens_target: Path, connection_target: Path) -> i
 
 
 def main() -> None:
+    # CI 的 Windows runner 上 stdout 是 cp1252 管道，打印中文会抛 UnicodeEncodeError，让整个打包失败。
+    # 进度提示只是日志，编码不了的字符写成 \uXXXX 即可。
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(errors="backslashreplace")
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--out", type=Path, required=True, help="构建好的词库目录（MetasequoiaImeDict/out）")
     parser.add_argument("--target", type=Path, required=True, help="导出目录，已有内容会被清空")
