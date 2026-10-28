@@ -243,9 +243,10 @@ LRESULT Window::OnLeftButtonDown(WPARAM wParam, LPARAM lParam)
     Visual *dispatchTarget = focusTarget ? focusTarget : target;
     MSIMEUI_DEBUG_LOG("WM_LBUTTONDOWN point=(" << point.x << "," << point.y << ") target=" << target << " focusTarget="
                                                << focusTarget << " dispatchTarget=" << dispatchTarget);
+    // Clicking non-focusable content also ends the previous control's edit session.
+    SetFocusedVisual(focusTarget);
     if (focusTarget && focusTarget->IsFocusable())
     {
-        SetFocusedVisual(focusTarget);
         if (stealFocusOnClick_)
         {
             SetFocus(hwnd_);
