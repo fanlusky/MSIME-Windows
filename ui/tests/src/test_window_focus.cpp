@@ -48,6 +48,21 @@ class FocusProbe : public Visual
     int charCount = 0;
 };
 
+// Searchable menus claim mouse presses here without taking the search field's keyboard focus.
+class MouseOnlyProbe : public FocusProbe
+{
+  public:
+    bool IsFocusable() const override
+    {
+        return false;
+    }
+
+    Visual *FindFocusableAt(const PointF &point) override
+    {
+        return HitTest(point) ? this : nullptr;
+    }
+};
+
 class FocusTestWindow : public Window
 {
   public:
@@ -63,7 +78,7 @@ class FocusTestWindow : public Window
     }
 };
 
-void CheckClickFocus(float dpi, bool clickInside)
+void CheckClickFocus(float dpi, bool clickInside, bool mouseOnlyTarget = false)
 {
     FocusTestWindow window;
     window.SetDpiOverride(dpi);
@@ -71,12 +86,17 @@ void CheckClickFocus(float dpi, bool clickInside)
     auto field = std::make_shared<FocusProbe>();
     auto root = std::make_shared<OverlayPanel>();
     root->AddChildAt(field, 0.0f, 0.0f);
+    auto menu = std::make_shared<MouseOnlyProbe>();
+    if (mouseOnlyTarget)
+        root->AddChildAt(menu, 100.0f, 0.0f);
     auto scene = std::make_unique<Scene>();
     scene->SetRoot(root);
     window.SetScene(std::move(scene));
     // Keep a non-focusable background around the field, as on a settings page.
     root->ArrangeInLayout({0.0f, 0.0f, 200.0f, 100.0f});
     field->ArrangeInLayout({0.0f, 0.0f, 80.0f, 30.0f});
+    if (mouseOnlyTarget)
+        menu->ArrangeInLayout({100.0f, 0.0f, 80.0f, 30.0f});
     window.FocusVisual(field.get());
 
     const int x = static_cast<int>((clickInside ? 20.0f : 150.0f) * dpi / 96.0f);
@@ -84,13 +104,14 @@ void CheckClickFocus(float dpi, bool clickInside)
     window.DispatchImportedMessage(WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(x, y));
     window.DispatchImportedMessage(WM_LBUTTONUP, 0, MAKELPARAM(x, y));
     window.DispatchImportedMessage(WM_CHAR, L'a', 0);
-    REQUIRE(field->blurCount == (clickInside ? 0 : 1));
-    REQUIRE(field->charCount == (clickInside ? 1 : 0));
+    const bool keepsFocus = clickInside || mouseOnlyTarget;
+    REQUIRE(field->blurCount == (keepsFocus ? 0 : 1));
+    REQUIRE(field->charCount == (keepsFocus ? 1 : 0));
 
     // Repeated clicks on the background must not submit the field again.
     window.DispatchImportedMessage(WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(x, y));
     window.DispatchImportedMessage(WM_LBUTTONUP, 0, MAKELPARAM(x, y));
-    REQUIRE(field->blurCount == (clickInside ? 0 : 1));
+    REQUIRE(field->blurCount == (keepsFocus ? 0 : 1));
 }
 } // namespace
 
@@ -104,4 +125,10 @@ TEST_CASE(window_click_inside_focused_field_keeps_text_input)
 {
     for (float dpi : {96.0f, 120.0f, 144.0f, 192.0f})
         CheckClickFocus(dpi, true);
+}
+
+TEST_CASE(window_mouse_only_click_target_keeps_text_field_focus)
+{
+    for (float dpi : {96.0f, 120.0f, 144.0f, 192.0f})
+        CheckClickFocus(dpi, false, true);
 }
