@@ -475,6 +475,8 @@ std::vector<CustomHelpcodeSchemaInfo> GetCustomHelpcodeSchemas();
 std::string GetCustomHelpcodeDirectory();
 bool GetConfiguredShowShuangpinHelpcodeInCandidateWindow();
 bool SetConfiguredShowShuangpinHelpcodeInCandidateWindow(bool enabled);
+// 双拼候选此刻是否带辅码提示：勾了显示，且末尾、句中（引导键或直接）任意一种辅助码开着。
+bool IsConfiguredShuangpinHelpcodeHintShown();
 bool GetConfiguredShowQuanpinHelpcodeInCandidateWindow();
 bool SetConfiguredShowQuanpinHelpcodeInCandidateWindow(bool enabled);
 bool GetConfiguredFloatingToolbarEnabled();

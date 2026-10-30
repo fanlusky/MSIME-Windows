@@ -166,6 +166,37 @@ TEST_CASE(EngineShuangpinSessionContinuesCompositionWithoutHelpcode)
     REQUIRE_EQ(session.get_pinyin_sequence(), std::string("tele"));
 }
 
+TEST_CASE(ShuangpinHelpcodeHintsFollowAnyHelpcodeMode)
+{
+    // 设置页把末尾辅助码选「关」写的是 shuangpin_helpcode；只开句中辅助码时候选上照样要有辅码提示。
+    struct ReloadConfigOnExit
+    {
+        ~ReloadConfigOnExit()
+        {
+            InitImeConfig();
+        }
+    } reload;
+    ScopedConfigRoot config_root;
+    InitImeConfig();
+    REQUIRE(SetConfiguredShowShuangpinHelpcodeInCandidateWindow(true));
+    REQUIRE(SetConfiguredShuangpinHelpcodeEnabled(false));
+    REQUIRE(SetConfiguredShuangpinDirectHelpcodeEnabled(false));
+    REQUIRE(SetConfiguredShuangpinMidSentenceHelpcodeEnabled(false));
+    REQUIRE(!IsConfiguredShuangpinHelpcodeHintShown());
+
+    REQUIRE(SetConfiguredShuangpinMidSentenceHelpcodeEnabled(true));
+    REQUIRE(IsConfiguredShuangpinHelpcodeHintShown());
+    REQUIRE(SetConfiguredShuangpinDirectHelpcodeEnabled(true));
+    REQUIRE(IsConfiguredShuangpinHelpcodeHintShown());
+    REQUIRE(SetConfiguredShuangpinDirectHelpcodeEnabled(false));
+    REQUIRE(!IsConfiguredShuangpinHelpcodeHintShown());
+
+    REQUIRE(SetConfiguredShuangpinHelpcodeEnabled(true));
+    REQUIRE(IsConfiguredShuangpinHelpcodeHintShown());
+    REQUIRE(SetConfiguredShowShuangpinHelpcodeInCandidateWindow(false));
+    REQUIRE(!IsConfiguredShuangpinHelpcodeHintShown());
+}
+
 TEST_CASE(EngineShuangpinTerminalHelpcodeTransitionRoundTripsThroughSelectionHistory)
 {
     struct ReloadConfigOnExit

@@ -437,9 +437,9 @@ class SegmentedChoice : public msimeui::Visual
     SelectHandler onSelect_;
 };
 
-// The shuangpin helpcode settings. `helpcode.shuangpin_helpcode` switches the end helpcode on
-// (and with it the helpcode hints of the candidate window); the two mid-sentence ways do not
-// depend on it.
+// The shuangpin helpcode settings. `helpcode.shuangpin_helpcode` switches the end helpcode on; the
+// two mid-sentence ways do not depend on it, nor do the helpcode hints of the candidate window,
+// which show while any of the three is on.
 constexpr const char *kEndEnabled = "helpcode.shuangpin_helpcode";
 constexpr const char *kEndDirect = "helpcode.shuangpin_helpcode_direct";
 constexpr const char *kMidTrigger = "helpcode.shuangpin_mid_sentence_helpcode";
@@ -540,8 +540,8 @@ void ChooseMid(SettingsModel &model, MidMode target, std::wstring &notice)
     {
         if (modes.end != EndMode::Off)
             notice = MidName(target) + L"不能和" + EndName(modes.end) + L"同时开，已关闭末尾辅助码。";
-        // The direct helpcode overrides the end one by itself. Leave its setting alone, the
-        // helpcode hints of the candidate window hang on it.
+        // The direct helpcode overrides the end one by itself; its setting stays for when the
+        // direct one goes off again.
         if (target == MidMode::Trigger)
             Set(model, kEndEnabled, false);
     }
@@ -575,7 +575,7 @@ std::wstring EndHint(const HelpcodeModes &modes)
         return L"在输入末尾敲引导键，再接一到两个辅码，大小写均可（如 ulpb;xy），一码重排、两码筛选。不敲引导键时"
                L"末尾的字母一律按拼音读。";
     default:
-        return L"输入末尾的字母一律按拼音读，候选窗口里也不再显示双拼辅助码。";
+        return L"输入末尾的字母一律按拼音读。";
     }
 }
 
