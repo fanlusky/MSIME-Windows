@@ -11,6 +11,7 @@
 #include "../neural/neural_decoder.h"
 #include "lattice_rerank.h"
 #include "latin_words.h"
+#include "prefix_completion.h"
 #include "quanpin_query.h"
 #include "engine/ngram/language_model.h"
 #include "engine/ngram/octagram/octagram_gram.h"
@@ -95,6 +96,12 @@ class QuanpinDictionary
 
     // 设置整句候选来源与去重补位选项。值发生变化时清一次缓存，避免旧候选被继续复用。
     void set_sentence_association(const SentenceAssociationOptions &options);
+    // 长词前缀补全（#1343）的开关，随每次查询下发。补全在 query() 末尾现插，不进任何候选缓存，
+    // 开关变了不必清缓存。
+    void set_prefix_completion(const metasequoia::PrefixCompletionOptions &options)
+    {
+        prefix_completion_ = options;
+    }
 
     // 光标前已上屏的文本，作为神经重排给模型看的上下文。宿主能拿到应用里的前文就给它，
     // 拿不到就不设——空上下文照样能排，只是模型只看句子本身、看不到上文。
@@ -234,6 +241,9 @@ class QuanpinDictionary
     std::shared_ptr<const quanpin::CharReadingTotals> char_reading_totals_;
     // 见 latin_words()。只读出厂表，不随 reset_cache 重载。
     std::optional<quanpin::LatinWords> latin_words_;
+    // 见 set_prefix_completion。缓存按前缀存打过分的补全，随 reset_cache 清（调频改了权重）。
+    metasequoia::PrefixCompletionOptions prefix_completion_;
+    quanpin::PrefixCompletionCache prefix_completion_cache_;
     sqlite3 *db_ = nullptr;
     sqlite3_int64 data_version_ = -1;
     metasequoia::RuntimePaths paths_;

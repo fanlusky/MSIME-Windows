@@ -1196,6 +1196,7 @@ void ShuangpinDictionary::reset_cache()
     _cached_buffer_dbl.clear();
     _cached_buffer_series.clear();
     direct_span_cache_.clear();
+    prefix_completion_cache_.clear();
     if (direct_resolver_)
     {
         direct_resolver_->reset_cache();
@@ -1705,6 +1706,16 @@ void ShuangpinDictionary::insert_latin_words(std::vector<WordItem> &candidates, 
     const auto typed_syllables = quanpin::split_segments(ShuangpinUtil::convert_seg_shuangpin_to_seg_complete_pinyin(
         shuangpin::segment_input(raw_input, profile_), profile_));
     quanpin::insert_latin_candidates(candidates, latin_codes().exact(keys), completions, keys, typed_syllables);
+}
+
+void ShuangpinDictionary::insert_prefix_completion(std::vector<WordItem> &candidates, const std::string &raw_input,
+                                                   const metasequoia::PrefixCompletionOptions &options)
+{
+    if (!options.enabled)
+        return;
+    reset_cache_if_database_changed();
+    quanpin::insert_prefix_completion(candidates, raw_input, options, quanpin_db_, quanpin_statement_cache_,
+                                      prefix_completion_cache_, language_model_);
 }
 
 void ShuangpinDictionary::merge_latin_sentence(std::vector<WordItem> &candidates, const std::string &pinyin_sequence,

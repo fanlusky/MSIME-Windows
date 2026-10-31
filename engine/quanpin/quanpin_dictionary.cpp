@@ -2454,6 +2454,7 @@ void QuanpinDictionary::reset_cache()
     prefix_miss_cache_.clear();
     lattice_best_path_cache_.clear();
     lattice_span_cache_.clear();
+    prefix_completion_cache_.clear();
 }
 
 quanpin::WordLatticeLookup QuanpinDictionary::lattice_lookup(int limit, bool with_fuzzy)
@@ -2909,8 +2910,11 @@ std::vector<WordItem> QuanpinDictionary::query(const std::string &raw_input, con
     if (!raw_input.empty())
     {
         const auto segments = resolve_segments(raw_input, segmentation, correction_aliases_enabled_);
-        insert_latin_words(result, raw_input, segments,
-                           segmentation.empty() ? quanpin::join_segments(segments) : segmentation);
+        const std::string code = segmentation.empty() ? quanpin::join_segments(segments) : segmentation;
+        insert_latin_words(result, raw_input, segments, code);
+        // 放在最后：首选要是这次查询最终的首选（模糊音合并、字母词插入都可能换掉它）。
+        quanpin::insert_prefix_completion(result, code, prefix_completion_, db_, statement_cache_,
+                                          prefix_completion_cache_, language_model_);
     }
     current_candidate_list_ = result;
     return result;

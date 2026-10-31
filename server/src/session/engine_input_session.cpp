@@ -100,6 +100,8 @@ void EngineInputSession::ApplyConfiguration()
     // converted quanpin syllables for shuangpin. Re-read on every key so setting
     // changes take effect immediately.
     session_.set_fuzzy_pinyin_options(GetConfiguredFuzzyPinyinOptions());
+    // 长词前缀补全（#1343），同样每次击键重读。
+    session_.set_prefix_completion_options(GetConfiguredPrefixCompletionOptions());
     // 整句候选来源与去重补位选项，每次击键重读，改设置立即生效。
     SentenceAssociationOptions association;
     association.word_lattice = GetConfiguredAssocSentenceWordLattice();
