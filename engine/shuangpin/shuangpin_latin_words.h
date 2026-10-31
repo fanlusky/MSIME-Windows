@@ -23,7 +23,7 @@ class ShuangpinLatinWords
     }
     // 按键与 keys 完全相同的词，权重高的在前。
     std::vector<const quanpin::LatinWord *> exact(const std::string &keys) const;
-    // 按键以 keys 开头、比它长的词，权重高的在前，至多 limit 个。
+    // 按键以 keys 开头、比它长的词（不含 exact_only），权重高的在前，至多 limit 个。
     std::vector<const quanpin::LatinWord *> completions(const std::string &keys, std::size_t limit) const;
 
   private:

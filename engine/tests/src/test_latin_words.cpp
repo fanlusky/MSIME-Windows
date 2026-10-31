@@ -134,15 +134,17 @@ void prepare_dictionary(const std::filesystem::path &directory, bool with_latin_
                                     "COMMIT;");
     if (!with_latin_words)
         return;
-    execute(directory / "msime.db", "BEGIN;"
-                                    "CREATE TABLE latin_words(key TEXT, value TEXT, weight INTEGER);"
-                                    "INSERT INTO latin_words VALUES('t''xu','T恤',10);"
-                                    "INSERT INTO latin_words VALUES('t''xu''shan','T恤衫',9);"
-                                    "INSERT INTO latin_words VALUES('ka''la''o''k','卡拉OK',8);"
-                                    "INSERT INTO latin_words VALUES('a''a''zhi','AA制',7);"
-                                    "INSERT INTO latin_words VALUES('b''chao','B超',6);"
-                                    "INSERT INTO latin_words VALUES('u''pan','U盘',5);"
-                                    "COMMIT;");
+    execute(directory / "msime.db",
+            "BEGIN;"
+            "CREATE TABLE latin_words(key TEXT, value TEXT, weight INTEGER, exact_only INTEGER);"
+            "INSERT INTO latin_words VALUES('t''xu','T恤',10,0);"
+            "INSERT INTO latin_words VALUES('t''xu''shan','T恤衫',9,0);"
+            "INSERT INTO latin_words VALUES('ka''la''o''k','卡拉OK',8,0);"
+            "INSERT INTO latin_words VALUES('a''a''zhi','AA制',7,0);"
+            "INSERT INTO latin_words VALUES('b''chao','B超',6,0);"
+            "INSERT INTO latin_words VALUES('u''pan','U盘',5,0);"
+            "INSERT INTO latin_words VALUES('zhe''e','浙E',4,1);"
+            "COMMIT;");
 }
 
 metasequoia::RuntimePaths paths_for(const std::filesystem::path &directory)
@@ -239,6 +241,46 @@ void test_shuangpin(const metasequoia::RuntimePaths &paths)
     }
 }
 
+// 车牌（exact_only）：整串正好是它时单独出候选，不补全、不进整句。zhe'e、mai'zhe'e 全是完整音节，
+// 夹具里 zhe、e 都没有词，不标 exact_only 的话词格只能经过浙E，必然组出「买浙E」。
+void test_exact_only(const metasequoia::RuntimePaths &paths)
+{
+    {
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        type(session, "zhee");
+        const auto index = find_index(session, "浙E");
+        require(index < session.candidates().size() && session.candidates()[index].latin_word,
+                "A license plate must be offered when the input is exactly its code.");
+    }
+    {
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        type(session, "zhe");
+        require(find_index(session, "浙E") == session.candidates().size(), "A license plate must not be completed.");
+    }
+    {
+        metasequoia::InputSession session(SchemeType::Quanpin, 0u, true, true, true, paths);
+        with_lattice(session);
+        type(session, "maizhee");
+        require(find_index(session, "买浙E") == session.candidates().size(),
+                "A license plate must not enter a quanpin sentence.");
+    }
+    const auto &xiaohe = GetXiaoheShuangpinProfile();
+    {
+        // 小鹤 浙 ve，字母 E 一个键。
+        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
+        type(session, "vee");
+        require(find_index(session, "浙E") < session.candidates().size(),
+                "A shuangpin license plate must be offered on an exact match.");
+    }
+    {
+        metasequoia::InputSession session(SchemeType::Shuangpin, xiaohe, paths);
+        with_lattice(session);
+        type(session, "mdvee");
+        require(find_index(session, "买浙E") == session.candidates().size(),
+                "A license plate must not enter a shuangpin sentence.");
+    }
+}
+
 void test_no_learning(const std::filesystem::path &directory, const metasequoia::RuntimePaths &paths)
 {
     {
@@ -289,6 +331,7 @@ int main()
         test_quanpin_candidates(paths);
         test_quanpin_sentence(paths);
         test_shuangpin(paths);
+        test_exact_only(paths);
         test_no_learning(current, paths);
         test_old_dictionary(paths_for(old));
     }

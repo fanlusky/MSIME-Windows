@@ -19,6 +19,9 @@ struct LatinWord
     std::string key;
     std::string value;
     std::int64_t weight = 0;
+    // 车牌（浙E、鄂A）：只在整串正好是它时单独出候选，不补全、不进整句。浙E 的 zhe'e 全是完整音节，
+    // 进了词格会混进普通整句（就浙E养）；补全会让 zhe 冒出一串车牌。
+    bool exact_only = false;
 };
 
 class LatinWords
@@ -35,7 +38,9 @@ class LatinWords
     }
     // 编码与 code 完全相同的词，权重高的在前。
     std::vector<const LatinWord *> exact(const std::string &code) const;
-    // 编码以 code 开头、比它长的词，权重高的在前，至多 limit 个。
+    // 同上，但不含 exact_only 的词：词格里用这个。
+    std::vector<const LatinWord *> exact_in_sentence(const std::string &code) const;
+    // 编码以 code 开头、比它长的词（不含 exact_only），权重高的在前，至多 limit 个。
     std::vector<const LatinWord *> completions(const std::string &code, std::size_t limit) const;
     // segments 里每个不是完整音节的段（t、k）是否都落在某个整段对齐的字母词里。
     // 是的话词格能用字母词把这条切分解通，否则那些段只能当简拼，词格解不出整句。

@@ -1730,6 +1730,8 @@ void ShuangpinDictionary::merge_latin_sentence(std::vector<WordItem> &candidates
         {
             for (const auto *word : codes.exact(pinyin_sequence.substr(start, length)))
             {
+                if (word->exact_only)
+                    continue;
                 quanpin::Segments alternative(greedy_syllables.begin(),
                                               greedy_syllables.begin() + static_cast<std::ptrdiff_t>(unit));
                 const auto word_syllables = quanpin::split_segments(word->key);

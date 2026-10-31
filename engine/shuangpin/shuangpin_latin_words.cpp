@@ -109,7 +109,8 @@ std::vector<const quanpin::LatinWord *> ShuangpinLatinWords::completions(const s
                                [](const auto &entry, const std::string &target) { return entry.first < target; });
     for (; it != codes_.end() && it->first.compare(0, keys.size(), keys) == 0; ++it)
     {
-        if (it->first.size() > keys.size() && std::find(result.begin(), result.end(), it->second) == result.end())
+        if (it->first.size() > keys.size() && !it->second->exact_only &&
+            std::find(result.begin(), result.end(), it->second) == result.end())
             result.push_back(it->second);
     }
     std::stable_sort(result.begin(), result.end(), [](const quanpin::LatinWord *left, const quanpin::LatinWord *right) {
