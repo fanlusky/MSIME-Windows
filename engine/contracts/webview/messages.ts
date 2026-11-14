@@ -44,6 +44,7 @@ export type ClientMessage =
   | { "type": "statsRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "overview" | "clearAll" | "openDirectory" } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
   | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } }
+  | { "type": "profileIconRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply" | "import"; "icon"?: string } }
   | { "type": "openKeyboardPanel"; "protocolVersion"?: 1 }
   | { "type": "candidate"; "protocolVersion"?: 1; "data": number }
   | { "type": "delete"; "protocolVersion"?: 1; "data": number }
@@ -83,6 +84,7 @@ export type ServerMessage =
   | { "type": "apiCredentialTestResult"; "protocolVersion"?: 1; "requestId": string; "ok": boolean; "message": string }
   | { "type": "defaultImeResponse"; "protocolVersion"?: 1; "requestId": string; "action": string; "ok": boolean; "message": string; "enabled"?: boolean; "isDefault"?: boolean }
   | { "type": "gameCompatResponse"; "protocolVersion"?: 1; "requestId": string; "action": string; "ok": boolean; "message": string; "enabled"?: boolean; "name"?: string; "registeredName"?: string; "defaultName"?: string }
+  | { "type": "profileIconResponse"; "protocolVersion"?: 1; "requestId": string; "action": string; "ok": boolean; "message": string; "cancelled"?: boolean; "icon"?: string; "iconFile"?: string }
   | { "type": "apiModelListResult"; "protocolVersion"?: 1; "requestId": string; "ok": boolean; "message": string; "models"?: Array<string> }
   | { "type": "aiProviderSyncResult"; "protocolVersion"?: 1; "requestId": string; "ok": boolean; "message": string }
   | { "type": "restartServerDone"; "protocolVersion"?: 1; "ok": boolean }
@@ -133,6 +135,7 @@ export type SettingsMessage =
   | { "type": "statsRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "overview" | "clearAll" | "openDirectory" } }
   | { "type": "defaultImeRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "setDefault" | "openSystemSettings" } }
   | { "type": "gameCompatRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply"; "enabled"?: boolean; "name"?: string } }
+  | { "type": "profileIconRequest"; "protocolVersion"?: 1; "data": { "requestId": string; "action": "status" | "apply" | "import"; "icon"?: string } }
   | { "type": "openKeyboardPanel"; "protocolVersion"?: 1 };
 declare global {
   var MsimeProtocol: {

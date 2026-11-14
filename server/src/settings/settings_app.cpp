@@ -12,6 +12,7 @@
 #include "voice-input/local_asr_catalog.h"
 #include "settings/default_input_method.h"
 #include "settings/game_compat_name.h"
+#include "settings/profile_icon.h"
 #include "settings/input_method_install.h"
 #include "settings/dictionary_manager.h"
 #include "settings/native/native_settings_window.h"
@@ -2105,6 +2106,54 @@ void HandleClientMessage(HWND hwnd, const std::string &raw)
                 return [serialized = std::move(serialized)] { PostToPage(serialized); };
             });
         }
+        else if (type == "profileIconRequest")
+        {
+            const auto &data = value.at("data").as_object();
+            const std::string request_id = json::value_to<std::string>(data.at("requestId"));
+            const std::string action = json::value_to<std::string>(data.at("action"));
+            const std::string icon = data.contains("icon") ? json::value_to<std::string>(data.at("icon")) : "";
+            // The picker is modal on the window thread; conversion and the UAC wait run on the worker.
+            std::filesystem::path image;
+            bool cancelled = false;
+            if (action == "import")
+            {
+                image = profile_icon::PromptForImage(hwnd);
+                cancelled = image.empty();
+            }
+            const std::filesystem::path assets =
+                std::filesystem::path(CommonUtils::get_ime_data_path_w()) / L"assets" / L"settings";
+            g_worker->Submit(
+                [request_id, action, icon, image, cancelled, assets, hwnd]() -> SerialTaskQueue::Completion {
+                    bool ok = true;
+                    std::string message;
+                    if (action == "apply")
+                    {
+                        ok = profile_icon::ApplyBuiltin(hwnd, icon, assets, message);
+                        if (ok)
+                            message = "已更换输入法图标。";
+                    }
+                    else if (action == "import" && !cancelled)
+                    {
+                        ok = profile_icon::ApplyCustom(hwnd, image, message);
+                        if (ok)
+                            message = "已更换为自定义图标。";
+                    }
+                    const profile_icon::Status status = profile_icon::QueryStatus();
+                    json::value response = {{"type", "profileIconResponse"},
+                                            {"requestId", request_id},
+                                            {"action", action},
+                                            {"ok", ok},
+                                            {"message", message},
+                                            {"cancelled", cancelled},
+                                            {"icon", status.choice},
+                                            {"iconFile", wstring_to_string(status.iconFile)},
+                                            {"protocolVersion", metasequoia::webview::Version}};
+                    if (!metasequoia::webview::Validate(response, "server"))
+                        throw std::runtime_error("Invalid profile icon response");
+                    auto serialized = string_to_wstring(json::serialize(response));
+                    return [serialized = std::move(serialized)] { PostToPage(serialized); };
+                });
+        }
         else if (type == "statsRequest")
         {
             const auto data = value.at("data").as_object();
@@ -2426,6 +2475,9 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR command_line, int show_
     // The elevated half of the game-compat switch: write HKLM and exit, no window, no single-instance check.
     if (const int elevated_result = game_compat_name::RunElevatedApplyIfRequested(command_line); elevated_result >= 0)
         return elevated_result;
+    // The elevated half of the profile icon choice, same shape as the one above.
+    if (const int icon_result = profile_icon::RunElevatedApplyIfRequested(command_line); icon_result >= 0)
+        return icon_result;
     const std::wstring arguments = command_line ? command_line : L"";
     UINT open_section_message = kActivateExistingWindow;
     if (arguments.find(L"--about") != std::wstring::npos)

@@ -64,6 +64,15 @@ target_link_libraries(test_local_asr_download PRIVATE CURL::libcurl ole32)
 add_test(NAME local_asr_download COMMAND test_local_asr_download)
 set_tests_properties(local_asr_download PROPERTIES TIMEOUT 60)
 
+# 输入法图标：ICO 校验、Register.cpp 认的文件名和导入图片的 WIC 转换；提权写系统目录的那半不在这里跑。
+add_executable(test_profile_icon src/test_profile_icon.cpp ../src/settings/profile_icon.cpp)
+target_include_directories(test_profile_icon PRIVATE ../src)
+target_compile_features(test_profile_icon PRIVATE cxx_std_17)
+target_compile_definitions(test_profile_icon PRIVATE NOMINMAX UNICODE _UNICODE
+    MSIME_PROFILE_ICONS_DIR="${MSIME_REPO_ROOT}/windows/image/profile-icons")
+target_link_libraries(test_profile_icon PRIVATE ole32 windowscodecs shell32 advapi32)
+add_test(NAME profile_icon COMMAND test_profile_icon)
+
 add_executable(test_voice_target src/test_voice_target.cpp)
 target_include_directories(test_voice_target PRIVATE ../src)
 target_compile_features(test_voice_target PRIVATE cxx_std_17)

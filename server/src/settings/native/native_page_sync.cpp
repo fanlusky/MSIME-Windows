@@ -15,7 +15,7 @@ using namespace voice_fields;
 
 // 用户数据同步页。WebView2 时期没有这个功能，这一页是全新的。
 //
-// 布局沿用「帮助」页的网络代理块：一张卡片放同步方式与字段，另一张放测试连接、上传、
+// 布局沿用「高级」页的网络代理块：一张卡片放同步方式与字段，另一张放测试连接、上传、
 // 恢复与设备列表。所有字段都写进 config.toml 的 [sync] 段；密码与密钥由配置层统一做
 // DPAPI 加密，页面本身不碰加密。
 namespace
@@ -494,7 +494,7 @@ VisualPtr BuildSyncPage(PageContext &context)
 
         // 配置快照回来时同步字段：页面可能在别处被改过，或者刚打开。
         // 正在输入的字段不覆盖：快照可能在用户敲密码时到达，SetText 会把他打的字换掉。
-        // 同目录的帮助页对代理地址用的是同一种做法。
+        // 同目录的高级页对代理地址用的是同一种做法。
         context.OnConfig([weak, model]() {
             auto locked = weak.lock();
             if (!locked)

@@ -18,8 +18,6 @@
 #include <regex>
 #include <thread>
 
-using Microsoft::WRL::ComPtr;
-
 // partials/about-settings.html + modules/about-settings.ts + modules/update-manifest.ts;
 // styles in styles/modules/document-settings.css (.about-*).
 namespace native_settings
@@ -314,13 +312,6 @@ CssButton::Style DialogButtonStyle(bool primary)
     return style;
 }
 
-struct AboutBackupState
-{
-    std::shared_ptr<Button> export_button;
-    std::shared_ptr<Button> import_button;
-    bool busy = false;
-};
-
 struct AboutState
 {
     std::shared_ptr<CssButton> check;
@@ -332,67 +323,7 @@ struct AboutState
     std::unique_ptr<UiTimer> progressTimer;
     std::shared_ptr<Label> status;
     std::shared_ptr<Hideable> statusBox;
-    // Set once the user-data backup section exists. Kept here so the page owns the
-    // button state for as long as its controls live.
-    std::shared_ptr<AboutBackupState> backup;
 };
-
-void SetBackupBusy(const std::shared_ptr<AboutBackupState> &state, const bool busy)
-{
-    if (!state)
-        return;
-    state->busy = busy;
-    if (state->export_button)
-        state->export_button->SetDisabled(busy);
-    if (state->import_button)
-        state->import_button->SetDisabled(busy);
-}
-
-std::filesystem::path PickBackupDestination(HWND owner)
-{
-    ComPtr<IFileSaveDialog> dialog;
-    if (FAILED(CoCreateInstance(CLSID_FileSaveDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog))))
-        return {};
-    const COMDLG_FILTERSPEC filters[] = {{L"ZIP 备份 (*.zip)", L"*.zip"}, {L"所有文件", L"*.*"}};
-    dialog->SetFileTypes(ARRAYSIZE(filters), filters);
-    dialog->SetDefaultExtension(L"zip");
-    dialog->SetFileName(L"水杉IME-用户数据.zip");
-    dialog->SetTitle(L"导出用户数据");
-    DWORD options = 0;
-    if (SUCCEEDED(dialog->GetOptions(&options)))
-        dialog->SetOptions(options | FOS_FORCEFILESYSTEM | FOS_OVERWRITEPROMPT | FOS_PATHMUSTEXIST);
-    ComPtr<IShellItem> item;
-    if (FAILED(dialog->Show(owner)) || FAILED(dialog->GetResult(&item)))
-        return {};
-    PWSTR path = nullptr;
-    if (FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)))
-        return {};
-    const std::filesystem::path selected = path;
-    CoTaskMemFree(path);
-    return selected;
-}
-
-std::filesystem::path PickBackupSource(HWND owner)
-{
-    ComPtr<IFileOpenDialog> dialog;
-    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog))))
-        return {};
-    const COMDLG_FILTERSPEC filters[] = {{L"ZIP 备份 (*.zip)", L"*.zip"}, {L"所有文件", L"*.*"}};
-    dialog->SetFileTypes(ARRAYSIZE(filters), filters);
-    dialog->SetTitle(L"导入用户数据");
-    DWORD options = 0;
-    if (SUCCEEDED(dialog->GetOptions(&options)))
-        dialog->SetOptions(options | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST);
-    ComPtr<IShellItem> item;
-    if (FAILED(dialog->Show(owner)) || FAILED(dialog->GetResult(&item)))
-        return {};
-    PWSTR path = nullptr;
-    if (FAILED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)))
-        return {};
-    const std::filesystem::path selected = path;
-    CoTaskMemFree(path);
-    return selected;
-}
 
 // 收尾：恢复按钮，把结论写给用户看。下载版复用它。
 inline void FinishUpdateDownload(const std::shared_ptr<AboutState> &state, const bool ok, const std::wstring &message)
@@ -936,132 +867,6 @@ VisualPtr BuildAboutPage(PageContext &context)
     }
     auto linksSection = std::make_shared<PaddedSection>(links, Thickness{24.0f, 0.0f, 24.0f, 0.0f});
     page.AddRaw(linksSection);
-
-    // 输入法进程与设置窗口
-    {
-        Dropdown::Options linger;
-        linger.minWidth = 150.0f;
-        linger.matchToggleWidth = true;
-        auto restart = std::make_shared<Button>(L"重启", ButtonKind::Secondary);
-        std::weak_ptr<Button> weakRestart = restart;
-        restart->SetOnClick([model, weakRestart]() {
-            // 重启由 Watchdog 执行。按钮在收到宿主的 restartServerDone 之前保持禁用，
-            // 防止连点排队；这里不自己起定时器，窗口隐藏时它会随窗口一起失效。
-            auto button = weakRestart.lock();
-            if (!button || button->IsDisabled())
-                return;
-            button->SetDisabled(true);
-            button->SetText(L"重启中…");
-            model->Post("restartServer");
-        });
-        context.OnMessage("restartServerDone", [weakRestart](const Json &) {
-            if (auto button = weakRestart.lock())
-            {
-                button->SetDisabled(false);
-                button->SetText(L"重启");
-            }
-        });
-        page.AddSection(MakeRows({
-            MakeRow(L"重启输入法进程", L"立即重启输入法后台进程，使需要重启的设置生效。", restart),
-            MakeRow(L"设置窗口后台驻留",
-                    L"关闭设置窗口后在后台保留一段时间，期间重新打开无需等待加载；驻留越久占用内存越久。",
-                    BindDropdown(context, "appearance.settings_window_linger",
-                                 Options({{"off", L"关闭后立即退出"},
-                                          {"1m", L"1 分钟"},
-                                          {"5m", L"5 分钟"},
-                                          {"10m", L"10 分钟"},
-                                          {"30m", L"30 分钟"},
-                                          {"60m", L"1 小时"},
-                                          {"forever", L"一直驻留"}}),
-                                 linger)),
-        }));
-    }
-
-    page.AddSection(MakeRow(L"启动动画",
-                            L"打开设置窗口时先在窗口中央显示齿轮图标，再淡入主界面。关闭后只短暂显示纯色背景。",
-                            BindToggle(context, "appearance.settings_launch_animation")));
-    page.AddSection(
-        MakeRow(L"Server 端日志",
-                L"排查 Server "
-                L"通信和输入延迟时开启。记录慢请求阶段、候选窗、悬浮工具栏、菜单、焦点会话和通信状态，不记录按键、输入"
-                L"内容或候选文本。日志写到数据目录的 logs 文件夹，文件名带生成时间，例如 "
-                L"水杉IME诊断日志-server-20261029-153012.log。",
-                BindToggle(context, "general.diagnostic_log")));
-    page.AddSection(MakeRow(L"TSF 端日志",
-                            L"排查应用内预编辑和输入延迟时开启。TSF "
-                            L"日志会在内存中限量缓冲，并通过独立管道批量汇总到同一个 logs 文件夹，文件名以 tsf "
-                            L"标识，与 Server 日志分开保存；不记录按键、输入内容或候选文本。",
-                            BindToggle(context, "general.tsf_diagnostic_log")));
-    {
-        auto openLogs = std::make_shared<Button>(L"打开日志目录", ButtonKind::Secondary);
-        openLogs->SetOnClick([model]() { model->Post("openLogDirectory"); });
-        page.AddSection(MakeRow(
-            L"日志文件", L"复现一次后打开日志文件夹，发送最近生成的那份文件。最多保留最近 10 个文件，旧的自动删除。",
-            openLogs));
-    }
-    // 用户数据备份：导出不停 Server，导入先完整校验再停机应用。
-    {
-        auto backup = std::make_shared<AboutBackupState>();
-        state->backup = backup;
-        auto export_button = std::make_shared<Button>(L"导出…", ButtonKind::Secondary);
-        auto import_button = std::make_shared<Button>(L"导入…", ButtonKind::Secondary);
-        backup->export_button = export_button;
-        backup->import_button = import_button;
-        auto include_models = std::make_shared<ToggleSwitch>(true);
-        const HWND owner = context.host.Hwnd();
-        std::weak_ptr<AboutBackupState> weak_backup = backup;
-        export_button->SetOnClick([model, owner, weak_backup, include_models]() {
-            const std::shared_ptr<AboutBackupState> current = weak_backup.lock();
-            if (!current || current->busy)
-                return;
-            const std::filesystem::path destination = PickBackupDestination(owner);
-            if (destination.empty())
-                return;
-            SetBackupBusy(current, true);
-            model->Post("userDataBackupRequest", Json{{"action", "export"},
-                                                      {"path", destination.u8string()},
-                                                      {"includeModels", include_models->IsChecked()}});
-        });
-        import_button->SetOnClick([model, owner, weak_backup, host = &context.host]() {
-            const std::shared_ptr<AboutBackupState> current = weak_backup.lock();
-            if (!current || current->busy)
-                return;
-            const std::filesystem::path source = PickBackupSource(owner);
-            if (source.empty())
-                return;
-            host->Confirm(
-                L"导入会先停止输入法后台进程，并把将被覆盖的配置、统计、皮肤和模型备份到数据目录的 "
-                L".backup-before-import。词库只合并条目，不会替换现有数据库。",
-                [model, weak_backup, source](bool confirmed) {
-                    const std::shared_ptr<AboutBackupState> current = weak_backup.lock();
-                    if (!confirmed || !current || current->busy)
-                        return;
-                    SetBackupBusy(current, true);
-                    model->Post("userDataBackupRequest", Json{{"action", "import"}, {"path", source.u8string()}});
-                },
-                L"导入用户数据", L"继续导入", L"取消");
-        });
-        context.OnMessage("userDataBackupDone", [weak_backup, host = &context.host](const Json &message) {
-            const std::shared_ptr<AboutBackupState> current = weak_backup.lock();
-            if (!current)
-                return;
-            SetBackupBusy(current, false);
-            const bool ok = message.contains("ok") && message["ok"].is_boolean() && message["ok"].get<bool>();
-            const std::string text = message.contains("message") && message["message"].is_string()
-                                         ? message["message"].get<std::string>()
-                                         : std::string(ok ? "操作完成" : "操作失败");
-            host->ShowToast(Widen(text), ok);
-        });
-        page.AddSection(MakeRows({
-            MakeRow(L"导出用户数据", L"把配置、统计、用户皮肤、用户词条和模型打包成 ZIP。导出时输入法继续运行。",
-                    export_button),
-            MakeRow(L"包含已下载模型",
-                    L"勾选时把数据目录 models/ 下的模型一起打包；导入按 ZIP 内容恢复，没有模型条目的 ZIP "
-                    L"不会删除本地已有模型。",
-                    include_models),
-            MakeRow(L"导入用户数据", L"先完整校验 ZIP，通过后才停止输入法并覆盖文件；词库只合并条目。", import_button),
-        }));
-    }
     // The button's handler only holds the state weakly (the state holds the button), so
     // the page has to own it or the first click finds it gone.
     return std::make_shared<OwnerBox>(page.Build(), state);

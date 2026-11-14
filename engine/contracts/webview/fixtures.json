@@ -1005,5 +1005,62 @@
     "direction": "server",
     "surface": "settings",
     "valid": true
+  },
+  {
+    "name": "profile icon apply request",
+    "message": {
+      "type": "profileIconRequest",
+      "protocolVersion": 1,
+      "data": {
+        "requestId": "profile-icon-1",
+        "action": "apply",
+        "icon": "logo-v2"
+      }
+    },
+    "direction": "client",
+    "surface": "settings",
+    "valid": true
+  },
+  {
+    "name": "profile icon request rejects unknown action",
+    "message": {
+      "type": "profileIconRequest",
+      "data": {
+        "requestId": "profile-icon-1",
+        "action": "delete"
+      }
+    },
+    "direction": "client",
+    "surface": "settings",
+    "valid": false
+  },
+  {
+    "name": "profile icon request rejected from toolbar",
+    "message": {
+      "type": "profileIconRequest",
+      "data": {
+        "requestId": "profile-icon-1",
+        "action": "status"
+      }
+    },
+    "direction": "client",
+    "surface": "toolbar",
+    "valid": false
+  },
+  {
+    "name": "profile icon status response",
+    "message": {
+      "type": "profileIconResponse",
+      "protocolVersion": 1,
+      "requestId": "profile-icon-1",
+      "action": "status",
+      "ok": true,
+      "message": "",
+      "icon": "default",
+      "iconFile": "C:\\Windows\\system32\\IME\\MetasequoiaIME\\MetasequoiaImeTip.ico"
+    },
+    "direction": "server",
+    "surface": "settings",
+    "valid": true
   }
 ]

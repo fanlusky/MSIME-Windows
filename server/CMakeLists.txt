@@ -620,6 +620,8 @@ add_executable(${SETTINGS_EXECUTABLE_NAME} WIN32
     "./src/settings/default_input_method.h"
     "./src/settings/game_compat_name.cpp"
     "./src/settings/game_compat_name.h"
+    "./src/settings/profile_icon.cpp"
+    "./src/settings/profile_icon.h"
     "./src/settings/input_method_install.cpp"
     "./src/settings/input_method_install.h"
     # 设置页要判断通道、读后台下载的结果，只用到通道判定与状态文件，不引轮询线程。
@@ -664,6 +666,7 @@ add_executable(${SETTINGS_EXECUTABLE_NAME} WIN32
     "./src/settings/native/native_page_floating_toolbar.cpp"
     "./src/settings/native/native_page_stats.cpp"
     "./src/settings/native/native_page_sync.cpp"
+    "./src/settings/native/native_page_advanced.cpp"
     "./src/settings/native/native_page_help.cpp"
     "./src/settings/native/native_page_help_widgets.cpp"
     "./src/settings/native/native_page_help_widgets.h"

@@ -1260,6 +1260,31 @@ ID2D1Bitmap *DeviceResources::GetBitmapFromFile(const std::wstring &filePath, D2
     {
         return nullptr;
     }
+    // A multi-size .ico lists its frames in any order, often 16 px first; drawing that one scaled up is a blur, so
+    // take the largest. Single-frame formats and same-size frames (GIF) keep frame 0.
+    GUID container = {};
+    UINT frameCount = 0;
+    if (SUCCEEDED(decoder->GetContainerFormat(&container)) && container == GUID_ContainerFormatIco &&
+        SUCCEEDED(decoder->GetFrameCount(&frameCount)))
+    {
+        UINT bestWidth = 0;
+        UINT bestHeight = 0;
+        frame->GetSize(&bestWidth, &bestHeight);
+        for (UINT i = 1; i < frameCount; ++i)
+        {
+            Microsoft::WRL::ComPtr<IWICBitmapFrameDecode> candidate;
+            UINT width = 0;
+            UINT height = 0;
+            if (SUCCEEDED(decoder->GetFrame(i, candidate.GetAddressOf())) &&
+                SUCCEEDED(candidate->GetSize(&width, &height)) &&
+                static_cast<UINT64>(width) * height > static_cast<UINT64>(bestWidth) * bestHeight)
+            {
+                frame = candidate;
+                bestWidth = width;
+                bestHeight = height;
+            }
+        }
+    }
 
     Microsoft::WRL::ComPtr<IWICFormatConverter> converter;
     if (FAILED(wicFactory_->CreateFormatConverter(converter.GetAddressOf())) ||

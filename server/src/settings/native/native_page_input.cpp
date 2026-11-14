@@ -1997,7 +1997,7 @@ VisualPtr BuildInputPage(PageContext &context)
             L"Trigram 模型下载",
             L"三元语言模型不随安装包分发，下载后才能开启上面的 Trigram 整句开关，可随时删除；神经网络整句也会用它"
             L"给备选句打分。应用内下载较慢时，可点「浏览器下载」用浏览器下好，再点「导入」选中该 sc.lm 文件；"
-            L"也可以在「帮助」页设置网络代理",
+            L"也可以在「高级」页设置网络代理",
             s->lattice);
         s->latticeToggle = BindToggle(context, "association.sentence_wordlattice");
 
@@ -2007,7 +2007,7 @@ VisualPtr BuildInputPage(PageContext &context)
             downloadSection(L"神经网络模型（效果优先）下载",
                             L"效果优先模型不随安装包分发，下载后才能开启上面的整句开关，可随时删除。"
                             L"应用内下载较慢时，可点「浏览器下载」用浏览器下好，再点「导入」选中该 .safetensors 文件；"
-                            L"也可以在「帮助」页设置网络代理",
+                            L"也可以在「高级」页设置网络代理",
                             s->neural);
         s->neuralToggle = BindToggle(context, "association.sentence_neural_desktop");
 
@@ -2018,7 +2018,7 @@ VisualPtr BuildInputPage(PageContext &context)
                  MakeDescription(
                      L"内置目录里的模型包各自下载、状态独立，激活其中一个用于整句加成；默认未选择任何模型"
                      L"（整句加成保持关闭），下载后单选激活，可随时切换或删除。应用内下载较慢时，可点「浏览器下载」"
-                     L"用浏览器下好，再点「导入」选中该 .gram 文件；也可以在「帮助」页设置网络代理"),
+                     L"用浏览器下好，再点「导入」选中该 .gram 文件；也可以在「高级」页设置网络代理"),
                  s->collocationList});
         collocationBlock->SetMargin({0.0f, 0.0f, 10.0f, 0.0f});
         s->collocationToggle = BindToggle(context, "association.sentence_collocation_enabled");
@@ -2067,7 +2067,7 @@ VisualPtr BuildInputPage(PageContext &context)
                  SubBlock(L"云候选",
                           L"联网，把当前的全拼（双拼会先还原成全拼，日文输入时是罗马字）发送到 Google 的 inputtools "
                           L"服务换取一个候选。对方会收到拼音、你的 IP 地址和请求元数据，不会收到已上屏的文字、"
-                          L"词库或设置。默认开启，无需账号；需要走代理时在「帮助」页设置，详见 PRIVACY.md"),
+                          L"词库或设置。默认开启，无需账号；需要走代理时在「高级」页设置，详见 PRIVACY.md"),
                  Toggle(context, "general.cloud_candidates"))});
         content->SetMargin({0.0f, 8.0f, 0.0f, 0.0f});
         page.AddSection(
