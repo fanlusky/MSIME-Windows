@@ -1,4 +1,5 @@
 #include "ipc/event_listener.h"
+#include "log/candidate_diag_log.h"
 #include "log/fanylog.h"
 #include "window/ime_windows.h"
 #include <commctrl.h>
@@ -24,7 +25,6 @@
 #include "engine/local_modes/radical_query.h"
 #include "global/globals.h"
 #include "utils/common_utils.h"
-#include "utils/hanzi_pinyin.h"
 #include "utils/process_priority.h"
 #include "utils/single_instance.h"
 #include "session/session_factory.h"
@@ -219,15 +219,21 @@ int CALLBACK WinMain(_In_ HINSTANCE hInstance, _In_ HINSTANCE /*hPrevInstance*/,
                            [](MixedCandidates::Result result, const std::string &input, uint64_t generation) {
                                FanyNamedPipe::EnqueueMixedCandidates(std::move(result), input, generation);
                            });
-    // U 模式第一次查询要解析十几万行的拆字表、加载 cpp-pinyin 词典，放在按键回复里会卡住 Shift+U
-    // 之后的第一个字母。没开这个模式的用户不多读这两份数据。
+    // U 模式第一次查询要解析十几万行的拆字表，放在按键回复里会卡住 Shift+U 之后的第一个字母。
+    // 没开这个模式的用户不读这份数据。
     std::thread radical_warmup;
     if (GetConfiguredRadicalModeEnabled())
     {
         radical_warmup = std::thread([] {
-            metasequoia::local_modes::preload_radical_table(
+            const auto stats = metasequoia::local_modes::preload_radical_table(
                 metasequoia::RuntimePaths::legacy().resource(metasequoia::assets::radical_decomposition));
-            (void)HanziPinyin::Engine();
+            // 旧的三列拆字表加载也成功，只是没有读音；U 模式仍能出字，但候选上不会显示注音，
+            // 记一条诊断日志，便于排查数据目录没刷新。
+            if (stats.entries > 0 && stats.entries_with_reading == 0)
+            {
+                DIAG_LOGF(L"radical decomposition table has no reading column; U mode candidates will not show "
+                          L"readings; update the data directory or reinstall");
+            }
         });
     }
 

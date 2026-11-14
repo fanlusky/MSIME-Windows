@@ -17,13 +17,17 @@ namespace metasequoia::local_modes
 {
 namespace
 {
-// 一行拆字数据。code 是部件拼音连写、word 是汉字、weight 是字频。两段文字首尾相接存在
-// Table::text 里：十几万行各带两个 std::string 要占十多 MB 常驻内存，压成一块文本池后只剩几 MB。
+// 一行拆字数据。code 是部件拼音连写、word 是汉字、weight 是字频，reading 是可选读音。几段
+// 文字存在 Table::text 里：十几万行各带几个 std::string 要占十多 MB 常驻内存，压成一块文本
+// 池后只剩几 MB。码和字按行首尾相接；读音属于字本身，很多拆法共享同一段，按值去重后只存
+// 一份，Entry 各记自己的偏移。
 struct Entry
 {
     std::uint32_t offset = 0;
+    std::uint32_t reading_offset = 0;
     std::uint16_t code_size = 0;
     std::uint16_t word_size = 0;
+    std::uint16_t reading_size = 0;
     std::int64_t weight = 0;
 };
 
@@ -34,6 +38,8 @@ struct Table
     std::vector<Entry> entries;
     // entries 的下标按 code 排序。前缀命中的行在排序视图里连续，查询只扫这一小段。
     std::vector<std::uint32_t> by_code;
+    // 整张表带读音的行数。旧的三列表没有第 4 列，Server 据此记录数据没刷新。
+    std::size_t entries_with_reading = 0;
 
     std::string_view code(std::size_t index) const
     {
@@ -45,6 +51,12 @@ struct Table
     {
         const Entry &entry = entries[index];
         return std::string_view(text).substr(entry.offset + entry.code_size, entry.word_size);
+    }
+
+    std::string_view reading(std::size_t index) const
+    {
+        const Entry &entry = entries[index];
+        return std::string_view(text).substr(entry.reading_offset, entry.reading_size);
     }
 };
 
@@ -58,6 +70,13 @@ bool is_lower_ascii_code(std::string_view code)
                        [](unsigned char character) { return character >= 'a' && character <= 'z'; });
 }
 
+// 第 4 列只取到下一个 tab 或空白：多出来的列、行尾空格不该混进候选注释，也不该算进宽度。
+std::string_view reading_cell(std::string_view line, std::size_t start)
+{
+    const auto end = line.find_first_of(" \t", start);
+    return end == std::string_view::npos ? line.substr(start) : line.substr(start, end - start);
+}
+
 std::shared_ptr<const Table> load_table(const std::filesystem::path &path)
 {
     auto table = std::make_shared<Table>();
@@ -67,6 +86,7 @@ std::shared_ptr<const Table> load_table(const std::filesystem::path &path)
         return {};
     }
 
+    std::unordered_map<std::string, std::uint32_t> reading_offsets;
     std::string line;
     bool first_line = true;
     while (std::getline(input, line))
@@ -96,21 +116,28 @@ std::shared_ptr<const Table> load_table(const std::filesystem::path &path)
         }
         const std::string_view code = std::string_view(line).substr(0, first_tab);
         const std::string_view word = std::string_view(line).substr(first_tab + 1, second_tab - first_tab - 1);
+        // 第四列读音是可选的（旧表、测试用的最小表都只有三列）。
+        const auto third_tab = line.find('\t', second_tab + 1);
+        const std::string_view weight_text =
+            third_tab == std::string::npos ? std::string_view(line).substr(second_tab + 1)
+                                           : std::string_view(line).substr(second_tab + 1, third_tab - second_tab - 1);
+        const std::string_view reading =
+            third_tab == std::string::npos ? std::string_view{} : reading_cell(line, third_tab + 1);
         // 拆字输入只可能是 a-z，码字域之外的码（繁体、注音、含撇号未归一）没有查询语义。
         if (code.empty() || word.empty() || !is_lower_ascii_code(code))
         {
             continue;
         }
         // 条目里的长度和偏移是定宽整数；真实数据的一行只有几十字节，超出的行不可能是合法拆字。
-        if (code.size() > UINT16_MAX || word.size() > UINT16_MAX ||
-            table->text.size() + code.size() + word.size() > UINT32_MAX)
+        if (code.size() > UINT16_MAX || word.size() > UINT16_MAX || reading.size() > UINT16_MAX ||
+            table->text.size() + code.size() + word.size() + reading.size() > UINT32_MAX)
         {
             continue;
         }
         std::int64_t weight = 0;
         try
         {
-            weight = std::stoll(line.substr(second_tab + 1));
+            weight = std::stoll(std::string(weight_text));
         }
         catch (...)
         {
@@ -120,9 +147,21 @@ std::shared_ptr<const Table> load_table(const std::filesystem::path &path)
         entry.offset = static_cast<std::uint32_t>(table->text.size());
         entry.code_size = static_cast<std::uint16_t>(code.size());
         entry.word_size = static_cast<std::uint16_t>(word.size());
+        entry.reading_size = static_cast<std::uint16_t>(reading.size());
         entry.weight = weight;
         table->text.append(code);
         table->text.append(word);
+        if (!reading.empty())
+        {
+            const auto inserted =
+                reading_offsets.emplace(std::string(reading), static_cast<std::uint32_t>(table->text.size()));
+            if (inserted.second)
+            {
+                table->text.append(reading);
+            }
+            entry.reading_offset = inserted.first->second;
+            ++table->entries_with_reading;
+        }
         table->entries.push_back(entry);
     }
     table->text.shrink_to_fit();
@@ -233,9 +272,10 @@ std::vector<WordItem> query_codes(const std::filesystem::path &decomposition_pat
             {
                 continue;
             }
-            // 注音不在这里填：引擎没有汉字→拼音能力，由 Server 组装候选时补。
             result.emplace_back(std::string{}, std::string(word), table->entries[index].weight,
                                 CandidateSource::Generated);
+            // 读音随表烘进来：表里的字远多于运行时拼音词典，候选反显才不会成片空白。
+            result.back().reading = std::string(table->reading(index));
         }
     }
     return result;
@@ -274,8 +314,13 @@ std::vector<WordItem> query_radical(const std::filesystem::path &decomposition_p
     return query_codes(decomposition_path, codes, limit);
 }
 
-void preload_radical_table(const std::filesystem::path &decomposition_path)
+RadicalTableStats preload_radical_table(const std::filesystem::path &decomposition_path)
 {
-    cached_table(decomposition_path);
+    const std::shared_ptr<const Table> table = cached_table(decomposition_path);
+    if (!table)
+    {
+        return {};
+    }
+    return {table->entries.size(), table->entries_with_reading};
 }
 } // namespace metasequoia::local_modes
