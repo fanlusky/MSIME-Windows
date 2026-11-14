@@ -1922,6 +1922,9 @@ begin
     { 设置页「游戏兼容」记下的登记名称。升级时要留着（TSF DLL 注册时读它），卸载时不能留：
       否则日后重装会悄悄沿用别名。}
     RegDeleteValue(HKLM, 'Software\Metasequoia\MetasequoiaIME', 'GameCompatProfileName');
+    { 设置页「输入法图标」记下的选择，道理同上。图标文件本身在 TsfRoot 里，随下面的整树删除一起清掉。}
+    RegDeleteValue(HKLM, 'Software\Metasequoia\MetasequoiaIME', 'ProfileIconFile');
+    RegDeleteValue(HKLM, 'Software\Metasequoia\MetasequoiaIME', 'ProfileIconChoice');
     DeleteWatchdogLogonTask;
     RegDeleteValue(
       HKLM,

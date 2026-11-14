@@ -681,6 +681,35 @@
         "additionalProperties": false
       }
     },
+    "profileIconRequest": {
+      "surfaces": [
+        "settings"
+      ],
+      "data": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "status",
+              "apply",
+              "import"
+            ]
+          },
+          "icon": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId",
+          "action"
+        ],
+        "additionalProperties": false
+      }
+    },
     "openKeyboardPanel": {
       "surfaces": [
         "settings",
@@ -1183,6 +1212,38 @@
           "type": "string"
         },
         "defaultName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId",
+        "action",
+        "ok",
+        "message"
+      ],
+      "additionalProperties": false
+    },
+    "profileIconResponse": {
+      "properties": {
+        "requestId": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "message": {
+          "type": "string"
+        },
+        "cancelled": {
+          "type": "boolean"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "iconFile": {
           "type": "string"
         }
       },

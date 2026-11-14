@@ -79,6 +79,7 @@ $appIcon = Join-Path $RepoRoot (Join-Path $ServerDirectory 'src\resource\Metaseq
 # 输入法语言配置的图标，与 TSF DLL 里的 IDIS_METASEQUOIAIME 是同一个文件。安装器把它放到固定路径，
 # DLL 注册时优先用它，免得图标路径随版本目录变化（见 msime_setup.iss）。
 $tipIcon = Join-Path $RepoRoot (Join-Path $TsfDirectory 'image\msime.ico')
+$profileIconsSource = Join-Path $RepoRoot (Join-Path $TsfDirectory 'image\profile-icons')
 $thirdPartyNotices = Join-Path $RepoRoot (Join-Path $NoticesDirectory 'THIRD_PARTY_NOTICES.txt')
 $license = Join-Path $RepoRoot 'LICENSE'
 $dictionaryDb = Join-Path $RepoRoot (Join-Path $DictionaryDirectory 'out\msime.db')
@@ -115,6 +116,7 @@ if ($missingServerPdb.Count -gt 0) {
 Assert-PathExists -LiteralPath $serverConfig -Description 'Server config.toml'
 Assert-PathExists -LiteralPath $appIcon -Description '应用图标'
 Assert-PathExists -LiteralPath $tipIcon -Description '输入法语言配置图标 msime.ico'
+Assert-PathExists -LiteralPath $profileIconsSource -Description '可选输入法图标目录 image\profile-icons'
 Assert-PathExists -LiteralPath $thirdPartyNotices -Description '第三方声明 THIRD_PARTY_NOTICES.txt'
 Assert-PathExists -LiteralPath $license -Description '许可证 LICENSE'
 Assert-PathExists -LiteralPath $settingsAssets -Description '设置窗口图片资源目录'
@@ -243,6 +245,15 @@ if (Test-Path -LiteralPath $targetAssets) {
     Remove-Item -LiteralPath $targetAssets -Recurse -Force
 }
 Copy-DirectoryContents -Source $settingsAssets -Destination $targetSettingsAssets
+
+# 设置页「输入法图标」可选的内置图标，id 与 server/src/settings/profile_icon.cpp 的 Builtins() 一一对应：
+# default 是安装器装成 MetasequoiaImeTip.ico 的那个（这里只用于预览），其余取 windows\image\profile-icons\
+# 下的 <id>.ico（同名 .svg 是源文件，不进包）。
+$targetProfileIcons = Join-Path $targetSettingsAssets 'profile-icons'
+New-Item -ItemType Directory -Path $targetProfileIcons -Force | Out-Null
+Copy-Item -LiteralPath $tipIcon -Destination (Join-Path $targetProfileIcons 'default.ico') -Force
+Get-ChildItem -LiteralPath $profileIconsSource -File -Filter '*.ico' |
+    Copy-Item -Destination $targetProfileIcons -Force
 
 # 内置皮肤的出厂清单（开关与完整外观，含 canvas 基底）。安装脚本每次都整份覆盖到数据目录的
 # skins\default，用户在那里的改动升级后不保留。

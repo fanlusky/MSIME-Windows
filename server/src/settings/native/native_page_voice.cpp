@@ -621,7 +621,7 @@ struct VoicePage : std::enable_shared_from_this<VoicePage>
             L"在本机离线识别：录音不离开这台电脑，不需要 Token，也不产生费用。模型与 sherpa-onnx 运行库"
             L"（约 7 MB）都不随安装包分发，点「下载」时缺什么补什么；整句模型还会下载约 0.6 MB 的断句模型 "
             L"silero_vad。应用内下载较慢时，可以用下面的链接在浏览器里下好，再点「导入」逐个选中；也可以在"
-            L"「帮助」页设置网络代理。模型首次使用要载入几秒，闲置几分钟后自动释放内存。"));
+            L"「高级」页设置网络代理。模型首次使用要载入几秒，闲置几分钟后自动释放内存。"));
 
         auto grid = std::make_shared<FormGrid>();
         localModelDropdown = MakeGridDropdown({});
